@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <wingdi.h>
+#include <winuser.h>
 
 LRESULT CALLBACK MainWindowCallback(
   HWND Window,
@@ -19,6 +20,7 @@ LRESULT CALLBACK MainWindowCallback(
         } break;
 
         case WM_CLOSE: {
+            PostQuitMessage(0);
             OutputDebugString("WM_CLOSE\n");
         } break;
 
