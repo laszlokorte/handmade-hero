@@ -30,6 +30,18 @@ internal void ResizeDIBSection(int width, int height) {
         DeviceContext = CreateCompatibleDC(0);
     }
     BitmapHandle = CreateDIBSection(DeviceContext, &BitmapInfo, DIB_RGB_COLORS, &BitmapMemory, 0, 0);
+    unsigned int* canvas = (unsigned int *) BitmapMemory;
+    int cx = width/ 2;
+    int cy = height / 2;
+    for(int x=-5;x<5;x++) {
+        for(int y=-5;y<5;y++) {
+            int yy = cy + y;
+            int xx = cx + x;
+            if(yy > 0 && yy < height && xx > 0 && xx < width) {
+                canvas[(yy) * width + (xx)] = 0xffffff;
+            }
+        }
+   }
 }
 
 void Win32UpdateWindow(HDC DeviceContext, int x, int y, int width, int height) {
