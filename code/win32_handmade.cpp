@@ -292,7 +292,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
   int SamplesPerSecond = 48000;
   int FreqInHz = 256;
-  int ToneVolume = 8000;
+  int ToneVolume = 3000;
   int SoundPeriod = SamplesPerSecond / FreqInHz;
   int HalfSquareWavePeriod = SoundPeriod / 2;
   uint32_t RunningSampleIndex = 0;
@@ -313,9 +313,8 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, Instance, 0);
     if (Window) {
       Running = true;
+      bool SoundIsPlaying = false;
       Win32InitDSound(Window, SamplesPerSecond, SoundBufferSize);
-
-      HRESULT Res = GlobalSoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
       while (Running) {
         global_game_state.time++;
@@ -355,7 +354,9 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           DWORD BytesToLock =
               RunningSampleIndex * BytesPerSample % SoundBufferSize;
           DWORD BytesToWrite;
-          if (BytesToLock > PlayCursor) {
+          if(!SoundIsPlaying) {
+              BytesToWrite = SoundBufferSize;
+          } else if (BytesToLock > PlayCursor) {
             BytesToWrite = SoundBufferSize - BytesToLock;
             BytesToWrite += PlayCursor;
           } else {
@@ -398,7 +399,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             }
 
             GlobalSoundBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+
           }
+        }
+        if(!SoundIsPlaying) {
+            SoundIsPlaying = true;
+            HRESULT Res = GlobalSoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
         }
         InvalidateRect(Window, 0, FALSE);
       }
