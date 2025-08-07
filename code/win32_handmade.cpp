@@ -1,11 +1,15 @@
 #include <windows.h>
 #include <Xinput.h>
 #include <dsound.h>
+#include <math.h>
 #include <stdint.h>
 
 #define local_persist static
 #define global_variable static
 #define internal static
+
+typedef float real32;
+typedef double real64;
 
 global_variable bool Running;
 
@@ -13,6 +17,8 @@ struct game_state {
   uint32_t time;
   int xpos;
   int ypos;
+  int note;
+  int volume;
 };
 
 global_variable game_state global_game_state = {};
@@ -25,8 +31,23 @@ struct win32_offscreen_buffer {
   int BytesPerPixel;
 };
 
-global_variable win32_offscreen_buffer GlobalBackBuffer;
-global_variable LPDIRECTSOUNDBUFFER GlobalSoundBuffer = {};
+struct win32_sound_buffer {
+  LPDIRECTSOUNDBUFFER Buffer;
+  int SoundBufferSize;
+  int BytesPerSample = sizeof(int16_t) * 2;
+};
+
+struct win32_sound_output {
+  int SamplingRateInHz = 48000;
+  int ToneBaseVolume = 6000;
+  real32 ToneBaseFreqInHz = 440;
+  real32 ToneStepFactor = 1.0 / 12.0;
+  uint32_t RunningSampleIndex = 0;
+};
+
+global_variable win32_offscreen_buffer GlobalScreenBuffer;
+global_variable win32_sound_buffer GlobalSoundBuffer;
+global_variable win32_sound_output GlobalSoundOutput;
 
 struct win32_window_dimensions {
   int width;
@@ -50,7 +71,7 @@ internal win32_window_dimensions Win32GetWindowSize(HWND Window) {
                       LPUNKNOWN pUnkOuter)
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
-internal void Win32InitDSound(HWND Window, int32_t SamplesPerSecond,
+internal void Win32InitDSound(HWND Window, int32_t SamplingRateInHz,
                               int32_t BufferSize) {
   HRESULT Res;
   HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
@@ -65,7 +86,7 @@ internal void Win32InitDSound(HWND Window, int32_t SamplesPerSecond,
       WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
       WaveFormat.nChannels = 2;
       WaveFormat.wBitsPerSample = 16;
-      WaveFormat.nSamplesPerSec = SamplesPerSecond;
+      WaveFormat.nSamplesPerSec = SamplingRateInHz;
       WaveFormat.nBlockAlign =
           WaveFormat.nChannels * WaveFormat.wBitsPerSample / 8;
       WaveFormat.nAvgBytesPerSec =
@@ -103,7 +124,7 @@ internal void Win32InitDSound(HWND Window, int32_t SamplesPerSecond,
       BufferDescription.lpwfxFormat = &WaveFormat;
 
       Res = DirectSound->CreateSoundBuffer(&BufferDescription,
-                                           &GlobalSoundBuffer, 0);
+                                           &GlobalSoundBuffer.Buffer, 0);
       if (SUCCEEDED(Res)) {
         OutputDebugString("Secondary Buffer Created");
         // Res = SecondaryBuffer->SetFormat(&WaveFormat);
@@ -123,6 +144,55 @@ internal void Win32InitDSound(HWND Window, int32_t SamplesPerSecond,
     Running = false;
     OutputDebugString("// Dsound not loaded");
   }
+}
+
+void Win32FillSoundBuffer(DWORD BytesToLock, DWORD BytesToWrite) {
+    VOID *Region1;
+    DWORD Region1Size;
+    VOID *Region2;
+    DWORD Region2Size;
+
+    HRESULT Res = GlobalSoundBuffer.Buffer->Lock(BytesToLock, BytesToWrite,
+                                         &Region1, &Region1Size, &Region2,
+                                         &Region2Size, 0);
+
+    real32 ToneFreqInSamples = 2 * 3.141 *
+                               GlobalSoundOutput.ToneBaseFreqInHz /
+                               GlobalSoundOutput.SamplingRateInHz;
+    if (SUCCEEDED(Res)) {
+      int16_t *SampleOut = (int16_t *)Region1;
+      DWORD Region1SampleCount =  Region1Size / GlobalSoundBuffer.BytesPerSample;
+      for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount;
+           ++SampleIndex) {
+        int16_t SampleValue =
+            sin(GlobalSoundOutput.RunningSampleIndex * ToneFreqInSamples *
+                pow(2.0, GlobalSoundOutput.ToneStepFactor *
+                             global_game_state.note)) *
+            GlobalSoundOutput.ToneBaseVolume *
+            pow(2.0, global_game_state.volume / 10.0);
+        *SampleOut++ = SampleValue;
+        *SampleOut++ = SampleValue;
+        GlobalSoundOutput.RunningSampleIndex++;
+      }
+      SampleOut = (int16_t *)Region2;
+      DWORD Region2SampleCount =
+          Region2Size / GlobalSoundBuffer.BytesPerSample;
+      for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount;
+           ++SampleIndex) {
+        int16_t SampleValue =
+            sin(GlobalSoundOutput.RunningSampleIndex * ToneFreqInSamples *
+                pow(2.0, GlobalSoundOutput.ToneStepFactor *
+                             global_game_state.note)) *
+            GlobalSoundOutput.ToneBaseVolume *
+            pow(2.0, global_game_state.volume / 10.0);
+        *SampleOut++ = SampleValue;
+        *SampleOut++ = SampleValue;
+        GlobalSoundOutput.RunningSampleIndex++;
+      }
+
+      GlobalSoundBuffer.Buffer->Unlock(Region1, Region1Size, Region2,
+                                       Region2Size);
+    }
 }
 
 #define X_INPUT_GET_STATE(name)                                                \
@@ -213,7 +283,7 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   switch (Message) {
   case WM_SIZE: {
     win32_window_dimensions WinSize = Win32GetWindowSize(Window);
-    ResizeDIBSection(&GlobalBackBuffer, WinSize.width, WinSize.height);
+    ResizeDIBSection(&GlobalScreenBuffer, WinSize.width, WinSize.height);
     OutputDebugStringA("WM_SIZE\n");
   } break;
 
@@ -249,6 +319,19 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
     bool IsDown = (LParam & IS_DOWN_MASK) == 0;
     bool AltIsDown = (LParam & IS_ALT) != 0;
 
+    if ((VKCode == 'R') && IsDown && !WasDown) {
+      global_game_state.volume -= 1;
+    }
+    if ((VKCode == 'T') && IsDown && !WasDown) {
+      global_game_state.volume += 1;
+    }
+    if ((VKCode == 'Q') && IsDown && !WasDown) {
+      global_game_state.note -= 1;
+    }
+    if ((VKCode == 'E') && IsDown && !WasDown) {
+      global_game_state.note += 1;
+    }
+
     if ((VKCode == 'W' || VKCode == VK_UP) && IsDown) {
       global_game_state.ypos += 10;
     }
@@ -276,7 +359,7 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
     win32_window_dimensions WinSize = Win32GetWindowSize(Window);
     GetClientRect(Window, &ClientRect);
     Win32DisplayBufferWindow(DeviceContext, WinSize.width, WinSize.height,
-                             &GlobalBackBuffer);
+                             &GlobalScreenBuffer);
     EndPaint(Window, &Paint);
     OutputDebugStringA("WM_PAINT\n");
   } break;
@@ -290,15 +373,12 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
 
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
-  int SamplesPerSecond = 48000;
-  int FreqInHz = 256;
-  int ToneVolume = 3000;
-  int SoundPeriod = SamplesPerSecond / FreqInHz;
-  int HalfSquareWavePeriod = SoundPeriod / 2;
-  uint32_t RunningSampleIndex = 0;
-  int BytesPerSample = sizeof(int16_t) * 2;
-  int SoundBufferSize = SamplesPerSecond * BytesPerSample;
 
+  GlobalSoundOutput.SamplingRateInHz = 48000;
+  GlobalSoundOutput.ToneBaseFreqInHz = 440;
+  GlobalSoundOutput.ToneBaseVolume = 6000;
+  GlobalSoundOutput.ToneStepFactor = 1.0 / 12.0;
+  GlobalSoundOutput.RunningSampleIndex = 0;
   // MessageBox(0, "This is me", "Test", MB_OK|MB_ICONINFORMATION);
   WNDCLASS windowClass = {};
   windowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
@@ -313,9 +393,14 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, Instance, 0);
     if (Window) {
       Running = true;
-      bool SoundIsPlaying = false;
-      Win32InitDSound(Window, SamplesPerSecond, SoundBufferSize);
-
+      GlobalSoundBuffer = {};
+      GlobalSoundBuffer.BytesPerSample = sizeof(uint16_t) * 2;
+      GlobalSoundBuffer.SoundBufferSize =
+          GlobalSoundOutput.SamplingRateInHz * GlobalSoundBuffer.BytesPerSample;
+      Win32InitDSound(Window, GlobalSoundOutput.SamplingRateInHz,
+                      GlobalSoundBuffer.SoundBufferSize);
+      Win32FillSoundBuffer(0, GlobalSoundBuffer.SoundBufferSize);
+      HRESULT Res = GlobalSoundBuffer.Buffer->Play(0, 0, DSBPLAY_LOOPING);
       while (Running) {
         global_game_state.time++;
         MSG message;
@@ -343,68 +428,27 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           }
         }
 
-        RenderGradient(GlobalBackBuffer, global_game_state.xpos,
+        RenderGradient(GlobalScreenBuffer, global_game_state.xpos,
                        global_game_state.ypos, global_game_state.time);
 
         DWORD PlayCursor;
         DWORD WriteCursor;
-        HRESULT Res =
-            GlobalSoundBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor);
+        HRESULT Res = GlobalSoundBuffer.Buffer->GetCurrentPosition(
+            &PlayCursor, &WriteCursor);
         if (SUCCEEDED(Res)) {
-          DWORD BytesToLock =
-              RunningSampleIndex * BytesPerSample % SoundBufferSize;
+          DWORD BytesToLock = GlobalSoundOutput.RunningSampleIndex *
+                              GlobalSoundBuffer.BytesPerSample %
+                              GlobalSoundBuffer.SoundBufferSize;
           DWORD BytesToWrite;
-          if(!SoundIsPlaying) {
-              BytesToWrite = SoundBufferSize;
+          if (BytesToLock == PlayCursor) {
+            BytesToWrite = 0;
           } else if (BytesToLock > PlayCursor) {
-            BytesToWrite = SoundBufferSize - BytesToLock;
+            BytesToWrite = GlobalSoundBuffer.SoundBufferSize - BytesToLock;
             BytesToWrite += PlayCursor;
           } else {
             BytesToWrite = PlayCursor - BytesToLock;
           }
-
-          VOID *Region1;
-          DWORD Region1Size;
-          VOID *Region2;
-          DWORD Region2Size;
-
-          Res =
-              GlobalSoundBuffer->Lock(BytesToLock, BytesToWrite, &Region1,
-                                      &Region1Size, &Region2, &Region2Size, 0);
-
-          if (SUCCEEDED(Res)) {
-            int16_t *SampleOut = (int16_t *)Region1;
-            DWORD Region1SampleCount = Region1Size / BytesPerSample;
-            for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount;
-                 ++SampleIndex) {
-              int16_t SampleValue = -ToneVolume;
-              if ((RunningSampleIndex / (SoundPeriod / 2)) % 2 == 0) {
-                SampleValue = ToneVolume;
-              }
-              *SampleOut++ = SampleValue;
-              *SampleOut++ = SampleValue;
-              RunningSampleIndex++;
-            }
-            SampleOut = (int16_t *)Region2;
-            DWORD Region2SampleCount = Region2Size / BytesPerSample;
-            for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount;
-                 ++SampleIndex) {
-              int16_t SampleValue = -ToneVolume;
-              if ((RunningSampleIndex / (SoundPeriod / 2)) % 2 == 0) {
-                SampleValue = ToneVolume;
-              }
-              *SampleOut++ = SampleValue;
-              *SampleOut++ = SampleValue;
-              RunningSampleIndex++;
-            }
-
-            GlobalSoundBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
-
-          }
-        }
-        if(!SoundIsPlaying) {
-            SoundIsPlaying = true;
-            HRESULT Res = GlobalSoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
+          Win32FillSoundBuffer( BytesToLock, BytesToWrite);
         }
         InvalidateRect(Window, 0, FALSE);
       }
