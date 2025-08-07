@@ -1,5 +1,5 @@
 #include <windows.h>
-#include <winuser.h>
+#include <stdint.h>
 
 #define local_persist static
 #define global_variable static
@@ -22,7 +22,10 @@ void RenderGradient(int xoff, int yoff) {
             int xx = x - cx;
             if(y > 0 &&y < BitMapHeight && x > 0 && x < BitMapWidth) {
                 //canvas[(yy) * width + (xx)] = 0x0000aaff;
-                canvas[(y) * BitMapWidth+ (x)] = ((xx+xoff) << 8) + (yy+yoff);
+
+                uint8_t green = xx+xoff;
+                uint8_t blue = yy+yoff;
+                canvas[(y) * BitMapWidth+ (x)] = (green << 8) | blue;
             }
         }
    }
