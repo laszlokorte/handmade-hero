@@ -165,7 +165,7 @@ void Win32FillSoundBuffer(DWORD BytesToLock, DWORD BytesToWrite) {
       for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount;
            ++SampleIndex) {
         int16_t SampleValue =
-            sin(GlobalSoundOutput.RunningSampleIndex * ToneFreqInSamples *
+            sinf(GlobalSoundOutput.RunningSampleIndex * ToneFreqInSamples *
                 pow(2.0, GlobalSoundOutput.ToneStepFactor *
                              global_game_state.note)) *
             GlobalSoundOutput.ToneBaseVolume *
@@ -180,7 +180,7 @@ void Win32FillSoundBuffer(DWORD BytesToLock, DWORD BytesToWrite) {
       for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount;
            ++SampleIndex) {
         int16_t SampleValue =
-            sin(GlobalSoundOutput.RunningSampleIndex * ToneFreqInSamples *
+            sinf(GlobalSoundOutput.RunningSampleIndex * ToneFreqInSamples *
                 pow(2.0, GlobalSoundOutput.ToneStepFactor *
                              global_game_state.note)) *
             GlobalSoundOutput.ToneBaseVolume *
@@ -319,11 +319,17 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
     bool IsDown = (LParam & IS_DOWN_MASK) == 0;
     bool AltIsDown = (LParam & IS_ALT) != 0;
 
-    if ((VKCode == 'R') && IsDown && !WasDown) {
-      global_game_state.volume -= 1;
-    }
-    if ((VKCode == 'T') && IsDown && !WasDown) {
+    if ((VKCode == 'R') && IsDown ) {
       global_game_state.volume += 1;
+      if(global_game_state.volume > 10) {
+          global_game_state.volume = 10;
+      }
+    }
+    if ((VKCode == 'T') && IsDown ) {
+      global_game_state.volume -= 1;
+      if(global_game_state.volume < -10) {
+          global_game_state.volume = -10;
+      }
     }
     if ((VKCode == 'Q') && IsDown && !WasDown) {
       global_game_state.note -= 1;
@@ -401,6 +407,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                       GlobalSoundBuffer.SoundBufferSize);
       Win32FillSoundBuffer(0, GlobalSoundBuffer.SoundBufferSize);
       HRESULT Res = GlobalSoundBuffer.Buffer->Play(0, 0, DSBPLAY_LOOPING);
+
       while (Running) {
         global_game_state.time++;
         MSG message;
