@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <stdint.h>
+#include <winuser.h>
 
 #define local_persist static
 #define global_variable static
@@ -7,60 +8,69 @@
 
 global_variable bool Running;
 
-global_variable BITMAPINFO BitmapInfo;
-global_variable void *BitmapMemory;
-global_variable int BitMapWidth;
-global_variable int BitMapHeight;
+global_variable HCURSOR customCursor;
 
-void RenderGradient(int xoff, int yoff) {
-    unsigned int* canvas = (unsigned int *) BitmapMemory;
-    int cx = BitMapWidth / 2;
-    int cy = BitMapHeight / 2;
-    for(int x=0;x<BitMapWidth;x++) {
-        for(int y=0;y<BitMapHeight;y++) {
+struct win32_offscreen_buffer {
+    BITMAPINFO Info;
+    void * Memory;
+    int width;
+    int height;
+    int BytesPerPixel;
+};
+
+win32_offscreen_buffer offscreen = {};
+
+internal void RenderGradient(win32_offscreen_buffer Buffer, int xoff, int yoff) {
+    unsigned int* canvas = (unsigned int *) Buffer.Memory;
+    int cx = Buffer.width/ 2;
+    int cy = Buffer.height / 2;
+    for(int x=0;x<Buffer.width;x++) {
+        for(int y=0;y<Buffer.height;y++) {
             int yy = y - cy ;
             int xx = x - cx;
-            if(y > 0 &&y < BitMapHeight && x > 0 && x < BitMapWidth) {
+            //if(y > 0 &&y < Buffer.height && x > 0 && x < Buffer.width) {
                 //canvas[(yy) * width + (xx)] = 0x0000aaff;
 
                 uint8_t green = xx+xoff;
                 uint8_t blue = yy+yoff;
-                canvas[(y) * BitMapWidth+ (x)] = (green << 8) | blue;
-            }
+                canvas[(y) * Buffer.width + (x)] = (green << 8) | blue;
+                //}
         }
    }
 }
-internal void ResizeDIBSection(int width, int height) {
-    if(BitmapMemory) {
-        VirtualFree(BitmapMemory, 0, MEM_RELEASE);
+internal void ResizeDIBSection(win32_offscreen_buffer* buffer, int width, int height) {
+    if(buffer->Memory) {
+        VirtualFree(buffer->Memory, 0, MEM_RELEASE);
     }
-    BitMapWidth = width;
-    BitMapHeight = height;
+    buffer->width = width;
+    buffer->height = height;
+    buffer->BytesPerPixel = 4;
 
-    BitmapInfo.bmiHeader .biSize = sizeof(BitmapInfo.bmiHeader);
-    BitmapInfo.bmiHeader.biWidth = BitMapWidth;
-    BitmapInfo.bmiHeader.biHeight = -BitMapHeight;
-    BitmapInfo.bmiHeader.biPlanes = 1;
-    BitmapInfo.bmiHeader.biBitCount = 32;
-    BitmapInfo.bmiHeader.biCompression = BI_RGB;
-    BitmapInfo.bmiHeader.biSizeImage = 0;
-    BitmapInfo.bmiHeader.biXPelsPerMeter = 0;
-    BitmapInfo.bmiHeader.biYPelsPerMeter = 0;
-    BitmapInfo.bmiHeader.biClrUsed = 0;
-    BitmapInfo.bmiHeader.biClrImportant = 0;
-    int bytesPerPixel = BitMapWidth * BitMapHeight * 4;
-    BitmapMemory = VirtualAlloc(0, bytesPerPixel, MEM_COMMIT, PAGE_READWRITE);
+    int allocBytes = buffer->width * buffer->height * buffer->BytesPerPixel;
 
-    RenderGradient(0, 0);
+    buffer->Info.bmiHeader .biSize = sizeof(buffer->Info.bmiHeader);
+    buffer->Info.bmiHeader.biWidth = buffer->width;
+    buffer->Info.bmiHeader.biHeight = -buffer->height;
+    buffer->Info.bmiHeader.biPlanes = 1;
+    buffer->Info.bmiHeader.biBitCount = 32;
+    buffer->Info.bmiHeader.biCompression = BI_RGB;
+    buffer->Info.bmiHeader.biSizeImage = 0;
+    buffer->Info.bmiHeader.biXPelsPerMeter = 0;
+    buffer->Info.bmiHeader.biYPelsPerMeter = 0;
+    buffer->Info.bmiHeader.biClrUsed = 0;
+    buffer->Info.bmiHeader.biClrImportant = 0;
+    buffer->Memory = VirtualAlloc(0, allocBytes, MEM_COMMIT, PAGE_READWRITE);
+
+    RenderGradient(*buffer, 0, 0);
 }
 
 
 
-void Win32UpdateWindow(HDC DeviceContext, RECT *ClientRect, int x, int y, int width, int height) {
+internal void Win32DisplayBufferWindow(HDC DeviceContext, RECT ClientRect, win32_offscreen_buffer Buffer, int x, int y, int width, int height) {
     //StretchDIBits(DeviceContext, x, y, width, height, x, y, width, height, BitmapMemory, &BitmapInfo, DIB_RGB_COLORS, SRCCOPY);
-    int WindowWidth = ClientRect->right - ClientRect->left;
-    int WindowHeight = ClientRect->bottom - ClientRect->top;
-    StretchDIBits(DeviceContext, 0, 0, BitMapWidth, BitMapHeight, 0, 0, WindowWidth, WindowHeight, BitmapMemory, &BitmapInfo, DIB_RGB_COLORS, SRCCOPY);
+    int WindowWidth = ClientRect.right - ClientRect.left;
+    int WindowHeight = ClientRect.bottom - ClientRect.top;
+    StretchDIBits(DeviceContext, 0, 0, Buffer.width, Buffer.height, 0, 0, WindowWidth, WindowHeight, &Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
 }
 
 LRESULT CALLBACK Win32MainWindowCallback(
@@ -77,7 +87,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
             GetClientRect(Window, &ClientRect);
             int width = ClientRect.right - ClientRect.left;
             int height = ClientRect.bottom - ClientRect.top;
-            ResizeDIBSection(width, height);
+            ResizeDIBSection(&offscreen, width, height);
             OutputDebugString("WM_SIZE\n");
         } break;
 
@@ -90,6 +100,10 @@ LRESULT CALLBACK Win32MainWindowCallback(
             // PostQuitMessage(0);
             Running = false;
             OutputDebugString("WM_CLOSE\n");
+        } break;
+
+        case WM_SETCURSOR: {
+            SetCursor(customCursor);
         } break;
 
         case WM_ACTIVATEAPP: {
@@ -105,7 +119,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
            int height = Paint.rcPaint.bottom - Paint.rcPaint.top;
            RECT ClientRect;
            GetClientRect(Window, &ClientRect);
-           Win32UpdateWindow(DeviceContext, &ClientRect, x, y, width, height);
+           Win32DisplayBufferWindow(DeviceContext, ClientRect, offscreen, x, y, width, height);
 
            OutputDebugString("WM_PAINT\n");
         } break;
@@ -118,6 +132,92 @@ LRESULT CALLBACK Win32MainWindowCallback(
 
 }
 
+internal HCURSOR makeCursor(HINSTANCE instance) {
+    // Yin-shaped cursor AND mask (32x32x1bpp)
+     BYTE ANDmaskCursor[] =
+    {
+        0xFF, 0xFC, 0x3F, 0xFF,   // ##############----##############
+        0xFF, 0xC0, 0x1F, 0xFF,   // ##########---------#############
+        0xFF, 0x00, 0x3F, 0xFF,   // ########----------##############
+        0xFE, 0x00, 0xFF, 0xFF,   // #######---------################
+        0xF8, 0x01, 0xFF, 0xFF,   // #####----------#################
+        0xF0, 0x03, 0xFF, 0xFF,   // ####----------##################
+        0xF0, 0x03, 0xFF, 0xFF,   // ####----------##################
+        0xE0, 0x07, 0xFF, 0xFF,   // ###----------###################
+        0xC0, 0x07, 0xFF, 0xFF,   // ##-----------###################
+        0xC0, 0x0F, 0xFF, 0xFF,   // ##----------####################
+        0x80, 0x0F, 0xFF, 0xFF,   // #-----------####################
+        0x80, 0x0F, 0xFF, 0xFF,   // #-----------####################
+        0x80, 0x07, 0xFF, 0xFF,   // #------------###################
+        0x00, 0x07, 0xFF, 0xFF,   // -------------###################
+        0x00, 0x03, 0xFF, 0xFF,   // --------------##################
+        0x00, 0x00, 0xFF, 0xFF,   // ----------------################
+        0x00, 0x00, 0x7F, 0xFF,   // -----------------###############
+        0x00, 0x00, 0x1F, 0xFF,   // -------------------#############
+        0x00, 0x00, 0x0F, 0xFF,   // --------------------############
+        0x80, 0x00, 0x0F, 0xFF,   // #-------------------############
+        0x80, 0x00, 0x07, 0xFF,   // #--------------------###########
+        0x80, 0x00, 0x07, 0xFF,   // #--------------------###########
+        0xC0, 0x00, 0x07, 0xFF,   // ##-------------------###########
+        0xC0, 0x00, 0x0F, 0xFF,   // ##------------------############
+        0xE0, 0x00, 0x0F, 0xFF,   // ###-----------------############
+        0xF0, 0x00, 0x1F, 0xFF,   // ####---------------#############
+        0xF0, 0x00, 0x1F, 0xFF,   // ####---------------#############
+        0xF8, 0x00, 0x3F, 0xFF,   // #####-------------##############
+        0xFE, 0x00, 0x7F, 0xFF,   // #######----------###############
+        0xFF, 0x00, 0xFF, 0xFF,   // ########--------################
+        0xFF, 0xC3, 0xFF, 0xFF,   // ##########----##################
+        0xFF, 0xFF, 0xFF, 0xFF    // ################################
+    };
+
+    // Yin-shaped cursor XOR mask (32x32x1bpp)
+    BYTE XORmaskCursor[] =
+    {
+        0x00, 0x00, 0x00, 0x00,   // --------------------------------
+        0x00, 0x03, 0xC0, 0x00,   // --------------####--------------
+        0x00, 0x3F, 0x00, 0x00,   // ----------######----------------
+        0x00, 0xFE, 0x00, 0x00,   // --------#######-----------------
+        0x03, 0xFC, 0x00, 0x00,   // ------########------------------
+        0x07, 0xF8, 0x00, 0x00,   // -----########-------------------
+        0x07, 0xF8, 0x00, 0x00,   // -----########-------------------
+        0x0F, 0xF0, 0x00, 0x00,   // ----########--------------------
+        0x1F, 0xF0, 0x00, 0x00,   // ---#########--------------------
+        0x1F, 0xE0, 0x00, 0x00,   // ---########---------------------
+        0x3F, 0xE0, 0x00, 0x00,   // --#########---------------------
+        0x3F, 0xE0, 0x00, 0x00,   // --#########---------------------
+        0x3F, 0xF0, 0x00, 0x00,   // --##########--------------------
+        0x7F, 0xF0, 0x00, 0x00,   // -###########--------------------
+        0x7F, 0xF8, 0x00, 0x00,   // -############-------------------
+        0x7F, 0xFC, 0x00, 0x00,   // -#############------------------
+        0x7F, 0xFF, 0x00, 0x00,   // -###############----------------
+        0x7F, 0xFF, 0x80, 0x00,   // -################---------------
+        0x7F, 0xFF, 0xE0, 0x00,   // -##################-------------
+        0x3F, 0xFF, 0xE0, 0x00,   // --#################-------------
+        0x3F, 0xC7, 0xF0, 0x00,   // --########----######------------
+        0x3F, 0x83, 0xF0, 0x00,   // --#######------#####------------
+        0x1F, 0x83, 0xF0, 0x00,   // ---######------#####------------
+        0x1F, 0x83, 0xE0, 0x00,   // ---######------####-------------
+        0x0F, 0xC7, 0xE0, 0x00,   // ----######----#####-------------
+        0x07, 0xFF, 0xC0, 0x00,   // -----#############--------------
+        0x07, 0xFF, 0xC0, 0x00,   // -----#############--------------
+        0x01, 0xFF, 0x80, 0x00,   // -------##########---------------
+        0x00, 0xFF, 0x00, 0x00,   // --------########----------------
+        0x00, 0x3C, 0x00, 0x00,   // ----------####------------------
+        0x00, 0x00, 0x00, 0x00,   // --------------------------------
+        0x00, 0x00, 0x00, 0x00    // --------------------------------
+    };
+
+    // Create a custom cursor at run time.
+
+    return CreateCursor(instance,   // app. instance
+                 16,                // horizontal position of hot spot
+                 16,                 // vertical position of hot spot
+                 32,                // cursor width
+                 32,                // cursor height
+                 ANDmaskCursor,     // AND mask
+                 XORmaskCursor );
+}
+
 int CALLBACK
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     // MessageBox(0, "This is me", "Test", MB_OK|MB_ICONINFORMATION);
@@ -127,7 +227,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR lpCmdLine, int nCmdSho
     windowClass.hInstance = Instance;
     // windowClass.hIcon = ;
     windowClass.lpszClassName = "HandmadeHeroWindowClass";
-
+    customCursor = makeCursor(Instance);
     if(RegisterClass(&windowClass)) {
         HWND windowHandle = CreateWindowEx(
             0,
@@ -162,10 +262,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR lpCmdLine, int nCmdSho
                 GetClientRect(windowHandle, &ClientRect);
                 int winWidth = ClientRect.right - ClientRect.left;
                 int winHeight = ClientRect.bottom - ClientRect.top;
-                RenderGradient(xoff, yoff);
+                RenderGradient(offscreen, xoff, yoff);
                 xoff++;
                 yoff++;
-                Win32UpdateWindow(DeviceContext, &ClientRect, 0, 0, winWidth, winHeight);
+                Win32DisplayBufferWindow(DeviceContext, ClientRect, offscreen, 0, 0, winWidth, winHeight);
             }
         }
     } else {
