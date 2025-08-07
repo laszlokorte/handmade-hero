@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <stdint.h>
+#include <wingdi.h>
 #include <winuser.h>
 
 #define local_persist static
@@ -10,6 +11,12 @@ global_variable bool Running;
 
 global_variable HCURSOR customCursor;
 
+struct game_state {
+    uint32_t time;
+};
+
+global_variable game_state global_game_state = {};
+
 struct win32_offscreen_buffer {
     BITMAPINFO Info;
     void * Memory;
@@ -18,10 +25,10 @@ struct win32_offscreen_buffer {
     int BytesPerPixel;
 };
 
-win32_offscreen_buffer offscreen = {};
+global_variable win32_offscreen_buffer GlobalBackBuffer;
 
 internal void RenderGradient(win32_offscreen_buffer Buffer, int xoff, int yoff) {
-    unsigned int* canvas = (unsigned int *) Buffer.Memory;
+    unsigned int* canvas = (unsigned int *) (Buffer.Memory);
     int cx = Buffer.width/ 2;
     int cy = Buffer.height / 2;
     for(int x=0;x<Buffer.width;x++) {
@@ -48,9 +55,9 @@ internal void ResizeDIBSection(win32_offscreen_buffer* buffer, int width, int he
 
     int allocBytes = buffer->width * buffer->height * buffer->BytesPerPixel;
 
-    buffer->Info.bmiHeader .biSize = sizeof(buffer->Info.bmiHeader);
+    buffer->Info.bmiHeader.biSize = sizeof(buffer->Info.bmiHeader);
     buffer->Info.bmiHeader.biWidth = buffer->width;
-    buffer->Info.bmiHeader.biHeight = -buffer->height;
+    buffer->Info.bmiHeader.biHeight = buffer->height;
     buffer->Info.bmiHeader.biPlanes = 1;
     buffer->Info.bmiHeader.biBitCount = 32;
     buffer->Info.bmiHeader.biCompression = BI_RGB;
@@ -61,16 +68,23 @@ internal void ResizeDIBSection(win32_offscreen_buffer* buffer, int width, int he
     buffer->Info.bmiHeader.biClrImportant = 0;
     buffer->Memory = VirtualAlloc(0, allocBytes, MEM_COMMIT, PAGE_READWRITE);
 
-    RenderGradient(*buffer, 0, 0);
+    RenderGradient(*buffer, global_game_state.time, global_game_state.time*2);
 }
 
 
 
-internal void Win32DisplayBufferWindow(HDC DeviceContext, RECT ClientRect, win32_offscreen_buffer Buffer, int x, int y, int width, int height) {
+internal void Win32DisplayBufferWindow(HDC DeviceContext, RECT ClientRect, win32_offscreen_buffer* Buffer, int x, int y, int width, int height) {
     //StretchDIBits(DeviceContext, x, y, width, height, x, y, width, height, BitmapMemory, &BitmapInfo, DIB_RGB_COLORS, SRCCOPY);
     int WindowWidth = ClientRect.right - ClientRect.left;
     int WindowHeight = ClientRect.bottom - ClientRect.top;
-    StretchDIBits(DeviceContext, 0, 0, Buffer.width, Buffer.height, 0, 0, WindowWidth, WindowHeight, &Buffer.Memory, &Buffer.Info, DIB_RGB_COLORS, SRCCOPY);
+    StretchDIBits(
+        DeviceContext,
+        0, 0, WindowWidth, WindowHeight,
+        0, 0, Buffer->width, Buffer->height,
+        Buffer->Memory,
+        &(Buffer->Info),
+        DIB_RGB_COLORS,
+        SRCCOPY);
 }
 
 LRESULT CALLBACK Win32MainWindowCallback(
@@ -87,7 +101,7 @@ LRESULT CALLBACK Win32MainWindowCallback(
             GetClientRect(Window, &ClientRect);
             int width = ClientRect.right - ClientRect.left;
             int height = ClientRect.bottom - ClientRect.top;
-            ResizeDIBSection(&offscreen, width, height);
+            ResizeDIBSection(&GlobalBackBuffer, width, height);
             OutputDebugString("WM_SIZE\n");
         } break;
 
@@ -102,12 +116,12 @@ LRESULT CALLBACK Win32MainWindowCallback(
             OutputDebugString("WM_CLOSE\n");
         } break;
 
-        case WM_SETCURSOR: {
-            SetCursor(customCursor);
-        } break;
-
         case WM_ACTIVATEAPP: {
             OutputDebugString("WM_ACTIVATEAPP\n");
+        } break;
+
+        case WM_SETCURSOR: {
+            SetCursor(customCursor);
         } break;
 
         case WM_PAINT: {
@@ -119,8 +133,8 @@ LRESULT CALLBACK Win32MainWindowCallback(
            int height = Paint.rcPaint.bottom - Paint.rcPaint.top;
            RECT ClientRect;
            GetClientRect(Window, &ClientRect);
-           Win32DisplayBufferWindow(DeviceContext, ClientRect, offscreen, x, y, width, height);
-
+           Win32DisplayBufferWindow(DeviceContext, ClientRect, &GlobalBackBuffer, x, y, width, height);
+           EndPaint(Window, &Paint);
            OutputDebugString("WM_PAINT\n");
         } break;
 
@@ -173,7 +187,7 @@ internal HCURSOR makeCursor(HINSTANCE instance) {
     // Yin-shaped cursor XOR mask (32x32x1bpp)
     BYTE XORmaskCursor[] =
     {
-        0x00, 0x00, 0x00, 0x00,   // --------------------------------
+        0x00, 0x01, 0x00, 0x00,   // --------------------------------
         0x00, 0x03, 0xC0, 0x00,   // --------------####--------------
         0x00, 0x3F, 0x00, 0x00,   // ----------######----------------
         0x00, 0xFE, 0x00, 0x00,   // --------#######-----------------
@@ -244,11 +258,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR lpCmdLine, int nCmdSho
             0
         );
         if(windowHandle) {
-            int xoff = 0;
-            int yoff = 0;
 
             Running = true;
             while(Running) {
+                global_game_state.time++;
                 MSG message;
                 while(PeekMessage(&message,0,0,0, PM_REMOVE)) {
                     if(message.message == WM_QUIT) {
@@ -257,15 +270,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR lpCmdLine, int nCmdSho
                     TranslateMessage(&message);
                     DispatchMessage(&message);
                 }
-                HDC DeviceContext = GetDC(windowHandle);
-                RECT ClientRect;
-                GetClientRect(windowHandle, &ClientRect);
-                int winWidth = ClientRect.right - ClientRect.left;
-                int winHeight = ClientRect.bottom - ClientRect.top;
-                RenderGradient(offscreen, xoff, yoff);
-                xoff++;
-                yoff++;
-                Win32DisplayBufferWindow(DeviceContext, ClientRect, offscreen, 0, 0, winWidth, winHeight);
+                RenderGradient(GlobalBackBuffer, global_game_state.time, global_game_state.time*2);
+                InvalidateRect(windowHandle, 0, FALSE);
             }
         }
     } else {
