@@ -1,8 +1,8 @@
-#include <basetsd.h>
-#include <cstdint>
 #include <windows.h>
 #include <stdint.h>
 #include <Xinput.h>
+#include <dsound.h>
+#include <winerror.h>
 
 #define local_persist static
 #define global_variable static
@@ -45,6 +45,78 @@ internal win32_window_dimensions Win32GetWindowSize(HWND Window) {
     return dim;
 };
 
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+typedef DIRECT_SOUND_CREATE(direct_sound_create);
+
+internal void Win32InitDSound(HWND Window, int32_t SamplesPerSecond, int32_t BufferSize) {
+    HRESULT Res;
+    HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
+    if(DSoundLibrary) {
+        LPDIRECTSOUND DirectSound;
+        direct_sound_create* DirectSoundCreate = (direct_sound_create *) GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+        Res = DirectSoundCreate(0, &DirectSound, 0);
+        if(DirectSoundCreate && SUCCEEDED(Res)) {
+            WAVEFORMATEX WaveFormat;
+            WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+            WaveFormat.nChannels = 2;
+            WaveFormat.wBitsPerSample = 16;
+            WaveFormat.nSamplesPerSec= SamplesPerSecond;
+            WaveFormat.nBlockAlign= WaveFormat.nChannels * WaveFormat.wBitsPerSample / 8;
+            WaveFormat.nAvgBytesPerSec= WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+            WaveFormat.cbSize = 0;
+            Res = DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY);
+            if(SUCCEEDED(Res)) {
+                DSBUFFERDESC BufferDescription = {sizeof(BufferDescription)};
+                BufferDescription.dwSize = sizeof(BufferDescription);
+                BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
+                LPDIRECTSOUNDBUFFER PrimaryBuffer = {};
+
+                Res = DirectSound->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0);
+                if(SUCCEEDED(Res)) {
+                    Res = PrimaryBuffer->SetFormat(&WaveFormat);
+                    if(SUCCEEDED(Res)) {
+                        OutputDebugString("Primary Buffer Created and Format Set");
+                    } else {
+                        OutputDebugString("// could not set format on primary buffer");
+                    }
+                } else {
+                    OutputDebugString("// could not create primary buffer");
+                    Running = false;
+                }
+            } else {
+                Running = false;
+                OutputDebugString("// could not set priority");
+            }
+
+            DSBUFFERDESC BufferDescription = {sizeof(BufferDescription)};
+            BufferDescription.dwSize = sizeof(BufferDescription);
+            BufferDescription.dwFlags = 0;
+            BufferDescription.dwBufferBytes = BufferSize;
+            BufferDescription.lpwfxFormat = &WaveFormat;
+            LPDIRECTSOUNDBUFFER SecondaryBuffer = {};
+
+            Res = DirectSound->CreateSoundBuffer(&BufferDescription, &SecondaryBuffer, 0);
+            if(SUCCEEDED(Res)) {
+                OutputDebugString("Secondary Buffer Created");
+                // Res = SecondaryBuffer->SetFormat(&WaveFormat);
+                // if(SUCCEEDED(Res)) {
+                // } else {
+                //     OutputDebugString("// could not set format on secondary buffer");
+                // }
+            } else {
+                OutputDebugString("// could not create secondary buffer");
+                Running = false;
+            }
+        } else {
+            Running = false;
+            OutputDebugString("// cound not create sound context");
+        }
+    } else {
+        Running = false;
+        OutputDebugString("// Dsound not loaded");
+    }
+}
+
 
 #define X_INPUT_GET_STATE(name) DWORD (WINAPI name)(DWORD wUserIndex, XINPUT_STATE* pState)
 #define X_INPUT_SET_STATE(name) DWORD (WINAPI name)(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
@@ -52,11 +124,11 @@ typedef X_INPUT_GET_STATE(x_input_get_state);
 typedef X_INPUT_SET_STATE(x_input_set_state);
 X_INPUT_GET_STATE(XInputGetStateStub)
 {
-    return 0;
+    return ERROR_DEVICE_NOT_CONNECTED;
 }
 X_INPUT_SET_STATE(XInputSetStateStub)
 {
-    return 0;
+    return ERROR_DEVICE_NOT_CONNECTED;
 }
 global_variable x_input_get_state *XInputGetState_ = XInputGetStateStub;
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
@@ -64,13 +136,16 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
 internal void Win32LoadXInput(void) {
-    HMODULE XInputLibrary = LoadLibrary("XInput1_4.dll");
+    HMODULE XInputLibrary = LoadLibraryA("XInput1_4.dll");
+    if(!XInputLibrary) {
+        XInputLibrary = LoadLibraryA("XInput1_3.dll");
+    }
     if(XInputLibrary) {
         XInputGetState = (x_input_get_state *) GetProcAddress(XInputLibrary, "XInputGetState");
         XInputSetState = (x_input_set_state *) GetProcAddress(XInputLibrary, "XInputSetState");
     }
 }
-internal void RenderGradient(win32_offscreen_buffer Buffer, int xoff, int yoff) {
+internal void RenderGradient(win32_offscreen_buffer Buffer, int xoff, int yoff, int zoff) {
     unsigned int* canvas = (unsigned int *) (Buffer.Memory);
     int cx = Buffer.width/ 2;
     int cy = Buffer.height / 2;
@@ -78,13 +153,14 @@ internal void RenderGradient(win32_offscreen_buffer Buffer, int xoff, int yoff) 
         for(int y=0;y<Buffer.height;y++) {
             int yy = y - cy ;
             int xx = x - cx;
-            //if(y > 0 &&y < Buffer.height && x > 0 && x < Buffer.width) {
-                //canvas[(yy) * width + (xx)] = 0x0000aaff;
 
-                uint8_t green = xx+xoff;
-                uint8_t blue = yy+yoff;
-                canvas[(y) * Buffer.width + (x)] = (green << 8) | blue;
-                //}
+            uint8_t green = xx+xoff;
+            uint8_t blue = yy+yoff;
+            uint8_t red = zoff / 2;
+            if((zoff/256)%2 == 0) {
+                red = 255 - red;
+            }
+            canvas[(y) * Buffer.width + (x)] = (green << 8) | blue | (red << 16);
         }
    }
 }
@@ -109,9 +185,9 @@ internal void ResizeDIBSection(win32_offscreen_buffer* buffer, int width, int he
     buffer->Info.bmiHeader.biYPelsPerMeter = 0;
     buffer->Info.bmiHeader.biClrUsed = 0;
     buffer->Info.bmiHeader.biClrImportant = 0;
-    buffer->Memory = VirtualAlloc(0, allocBytes, MEM_COMMIT, PAGE_READWRITE);
+    buffer->Memory = VirtualAlloc(0, allocBytes, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
-    RenderGradient(*buffer, global_game_state.xpos, global_game_state.ypos);
+    RenderGradient(*buffer, global_game_state.xpos, global_game_state.ypos, global_game_state.time);
 }
 
 
@@ -167,23 +243,29 @@ LRESULT CALLBACK Win32MainWindowCallback(
         case WM_KEYDOWN: {
             #define WAS_DOWN_MASK (1 << 30)
             #define IS_DOWN_MASK (1 << 31)
+            #define IS_ALT (1 << 29)
+
             uint32_t VKCode = WParam;
             bool WasDown = (LParam & WAS_DOWN_MASK) != 0;
             bool IsDown = (LParam & IS_DOWN_MASK) == 0;
+            bool AltIsDown = (LParam & IS_ALT) != 0;
 
-            if(VKCode == 'W' && IsDown) {
+            if((VKCode == 'W' || VKCode == VK_UP) && IsDown) {
                 global_game_state.ypos += 10;
             }
-            if(VKCode == 'A' && IsDown) {
+            if((VKCode == 'A' || VKCode == VK_LEFT) && IsDown) {
                 global_game_state.xpos -= 10;
             }
-            if(VKCode == 'S' && IsDown) {
+            if((VKCode == 'S' || VKCode == VK_DOWN) && IsDown) {
                 global_game_state.ypos -= 10;
             }
-            if(VKCode == 'D' && IsDown) {
+            if((VKCode == 'D' || VKCode == VK_RIGHT) && IsDown) {
                 global_game_state.xpos += 10;
             }
             if(VKCode == VK_ESCAPE && (!WasDown) && IsDown) {
+                Running = false;
+            }
+            if(VKCode == VK_F4 && AltIsDown) {
                 Running = false;
             }
         } break;
@@ -219,7 +301,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR lpCmdLine, int nCmdSho
     // windowClass.hIcon = ;
     windowClass.lpszClassName = "HandmadeHeroWindowClass";
     if(RegisterClass(&windowClass)) {
-        HWND windowHandle = CreateWindowEx(
+        HWND Window = CreateWindowEx(
             0,
             windowClass.lpszClassName,
             "Handmade Window",
@@ -233,9 +315,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR lpCmdLine, int nCmdSho
             Instance,
             0
         );
-        if(windowHandle) {
-
+        if(Window) {
             Running = true;
+            Win32InitDSound(Window, 48000, 4800*sizeof(int16_t)*2);
+
             while(Running) {
                 global_game_state.time++;
                 MSG message;
@@ -261,8 +344,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR lpCmdLine, int nCmdSho
                     }
                 }
 
-                RenderGradient(GlobalBackBuffer, global_game_state.xpos, global_game_state.ypos);
-                InvalidateRect(windowHandle, 0, FALSE);
+                RenderGradient(GlobalBackBuffer, global_game_state.xpos, global_game_state.ypos, global_game_state.time);
+                InvalidateRect(Window, 0, FALSE);
             }
         }
     } else {
