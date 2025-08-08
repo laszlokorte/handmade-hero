@@ -55,9 +55,12 @@ struct game_input {
 };
 
 struct game_memory {
-    bool Initialized;
-    uint64 PermanentStorageSize;
+  bool Initialized;
+  uint64 PermanentStorageSize;
   void *PermanentStorage;
+
+  uint64 TransientStorageSize;
+  void *TransientStorage;
 };
 
 struct game_state {

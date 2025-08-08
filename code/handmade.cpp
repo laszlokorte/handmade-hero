@@ -3,7 +3,8 @@
 
 global_variable game_state global_game_state = {};
 
-internal void GameOutputSound(int32 note, int32 volume, game_sound_output_buffer *SoundBuffer) {
+internal void GameOutputSound(int32 note, int32 volume,
+                              game_sound_output_buffer *SoundBuffer) {
   local_persist real32 tSin = 0;
   int16 ToneVolumne = 3000 * pow(2.0, volume / 5.0);
   int toneHz = 440;
@@ -46,16 +47,19 @@ internal void GameSetup() {}
 internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
                                   game_offscreen_buffer *ScreenBuffer,
                                   game_sound_output_buffer *SoundBuffer) {
-  game_state *GameState = (game_state*)Memory;
-  if(!GameState->initialized) {
-      GameState->time = 0;
-      GameState->note = 0;
-      GameState->volume = 5;
-      GameState->xpos= 0;
-      GameState->ypos= 0;
-      GameState->initialized = true;
+  Assert(Memory->PermanentStorageSize > sizeof(game_state));
+
+  game_state *GameState = (game_state *)Memory->PermanentStorage;
+  if (!Memory->Initialized) {
+    GameState->time = 0;
+    GameState->note = 0;
+    GameState->volume = 5;
+    GameState->xpos = 0;
+    GameState->ypos = 0;
+    Memory->Initialized = true;
   }
   GameOutputSound(GameState->note, GameState->volume, SoundBuffer);
-  RenderGradient(ScreenBuffer, GameState->xpos, GameState->ypos, GameState->time);
+  RenderGradient(ScreenBuffer, GameState->xpos, GameState->ypos,
+                 GameState->time);
   GameState->time++;
 }
