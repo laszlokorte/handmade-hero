@@ -381,7 +381,10 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
 
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
-
+  LARGE_INTEGER LastCounter;
+  LARGE_INTEGER PerfCounterFrequency;
+  QueryPerformanceFrequency(&PerfCounterFrequency);
+  QueryPerformanceCounter(&LastCounter);
   GlobalSoundOutput.SamplingRateInHz = 48000;
   GlobalSoundOutput.ToneBaseFreqInHz = 440;
   GlobalSoundOutput.ToneBaseVolume = 6000;
@@ -463,6 +466,15 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           Win32FillSoundBuffer(BytesToLock, BytesToWrite);
         }
         InvalidateRect(Window, 0, FALSE);
+        LARGE_INTEGER EndCounter;
+        QueryPerformanceCounter(&EndCounter);
+        int64_t DeltaTime = EndCounter.QuadPart - LastCounter.QuadPart;
+        int32_t DeltaTimeMS = DeltaTime * 1000 / PerfCounterFrequency.QuadPart;
+        char printBuffer[256];
+        wsprintfA(printBuffer, "Frame Duration %d ms/frame; %dfps\n", DeltaTimeMS, 1000/DeltaTimeMS);
+        OutputDebugStringA(printBuffer);
+
+        LastCounter = EndCounter;
       }
     }
   } else {
