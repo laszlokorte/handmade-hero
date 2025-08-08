@@ -19,6 +19,7 @@ typedef float real32;
 typedef double real64;
 
 #define Pi32 3.14159265359f
+#define NOTE_HALFTONE 1/12.0f
 
 #define HANDMADE_TYPES_H
 #endif
