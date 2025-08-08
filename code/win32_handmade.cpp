@@ -1,21 +1,15 @@
+#include "./handmade_types.h"
+#include "handmade.h"
+
 #include <windows.h>
 #include <Xinput.h>
 #include <dsound.h>
 #include <math.h>
-#include <stdint.h>
 
-#define local_persist static
-#define global_variable static
-#define internal static
-
-typedef float real32;
-typedef double real64;
-
-#define Pi32 3.14159265359
 global_variable bool Running;
 
 struct game_state {
-  uint32_t time;
+  uint64 time;
   int xpos;
   int ypos;
   int note;
@@ -24,18 +18,20 @@ struct game_state {
 
 global_variable game_state global_game_state = {};
 
+#include "handmade.cpp"
+
 struct win32_offscreen_buffer {
   BITMAPINFO Info;
   void *Memory;
-  int width;
-  int height;
+  int Width;
+  int Height;
   int BytesPerPixel;
 };
 
 struct win32_sound_buffer {
   LPDIRECTSOUNDBUFFER Buffer;
   int SoundBufferSize;
-  int BytesPerSample = sizeof(int16_t) * 2;
+  int BytesPerSample = sizeof(int16) * 2;
 };
 
 struct win32_sound_output {
@@ -43,7 +39,7 @@ struct win32_sound_output {
   int ToneBaseVolume;
   real32 ToneBaseFreqInHz;
   real32 ToneStepFactor;
-  uint32_t RunningSampleIndex;
+  uint32 RunningSampleIndex;
   real32 GeneratorTimeInRadians;
   int LatencySampleCount;
 };
@@ -74,8 +70,8 @@ internal win32_window_dimensions Win32GetWindowSize(HWND Window) {
                       LPUNKNOWN pUnkOuter)
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
-internal void Win32InitDSound(HWND Window, int32_t SamplingRateInHz,
-                              int32_t BufferSize) {
+internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
+                              int32 BufferSize) {
   HRESULT Res;
   HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
   if (DSoundLibrary) {
@@ -162,11 +158,11 @@ void Win32FillSoundBuffer(DWORD BytesToLock, DWORD BytesToWrite) {
   real64 ToneFreqInRadians = GlobalSoundOutput.ToneBaseFreqInHz /
                              GlobalSoundOutput.SamplingRateInHz;
   if (SUCCEEDED(Res)) {
-    int16_t *SampleOut = (int16_t *)Region1;
+    int16 *SampleOut = (int16 *)Region1;
     DWORD Region1SampleCount = Region1Size / GlobalSoundBuffer.BytesPerSample;
     for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount;
          ++SampleIndex) {
-      int16_t SampleValue = sin(2.0 * Pi32 * GlobalSoundOutput.GeneratorTimeInRadians) *
+      int16 SampleValue = sin(2.0 * Pi32 * GlobalSoundOutput.GeneratorTimeInRadians) *
                             GlobalSoundOutput.ToneBaseVolume *
                             pow(2.0, global_game_state.volume / 10.0);
       *SampleOut++ = SampleValue;
@@ -176,11 +172,11 @@ void Win32FillSoundBuffer(DWORD BytesToLock, DWORD BytesToWrite) {
           ToneFreqInRadians *
           pow(2.0, GlobalSoundOutput.ToneStepFactor * global_game_state.note);
     }
-    SampleOut = (int16_t *)Region2;
+    SampleOut = (int16 *)Region2;
     DWORD Region2SampleCount = Region2Size / GlobalSoundBuffer.BytesPerSample;
     for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount;
          ++SampleIndex) {
-      int16_t SampleValue = sin(2.0 * Pi32 * GlobalSoundOutput.GeneratorTimeInRadians) *
+      int16 SampleValue = sin(2.0 * Pi32 * GlobalSoundOutput.GeneratorTimeInRadians) *
                             GlobalSoundOutput.ToneBaseVolume *
                             pow(2.0, global_game_state.volume / 10.0);
       *SampleOut++ = SampleValue;
@@ -222,40 +218,21 @@ internal void Win32LoadXInput(void) {
         (x_input_set_state *)GetProcAddress(XInputLibrary, "XInputSetState");
   }
 }
-internal void RenderGradient(win32_offscreen_buffer Buffer, int xoff, int yoff,
-                             int zoff) {
-  unsigned int *canvas = (unsigned int *)(Buffer.Memory);
-  int cx = Buffer.width / 2;
-  int cy = Buffer.height / 2;
-  for (int x = 0; x < Buffer.width; x++) {
-    for (int y = 0; y < Buffer.height; y++) {
-      int yy = y - cy;
-      int xx = x - cx;
 
-      uint8_t green = xx + xoff;
-      uint8_t blue = yy + yoff;
-      uint8_t red = zoff / 2;
-      if ((zoff / 256) % 2 == 0) {
-        red = 255 - red;
-      }
-      canvas[(y)*Buffer.width + (x)] = (green << 8) | blue | (red << 16);
-    }
-  }
-}
 internal void ResizeDIBSection(win32_offscreen_buffer *buffer, int width,
                                int height) {
   if (buffer->Memory) {
     VirtualFree(buffer->Memory, 0, MEM_RELEASE);
   }
-  buffer->width = width;
-  buffer->height = height;
+  buffer->Width = width;
+  buffer->Height = height;
   buffer->BytesPerPixel = 4;
 
-  int allocBytes = buffer->width * buffer->height * buffer->BytesPerPixel;
+  int allocBytes = buffer->Width * buffer->Height * buffer->BytesPerPixel;
 
   buffer->Info.bmiHeader.biSize = sizeof(buffer->Info.bmiHeader);
-  buffer->Info.bmiHeader.biWidth = buffer->width;
-  buffer->Info.bmiHeader.biHeight = buffer->height;
+  buffer->Info.bmiHeader.biWidth = buffer->Width;
+  buffer->Info.bmiHeader.biHeight = buffer->Height;
   buffer->Info.bmiHeader.biPlanes = 1;
   buffer->Info.bmiHeader.biBitCount = 32;
   buffer->Info.bmiHeader.biCompression = BI_RGB;
@@ -267,15 +244,20 @@ internal void ResizeDIBSection(win32_offscreen_buffer *buffer, int width,
   buffer->Memory =
       VirtualAlloc(0, allocBytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
-  RenderGradient(*buffer, global_game_state.xpos, global_game_state.ypos,
-                 global_game_state.time);
+  //game_offscreen_buffer Buffer = {};
+  //Buffer.Memory = GlobalScreenBuffer.Memory;
+  //Buffer.Width= GlobalScreenBuffer.Width;
+  //Buffer.Height= GlobalScreenBuffer.Height;
+  //Buffer.BytesPerPixel= GlobalScreenBuffer.BytesPerPixel;
+  //GameUpdateAndRender(&Buffer, global_game_state.xpos, global_game_state.ypos,
+  //               global_game_state.time);
 }
 
 internal void Win32DisplayBufferWindow(HDC DeviceContext, int WindowWidth,
                                        int WindowHeight,
                                        win32_offscreen_buffer *Buffer) {
   StretchDIBits(DeviceContext, 0, 0, WindowWidth, WindowHeight, 0, 0,
-                Buffer->width, Buffer->height, Buffer->Memory, &(Buffer->Info),
+                Buffer->Width, Buffer->Height, Buffer->Memory, &(Buffer->Info),
                 DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -316,7 +298,7 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
 #define IS_DOWN_MASK (1 << 31)
 #define IS_ALT (1 << 29)
 
-    uint32_t VKCode = WParam;
+    uint32 VKCode = WParam;
     bool WasDown = (LParam & WAS_DOWN_MASK) != 0;
     bool IsDown = (LParam & IS_DOWN_MASK) == 0;
     bool AltIsDown = (LParam & IS_ALT) != 0;
@@ -383,6 +365,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
   LARGE_INTEGER LastCounter;
   LARGE_INTEGER PerfCounterFrequency;
+  int64 LastCycleCount = __rdtsc();
   QueryPerformanceFrequency(&PerfCounterFrequency);
   QueryPerformanceCounter(&LastCounter);
   GlobalSoundOutput.SamplingRateInHz = 48000;
@@ -390,7 +373,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
   GlobalSoundOutput.ToneBaseVolume = 6000;
   GlobalSoundOutput.ToneStepFactor = 1.0 / 12.0;
   GlobalSoundOutput.RunningSampleIndex = 0;
-  GlobalSoundOutput.LatencySampleCount = GlobalSoundOutput.SamplingRateInHz / 8;
+  GlobalSoundOutput.LatencySampleCount = GlobalSoundOutput.SamplingRateInHz / 12;
   // MessageBox(0, "This is me", "Test", MB_OK|MB_ICONINFORMATION);
   WNDCLASS windowClass = {};
   windowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
@@ -406,7 +389,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
     if (Window) {
       Running = true;
       GlobalSoundBuffer = {};
-      GlobalSoundBuffer.BytesPerSample = sizeof(uint16_t) * 2;
+      GlobalSoundBuffer.BytesPerSample = sizeof(uint16) * 2;
       GlobalSoundBuffer.SoundBufferSize =
           GlobalSoundOutput.SamplingRateInHz * GlobalSoundBuffer.BytesPerSample;
       Win32InitDSound(Window, GlobalSoundOutput.SamplingRateInHz,
@@ -441,8 +424,14 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           }
         }
 
-        RenderGradient(GlobalScreenBuffer, global_game_state.xpos,
-                       global_game_state.ypos, global_game_state.time);
+
+        game_offscreen_buffer Buffer = {};
+        Buffer.Memory = GlobalScreenBuffer.Memory;
+        Buffer.Width= GlobalScreenBuffer.Width;
+        Buffer.Height= GlobalScreenBuffer.Height;
+        Buffer.BytesPerPixel= GlobalScreenBuffer.BytesPerPixel;
+        GameUpdateAndRender(&Buffer, global_game_state.xpos, global_game_state.ypos,
+                       global_game_state.time);
 
         DWORD PlayCursor;
         DWORD WriteCursor;
@@ -466,15 +455,20 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           Win32FillSoundBuffer(BytesToLock, BytesToWrite);
         }
         InvalidateRect(Window, 0, FALSE);
+
+        int64 EndCycleCount = __rdtsc();
+
         LARGE_INTEGER EndCounter;
         QueryPerformanceCounter(&EndCounter);
-        int64_t DeltaTime = EndCounter.QuadPart - LastCounter.QuadPart;
-        int32_t DeltaTimeMS = DeltaTime * 1000 / PerfCounterFrequency.QuadPart;
+        int64 DeltaCycles = EndCycleCount - LastCycleCount;
+        int64 DeltaTime = EndCounter.QuadPart - LastCounter.QuadPart;
+        int32 DeltaTimeMS = DeltaTime * 1000 / PerfCounterFrequency.QuadPart;
         char printBuffer[256];
-        wsprintfA(printBuffer, "Frame Duration %d ms/frame; %dfps\n", DeltaTimeMS, 1000/DeltaTimeMS);
+        wsprintfA(printBuffer, "Frame Duration %d ms/frame; %dfps; %d MC/frame\n", DeltaTimeMS, 1000/DeltaTimeMS, DeltaCycles / 1000000);
         OutputDebugStringA(printBuffer);
 
         LastCounter = EndCounter;
+        LastCycleCount = EndCycleCount;
       }
     }
   } else {
