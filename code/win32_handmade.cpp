@@ -395,17 +395,25 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           (int16 *)VirtualAlloc(0, GlobalSoundBuffer.SoundBufferSize,
                                 MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
+#if HANDMADE_INTERNAL
+      LPVOID BaseAddress = (LPVOID)Terabytes((uint64)2);
+#else
+      LPVOID BaseAddress = 0;
+#endif
+
       game_memory GameMemory = {};
       GameMemory.Initialized = false;
-      GameMemory.PermanentStorageSize = (10);
-      GameMemory.PermanentStorage =
-          VirtualAlloc(0, GameMemory.PermanentStorageSize,
-                       MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+      GameMemory.PermanentStorageSize = Megabytes(10);
       GameMemory.TransientStorageSize = Megabytes(500);
-      GameMemory.TransientStorage =
-          VirtualAlloc(0, GameMemory.TransientStorageSize ,
+      int64 TotalMemorySize = GameMemory.TransientStorageSize + GameMemory.PermanentStorageSize;
+
+      GameMemory.PermanentStorage =
+          VirtualAlloc(0, TotalMemorySize,
                        MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-      if (Samples && GameMemory.PermanentStorage && GameMemory.TransientStorage) {
+      GameMemory.TransientStorage = (uint8*)GameMemory.PermanentStorage + GameMemory.PermanentStorageSize;
+
+      if (Samples && GameMemory.PermanentStorage &&
+          GameMemory.TransientStorage) {
 
         game_input Inputs[2];
         game_input *NewInput = &Inputs[0];
@@ -538,13 +546,13 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           NewInput = tmp;
         } // while Running
       } else {
-          // error: no memory
+        // error: no memory
       }
     } else {
-        // error: no window
+      // error: no window
     }
   } else {
-      //error: no window class
+    // error: no window class
   }
   return 0;
 }

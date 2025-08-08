@@ -28,7 +28,8 @@ typedef double real64;
 #define NOTE_HALFTONE 1/12.0f
 
 #define Megabytes(m) (1024 * 1024 * ((uint64)m))
-#define Gigabytes(m) (1024 * Megabyes(m))
+#define Gigabytes(m) (1024 * Megabytes(m))
+#define Terabytes(m) (1024 * Gigabytes(m))
 
 #define HANDMADE_TYPES_H
 #endif
