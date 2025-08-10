@@ -31,5 +31,10 @@ typedef double real64;
 #define Gigabytes(m) (1024 * Megabytes(m))
 #define Terabytes(m) (1024 * Gigabytes(m))
 
+#ifdef __ARM_ARCH_ISA_A64
+uint64_t __rdtsc(){ return 0; }
+#endif
+
+
 #define HANDMADE_TYPES_H
 #endif

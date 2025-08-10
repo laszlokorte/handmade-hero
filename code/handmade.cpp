@@ -58,6 +58,28 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
     GameState->ypos = 0;
     Memory->Initialized = true;
   }
+
+  if(Input->Controllers[0].LeftShoulder.HalfTransitionCount > 0) {
+    GameState->note--;
+  }
+  if(Input->Controllers[0].RightShoulder.HalfTransitionCount > 0) {
+    GameState->note++;
+  }
+
+  if(Input->Controllers[0].Left.HalfTransitionCount > 0) {
+    GameState->xpos -= 10;
+  }
+  if(Input->Controllers[0].Right.HalfTransitionCount > 0) {
+    GameState->xpos += 10;
+  }
+
+  if(Input->Controllers[0].Up.HalfTransitionCount > 0) {
+    GameState->ypos += 10;
+  }
+  if(Input->Controllers[0].Down.HalfTransitionCount > 0) {
+    GameState->ypos -= 10;
+  }
+
   GameOutputSound(GameState->note, GameState->volume, SoundBuffer);
   RenderGradient(ScreenBuffer, GameState->xpos, GameState->ypos,
                  GameState->time);

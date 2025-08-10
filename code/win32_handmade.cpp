@@ -281,52 +281,7 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   case WM_SYSKEYUP:
   case WM_KEYUP:
   case WM_KEYDOWN: {
-#define WAS_DOWN_MASK (1 << 30)
-#define IS_DOWN_MASK (1 << 31)
-#define IS_ALT (1 << 29)
-
-    uint32 VKCode = WParam;
-    bool WasDown = (LParam & WAS_DOWN_MASK) != 0;
-    bool IsDown = (LParam & IS_DOWN_MASK) == 0;
-    bool AltIsDown = (LParam & IS_ALT) != 0;
-
-    if ((VKCode == 'R') && IsDown) {
-      global_game_state.volume += 1;
-      if (global_game_state.volume > 10) {
-        global_game_state.volume = 10;
-      }
-    }
-    if ((VKCode == 'T') && IsDown) {
-      global_game_state.volume -= 1;
-      if (global_game_state.volume < -10) {
-        global_game_state.volume = -10;
-      }
-    }
-    if ((VKCode == 'Q') && IsDown && !WasDown) {
-      global_game_state.note -= 1;
-    }
-    if ((VKCode == 'E') && IsDown && !WasDown) {
-      global_game_state.note += 1;
-    }
-
-    if ((VKCode == 'W' || VKCode == VK_UP) && IsDown) {
-      global_game_state.ypos += 10;
-    }
-    if ((VKCode == 'A' || VKCode == VK_LEFT) && IsDown) {
-      global_game_state.xpos -= 10;
-    }
-    if ((VKCode == 'S' || VKCode == VK_DOWN) && IsDown) {
-      global_game_state.ypos -= 10;
-    }
-    if ((VKCode == 'D' || VKCode == VK_RIGHT) && IsDown) {
-      global_game_state.xpos += 10;
-    }
-    if (VKCode == VK_ESCAPE && (!WasDown) && IsDown) {
-      Running = false;
-    }
-    if (VKCode == VK_F4 && AltIsDown) {
-      Running = false;
-    }
+    // not handled here
   } break;
 
   case WM_PAINT: {
@@ -420,12 +375,68 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         game_input *OldInput = &Inputs[1];
         while (Running) {
           MSG message;
+
+          game_controller_input *KeyBoardController =
+                &NewInput->Controllers[0];
+
+          game_controller_input reset_controller = {};
+          *KeyBoardController = reset_controller;
+
           while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
             if (message.message == WM_QUIT) {
               Running = false;
             }
-            TranslateMessage(&message);
-            DispatchMessage(&message);
+            switch (message.message) {
+              case WM_SYSKEYDOWN:
+              case  WM_SYSKEYUP:
+              case WM_KEYUP:
+              case WM_KEYDOWN: {
+                #define WAS_DOWN_MASK (1 << 30)
+                #define IS_DOWN_MASK (1 << 31)
+                #define IS_ALT (1 << 29)
+                uint64 WParam = message.wParam;
+                uint64 LParam = message.lParam;
+                uint32 VKCode = (uint32)WParam;
+                bool WasDown = (LParam & WAS_DOWN_MASK) != 0;
+                bool IsDown = (LParam & IS_DOWN_MASK) == 0;
+                bool AltIsDown = (LParam & IS_ALT) != 0;
+
+                if (VKCode == 'Q') {
+                  KeyBoardController->LeftShoulder.EndedDown = IsDown;
+                  KeyBoardController->LeftShoulder.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
+                }
+                if (VKCode == 'E') {
+                  KeyBoardController->RightShoulder.EndedDown = IsDown;
+                  KeyBoardController->RightShoulder.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
+                }
+                if (VKCode == 'W' || VKCode == VK_UP) {
+                  KeyBoardController->Up.EndedDown = IsDown;
+                  KeyBoardController->Up.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
+                }
+                if (VKCode == 'A' || VKCode == VK_LEFT) {
+                  KeyBoardController->Left.EndedDown = IsDown;
+                  KeyBoardController->Left.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
+                }
+                if (VKCode == 'S' || VKCode == VK_DOWN) {
+                  KeyBoardController->Down.EndedDown = IsDown;
+                  KeyBoardController->Down.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
+                }
+                if (VKCode == 'D' || VKCode == VK_RIGHT) {
+                  KeyBoardController->Right.EndedDown = IsDown;
+                  KeyBoardController->Right.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
+                }
+                if (VKCode == VK_ESCAPE && (!WasDown) && IsDown) {
+                  Running = false;
+                }
+                if (VKCode == VK_F4 && AltIsDown) {
+                  Running = false;
+                }
+              } break;
+              default: {
+                TranslateMessage(&message);
+                DispatchMessage(&message);
+              } break;
+            }
           }
 
           int MaxControllerCount = XUSER_MAX_COUNT;

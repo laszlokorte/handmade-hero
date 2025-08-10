@@ -44,7 +44,7 @@ struct game_controller_input {
       game_button_state Down;
       game_button_state Left;
       game_button_state Right;
-      game_button_state LeftShould;
+      game_button_state LeftShoulder;
       game_button_state RightShoulder;
     };
   };
