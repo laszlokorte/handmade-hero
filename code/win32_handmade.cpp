@@ -1,13 +1,20 @@
 #include "handmade.h"
 
+
+global_variable bool Running;
+
+#include "handmade.cpp"
+
 #include <windows.h>
 #include <Xinput.h>
 #include <dsound.h>
 #include <math.h>
 
-global_variable bool Running;
-
-#include "handmade.cpp"
+#if defined(_M_ARM64)
+__int64 __rdtsc() {
+    return _ReadStatusReg(ARM64_PMCCNTR_EL0);
+}
+#endif
 
 struct win32_offscreen_buffer {
   BITMAPINFO Info;
