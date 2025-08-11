@@ -6,14 +6,14 @@ global_variable game_state global_game_state = {};
 internal void GameOutputSound(int32 note, int32 volume,
                               game_sound_output_buffer *SoundBuffer) {
   local_persist real32 tSin = 0;
-  int16 ToneVolumne = 3000 * pow(2.0, volume / 5.0);
+  real32 ToneVolumne = (3000.0f * powf(2.0f, (real32)volume / 5.0f));
   int toneHz = 440;
   real32 f = (real32)toneHz / (real32)SoundBuffer->SamplesPerSecond *
-             pow(2.0, NOTE_HALFTONE * note);
+             powf(2.0f, NOTE_HALFTONE * (real32)note);
   int16 *SampleOut = SoundBuffer->Samples;
   for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount;
        ++SampleIndex) {
-    int16 SampleValue = sinf(2.0f * Pi32 * tSin) * ToneVolumne;
+    int16 SampleValue = (int16)(sinf(2.0f * Pi32 * tSin) * ToneVolumne);
     *SampleOut++ = SampleValue;
     *SampleOut++ = SampleValue;
 
@@ -31,9 +31,9 @@ internal void RenderGradient(game_offscreen_buffer *Buffer, int xoff, int yoff,
       int yy = y - cy;
       int xx = x - cx;
 
-      uint8_t green = xx + xoff;
-      uint8_t blue = yy + yoff;
-      uint8_t red = zoff / 2;
+      uint8 green = (uint8) (xx + xoff);
+      uint8 blue = (uint8) (yy + yoff);
+      uint8 red = (uint8) (zoff / 2);
       if ((zoff / 256) % 2 == 0) {
         red = 255 - red;
       }
@@ -42,7 +42,6 @@ internal void RenderGradient(game_offscreen_buffer *Buffer, int xoff, int yoff,
   }
 }
 
-internal void GameSetup() {}
 
 internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
                                   game_offscreen_buffer *ScreenBuffer,
@@ -59,29 +58,36 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
     Memory->Initialized = true;
   }
 
-  if(Input->Controllers[0].LeftShoulder.HalfTransitionCount > 0) {
-    GameState->note--;
-  }
-  if(Input->Controllers[0].RightShoulder.HalfTransitionCount > 0) {
-    GameState->note++;
-  }
+  for (size_t c = 0; c < ArrayCount(Input->Controllers); c++) {
+    game_controller_input *Controller = &Input->Controllers[c];
+    if (Controller->LeftShoulder.HalfTransitionCount > 0 &&
+        Controller->LeftShoulder.EndedDown) {
+      GameState->note--;
+    }
+    if (Controller->RightShoulder.HalfTransitionCount > 0 &&
+        Controller->RightShoulder.EndedDown) {
+      GameState->note++;
+    }
+    if (Controller->isAnalog) {
 
-  if(Input->Controllers[0].Left.HalfTransitionCount > 0) {
-    GameState->xpos -= 10;
-  }
-  if(Input->Controllers[0].Right.HalfTransitionCount > 0) {
-    GameState->xpos += 10;
-  }
-
-  if(Input->Controllers[0].Up.HalfTransitionCount > 0) {
-    GameState->ypos += 10;
-  }
-  if(Input->Controllers[0].Down.HalfTransitionCount > 0) {
-    GameState->ypos -= 10;
+    } else {
+      if (Controller->ActionLeft.EndedDown) {
+        GameState->xpos -= 10;
+      }
+      if (Controller->ActionRight.EndedDown) {
+        GameState->xpos += 10;
+      }
+      if (Controller->ActionUp.EndedDown) {
+        GameState->ypos += 10;
+      }
+      if (Controller->ActionDown.EndedDown) {
+        GameState->ypos -= 10;
+      }
+    }
   }
 
   GameOutputSound(GameState->note, GameState->volume, SoundBuffer);
   RenderGradient(ScreenBuffer, GameState->xpos, GameState->ypos,
-                 GameState->time);
+                 (int32)GameState->time);
   GameState->time++;
 }

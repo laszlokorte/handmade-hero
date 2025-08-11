@@ -25,7 +25,7 @@ typedef float real32;
 typedef double real64;
 
 #define Pi32 3.14159265359f
-#define NOTE_HALFTONE 1/12.0f
+#define NOTE_HALFTONE (1.0f/12.0f)
 
 #define Megabytes(m) (1024 * 1024 * ((uint64)m))
 #define Gigabytes(m) (1024 * Megabytes(m))
