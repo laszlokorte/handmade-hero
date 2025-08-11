@@ -79,7 +79,8 @@ struct game_sound_synth {
 
 internal void GameUpdateAndRender(game_memory *Memory, game_input *input,
                                   game_offscreen_buffer *ScreenBuffer,
-                                  game_sound_output_buffer *SoundBuffer);
+                                  game_sound_output_buffer *SoundBuffer,
+                                  bool *requestExist);
 
 #define HANDMADE_H
 #endif

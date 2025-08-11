@@ -45,7 +45,8 @@ internal void RenderGradient(game_offscreen_buffer *Buffer, int xoff, int yoff,
 
 internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
                                   game_offscreen_buffer *ScreenBuffer,
-                                  game_sound_output_buffer *SoundBuffer) {
+                                  game_sound_output_buffer *SoundBuffer,
+                                  bool *ShallExit) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
@@ -83,6 +84,10 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
       if (Controller->ActionDown.EndedDown) {
         GameState->ypos -= 10;
       }
+    }
+
+    if(Controller->Menu.EndedDown) {
+        *ShallExit = true;
     }
   }
 

@@ -683,8 +683,11 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
               GlobalSoundBuffer
                   .BytesPerSample; // SoundBuffer.SamplesPerSecond / 30;
           SoundBuffer.Samples = Samples;
+          bool ShallExit = false;
           GameUpdateAndRender(&GameMemory, NewInput, &ScreenBuffer,
-                              &SoundBuffer);
+                              &SoundBuffer, &ShallExit);
+
+          Running = Running && !ShallExit;
 
 #if 1
           Win32DebugSyncDisplay(
