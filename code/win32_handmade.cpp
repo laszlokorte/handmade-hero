@@ -573,6 +573,19 @@ internal void Win32DebugDrawVertical(win32_offscreen_buffer *ScreenBuffer,
   }
 }
 
+internal void Win32DrawSoundBufferMarker(win32_offscreen_buffer *ScreenBuffer,
+                                         real32 Ratio, int PadX, int X, int Top,
+                                         int Bottom, int Color, int thickness) {
+  Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X), Top,
+                         Bottom, Color);
+  for (int t = 1; t < thickness; t += 1) {
+    Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X) + t,
+                           Top, Bottom, Color);
+    Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X) - t,
+                           Top, Bottom, Color);
+  }
+}
+
 internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
                                     int DebugTimeMarkerCount,
                                     size_t CurrentCursorPos,
@@ -582,12 +595,12 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
   int PadY = 16;
   int LineHeight = 64;
 
-  real32 ratio = (ScreenBuffer->Width - 2 * PadX) /
+  real32 Ratio = (ScreenBuffer->Width - 2 * PadX) /
                  ((real32)GlobalSoundBuffer.SoundBufferSize);
   for (int CursorIndex = 0; CursorIndex < DebugTimeMarkerCount; CursorIndex++) {
     win32_debug_time_marker *Marker = &DebugTimeMarker[CursorIndex];
-    int XPlay = PadX + (int)(ratio * (real32)(Marker->OutputPlayCursor));
-    int XWrite = PadX + (int)(ratio * (real32)(Marker->OutputWriteCursor));
+    int XPlay = Marker->OutputPlayCursor;
+    int XWrite = Marker->OutputWriteCursor;
     int Top = PadY;
     int Bottom = Top + LineHeight;
 
@@ -596,28 +609,33 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
       Top += LineHeight;
       Bottom += LineHeight;
 
-      Win32DebugDrawVertical(ScreenBuffer, XPlay, Top, Bottom, 0x00ff00);
-
-      Win32DebugDrawVertical(ScreenBuffer, XWrite, Top, Bottom, 0xff0000);
-      int XOutputStart = PadX + (int)(ratio * (real32)(Marker->OutputLocation));
-      int XOutputEnd =
-          XOutputStart + (int)(ratio * (real32)(Marker->OutputByteCount));
-
-      Top += LineHeight;
-      Bottom += LineHeight;
-
-      Win32DebugDrawVertical(ScreenBuffer, XOutputStart, Top, Bottom, 0x00ff00);
-      Win32DebugDrawVertical(ScreenBuffer, XOutputEnd, Top, Bottom, 0xff0000);
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XPlay, Top, Bottom,
+                                 0x00ff00, 2);
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XWrite, Top, Bottom,
+                                 0xff0000, 2);
+      int XOutputStart = Marker->OutputLocation;
+      int XOutputEnd = XOutputStart + Marker->OutputByteCount;
 
       Top += LineHeight;
       Bottom += LineHeight;
 
-      Win32DebugDrawVertical(ScreenBuffer, (int)(ratio * (real32)Marker->ExpectedFlipPlayCursor), PadY,
-                             Bottom, 0xffff00);
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XOutputStart, Top,
+                                 Bottom, 0x00ff00, 2);
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XOutputEnd, Top,
+                                 Bottom, 0xff0000, 2);
+
+      Top += LineHeight;
+      Bottom += LineHeight;
+
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+                                 Marker->ExpectedFlipPlayCursor, PadY, Bottom,
+                                 0xffff00, 2);
     } else {
 
-      Win32DebugDrawVertical(ScreenBuffer, XPlay, Top, Bottom, 0xff00ff);
-      Win32DebugDrawVertical(ScreenBuffer, XWrite, Top, Bottom, 0x00ffff);
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XPlay, Top, Bottom,
+                                 0xff00ff, 1);
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XWrite, Top, Bottom,
+                                 0x00ffff, 1);
     }
   }
 }
@@ -757,7 +775,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                 BytesToWrite = TargetCursor - BytesToLock;
               }
 
-              //Assert(BytesToWrite > 0);
+              // Assert(BytesToWrite > 0);
 
 #ifdef HANDMADE_INTERNAL
               {
