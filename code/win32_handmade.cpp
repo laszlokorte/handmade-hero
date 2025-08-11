@@ -45,7 +45,7 @@ struct win32_offscreen_buffer {
 
 struct win32_sound_buffer {
   LPDIRECTSOUNDBUFFER Buffer;
-  int SoundBufferSize;
+  DWORD SoundBufferSize;
   int BytesPerSample = sizeof(int16) * 2;
 };
 
@@ -587,6 +587,7 @@ internal void Win32DrawSoundBufferMarker(win32_offscreen_buffer *ScreenBuffer,
 }
 
 internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
+                                    win32_sound_buffer *SoundBuffer,
                                     int DebugTimeMarkerCount,
                                     size_t CurrentCursorPos,
                                     win32_debug_time_marker *DebugTimeMarker,
@@ -599,8 +600,12 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
                  ((real32)GlobalSoundBuffer.SoundBufferSize);
   for (int CursorIndex = 0; CursorIndex < DebugTimeMarkerCount; CursorIndex++) {
     win32_debug_time_marker *Marker = &DebugTimeMarker[CursorIndex];
-    int XPlay = Marker->OutputPlayCursor;
-    int XWrite = Marker->OutputWriteCursor;
+
+    Assert(Marker->OutputPlayCursor < SoundBuffer->SoundBufferSize);
+    Assert(Marker->OutputWriteCursor < SoundBuffer->SoundBufferSize);
+    Assert(Marker->OutputLocation < SoundBuffer->SoundBufferSize);
+    Assert(Marker->OutputByteCount < SoundBuffer->SoundBufferSize);
+
     int Top = PadY;
     int Bottom = Top + LineHeight;
 
@@ -609,9 +614,11 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
       Top += LineHeight;
       Bottom += LineHeight;
 
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XPlay, Top, Bottom,
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+                                 Marker->OutputPlayCursor, Top, Bottom,
                                  0x00ff00, 2);
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XWrite, Top, Bottom,
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+                                 Marker->OutputWriteCursor, Top, Bottom,
                                  0xff0000, 2);
       int XOutputStart = Marker->OutputLocation;
       int XOutputEnd = XOutputStart + Marker->OutputByteCount;
@@ -632,9 +639,11 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
                                  0xffff00, 2);
     } else {
 
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XPlay, Top, Bottom,
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+                                 Marker->OutputPlayCursor, Top, Bottom,
                                  0xff00ff, 1);
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XWrite, Top, Bottom,
+      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+                                 Marker->OutputWriteCursor, Top, Bottom,
                                  0x00ffff, 1);
     }
   }
@@ -821,7 +830,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             if (GlobalDebuggerState.AudioSync) {
 
               Win32DebugSyncDisplay(
-                  &GlobalScreenBuffer, ArrayCount(DebugTimeMarkers),
+                  &GlobalScreenBuffer, &GlobalSoundBuffer, ArrayCount(DebugTimeMarkers),
                   TimeMarkerCursor, DebugTimeMarkers, TargetSecondsPerFrame);
             }
 #endif
