@@ -428,11 +428,11 @@ internal void Win32ProcessMessages(game_input *OldInput, game_input *NewInput) {
       if (VKCode == VK_F4 && AltIsDown) {
         Running = false;
       }
-      #ifdef HANDMADE_INTERNAL
-     if(VKCode == VK_F5 &&!WasDown &&IsDown) {
-         GlobalDebuggerState.AudioSync = !GlobalDebuggerState.AudioSync;
-     }
-      #endif
+#ifdef HANDMADE_INTERNAL
+      if (VKCode == VK_F5 && !WasDown && IsDown) {
+        GlobalDebuggerState.AudioSync = !GlobalDebuggerState.AudioSync;
+      }
+#endif
     } break;
     default: {
       TranslateMessage(&message);
