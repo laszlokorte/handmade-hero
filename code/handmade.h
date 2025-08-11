@@ -25,7 +25,6 @@ struct game_button_state {
 struct game_controller_input {
   bool isAnalog;
 
-
   real32 AverageStickX;
   real32 AverageStickY;
 
@@ -79,8 +78,10 @@ struct game_sound_synth {
 
 internal void GameUpdateAndRender(game_memory *Memory, game_input *input,
                                   game_offscreen_buffer *ScreenBuffer,
-                                  game_sound_output_buffer *SoundBuffer,
                                   bool *requestExist);
+
+internal void GameGetSoundSamples(game_memory *Memory,
+                                  game_sound_output_buffer *SoundBuffer);
 
 #define HANDMADE_H
 #endif

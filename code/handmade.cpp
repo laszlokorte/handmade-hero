@@ -7,8 +7,8 @@ internal void GameOutputSound(int32 note, int32 volume,
                               game_sound_output_buffer *SoundBuffer) {
   local_persist real32 tSin = 0;
   real32 ToneVolumne = (3000.0f * powf(2.0f, (real32)volume / 5.0f));
-  int toneHz = 440;
-  real32 f = (real32)toneHz / (real32)SoundBuffer->SamplesPerSecond *
+  real32 toneHz = 440;
+  real32 f = toneHz / (real32)SoundBuffer->SamplesPerSecond *
              powf(2.0f, NOTE_HALFTONE * (real32)note);
   int16 *SampleOut = SoundBuffer->Samples;
   for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount;
@@ -31,9 +31,9 @@ internal void RenderGradient(game_offscreen_buffer *Buffer, int xoff, int yoff,
       int yy = y - cy;
       int xx = x - cx;
 
-      uint8 green = (uint8) (xx + xoff);
-      uint8 blue = (uint8) (yy + yoff);
-      uint8 red = (uint8) (zoff / 2);
+      uint8 green = (uint8)(xx + xoff);
+      uint8 blue = (uint8)(yy + yoff);
+      uint8 red = (uint8)(zoff / 2);
       if ((zoff / 256) % 2 == 0) {
         red = 255 - red;
       }
@@ -42,10 +42,24 @@ internal void RenderGradient(game_offscreen_buffer *Buffer, int xoff, int yoff,
   }
 }
 
+internal void GameGetSoundSamples(game_memory *Memory,
+                                  game_sound_output_buffer *SoundBuffer) {
+  Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
+  game_state *GameState = (game_state *)Memory->PermanentStorage;
+  if (!Memory->Initialized) {
+    GameState->time = 0;
+    GameState->note = 0;
+    GameState->volume = 5;
+    GameState->xpos = 0;
+    GameState->ypos = 0;
+    Memory->Initialized = true;
+  }
+
+  GameOutputSound(GameState->note, GameState->volume, SoundBuffer);
+}
 internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
                                   game_offscreen_buffer *ScreenBuffer,
-                                  game_sound_output_buffer *SoundBuffer,
                                   bool *ShallExit) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
@@ -94,12 +108,11 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
       }
     }
 
-    if(Controller->Menu.EndedDown) {
-        *ShallExit = true;
+    if (Controller->Menu.EndedDown) {
+      *ShallExit = true;
     }
   }
 
-  GameOutputSound(GameState->note, GameState->volume, SoundBuffer);
   RenderGradient(ScreenBuffer, GameState->xpos, GameState->ypos,
                  (int32)GameState->time);
   GameState->time++;
