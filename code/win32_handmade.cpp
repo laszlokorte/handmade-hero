@@ -323,14 +323,23 @@ internal void Win32ProcessXInputDigitalButton(DWORD XInputButtonState,
       (OldState->EndedDown != NewState->EndedDown) ? 1 : 0;
 }
 
-internal void Win32ProcessMessages(game_input *Input) {
+internal void Win32ProcessMessages(game_input *OldInput,
+                                          game_input *NewInput) {
 
   MSG message;
 
-  game_controller_input *KeyBoardController = &Input->Controllers[0];
+  game_controller_input *KeyBoardController = &NewInput->Controllers[0];
+  game_controller_input *OldKeyBoardController = &OldInput->Controllers[0];
 
   game_controller_input reset_controller = {};
+
+  for(int b = 0;b<ArrayCount(reset_controller.Buttons);b++) {
+      reset_controller.Buttons[b].EndedDown = OldKeyBoardController->Buttons[b].EndedDown;
+  }
+
   *KeyBoardController = reset_controller;
+
+
 
   while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
     if (message.message == WM_QUIT) {
@@ -551,7 +560,7 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
 
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
-  #define TargetFrameHz 60
+  #define TargetFrameHz 30
   real32 TargetSecondsPerFrame = 1.0f / TargetFrameHz;
   LARGE_INTEGER LastCounter;
   LARGE_INTEGER PerfCounterFrequency;
@@ -566,7 +575,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
   GlobalSoundOutput.SamplingRateInHz = 48000;
   GlobalSoundOutput.RunningSampleIndex = 0;
   GlobalSoundOutput.LatencySampleCount =
-      GlobalSoundOutput.SamplingRateInHz / 12;
+      GlobalSoundOutput.SamplingRateInHz / 8;
   // MessageBox(0, "This is me", "Test", MB_OK|MB_ICONINFORMATION);
   WNDCLASS windowClass = {};
   windowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
@@ -620,11 +629,11 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         size_t AudioCursorPos = 0;
         LARGE_INTEGER LastFrame = Win32GetWallClock();
 
-        game_input Inputs[2];
+        game_input Inputs[2] = {};
         game_input *NewInput = &Inputs[0];
         game_input *OldInput = &Inputs[1];
         while (Running) {
-          Win32ProcessMessages(NewInput);
+          Win32ProcessMessages(OldInput, NewInput);
           Win32ProcessControllerInput(OldInput, NewInput);
 
           game_offscreen_buffer ScreenBuffer = {};
