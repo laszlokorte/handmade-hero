@@ -69,19 +69,27 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
         Controller->RightShoulder.EndedDown) {
       GameState->note++;
     }
+    if (Controller->ActionUp.HalfTransitionCount > 0 &&
+        Controller->ActionUp.EndedDown) {
+      GameState->volume++;
+    }
+    if (Controller->ActionDown.HalfTransitionCount > 0 &&
+        Controller->ActionDown.EndedDown) {
+      GameState->volume--;
+    }
     if (Controller->isAnalog) {
 
     } else {
-      if (Controller->ActionLeft.EndedDown) {
+      if (Controller->MoveLeft.EndedDown) {
         GameState->xpos -= 10;
       }
-      if (Controller->ActionRight.EndedDown) {
+      if (Controller->MoveRight.EndedDown) {
         GameState->xpos += 10;
       }
-      if (Controller->ActionUp.EndedDown) {
+      if (Controller->MoveUp.EndedDown) {
         GameState->ypos += 10;
       }
-      if (Controller->ActionDown.EndedDown) {
+      if (Controller->MoveDown.EndedDown) {
         GameState->ypos -= 10;
       }
     }
