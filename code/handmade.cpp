@@ -152,6 +152,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
 
   RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
                  (int32)GameState->Time);
-  RenderRect(ScreenBuffer, GameState->XPlayer, GameState->YPlayer, 40, 60, 0xffffff);
+  RenderRect(ScreenBuffer, GameState->XPlayer + ScreenBuffer->Width/2-20, GameState->YPlayer + ScreenBuffer->Height/2-30, 40, 60, 0xffffff);
   GameState->Time++;
 }

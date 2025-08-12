@@ -8,7 +8,12 @@
 #include <math.h>
 #include <timeapi.h>
 
-global_variable bool Running;
+struct win32_state {
+  bool Running;
+};
+
+global_variable win32_state GlobalWin32State;
+
 global_variable int64 GlobalPerfCounterFrequency;
 #if defined(_M_ARM64)
 __int64 __rdtsc() { return _ReadStatusReg(ARM64_PMCCNTR_EL0); }
@@ -45,18 +50,17 @@ struct win32_offscreen_buffer {
 struct win32_sound_buffer {
   LPDIRECTSOUNDBUFFER Buffer;
   DWORD SoundBufferSize;
-  int BytesPerSample = sizeof(int16) * 2;
+  int BytesPerSample;
 };
 
 struct win32_sound_output {
+  int BytesPerSample;
   int SamplingRateInHz;
   uint32 RunningSampleIndex;
   int SafetySampleBytes;
 };
 
 global_variable win32_offscreen_buffer GlobalScreenBuffer;
-global_variable win32_sound_buffer GlobalSoundBuffer;
-global_variable win32_sound_output GlobalSoundOutput;
 
 struct win32_window_dimensions {
   int width;
@@ -95,7 +99,6 @@ internal GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) { return; }
 internal win32_game LoadGame();
 
 internal void UnloadGame(win32_game);
-
 
 #define WIN32_HANDMADE_H
 #endif
