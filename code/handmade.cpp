@@ -42,8 +42,7 @@ internal void RenderGradient(game_offscreen_buffer *Buffer, int xoff, int yoff,
   }
 }
 
-internal void GameGetSoundSamples(game_memory *Memory,
-                                  game_sound_output_buffer *SoundBuffer) {
+extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
@@ -58,9 +57,8 @@ internal void GameGetSoundSamples(game_memory *Memory,
 
   GameOutputSound(GameState->note, GameState->volume, SoundBuffer);
 }
-internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
-                                  game_offscreen_buffer *ScreenBuffer,
-                                  bool *ShallExit) {
+
+extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
@@ -101,10 +99,10 @@ internal void GameUpdateAndRender(game_memory *Memory, game_input *Input,
         GameState->xpos += 10;
       }
       if (Controller->MoveUp.EndedDown) {
-        GameState->ypos += 10;
+        GameState->ypos -= 10;
       }
       if (Controller->MoveDown.EndedDown) {
-        GameState->ypos -= 10;
+        GameState->ypos += 10;
       }
     }
 

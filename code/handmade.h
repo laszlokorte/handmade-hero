@@ -76,12 +76,17 @@ struct game_sound_synth {
   real32 GeneratorTimeInRadians;
 };
 
-internal void GameUpdateAndRender(game_memory *Memory, game_input *input,
-                                  game_offscreen_buffer *ScreenBuffer,
-                                  bool *requestExist);
+#define GAME_UPDATE_AND_RENDER(name) void  name(game_memory *Memory, game_input *Input, \
+    game_offscreen_buffer *ScreenBuffer, \
+                                  bool *ShallExit)
 
-internal void GameGetSoundSamples(game_memory *Memory,
-                                  game_sound_output_buffer *SoundBuffer);
+extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender);
+typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
+
+#define GAME_GET_SOUND_SAMPLES(name) void name(game_memory *Memory, \
+                                  game_sound_output_buffer *SoundBuffer)
+typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
+extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples);
 
 #define HANDMADE_H
 #endif

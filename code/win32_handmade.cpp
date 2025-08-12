@@ -1,85 +1,5 @@
-#include "handmade.h"
-
-global_variable bool Running;
-
-#include "handmade.cpp"
-
-#include <windows.h>
-#include <Xinput.h>
-#include <dsound.h>
-#include <math.h>
-#include <timeapi.h>
-
-global_variable int64 GlobalPerfCounterFrequency;
-#if defined(_M_ARM64)
-__int64 __rdtsc() { return _ReadStatusReg(ARM64_PMCCNTR_EL0); }
-#endif
-
-#ifdef HANDMADE_INTERNAL
-struct win32_debugger_state {
-  bool AudioSync;
-  bool RenderPause;
-};
-
-win32_debugger_state GlobalDebuggerState = {};
-#endif
-struct win32_debug_time_marker {
-  DWORD OutputPlayCursor;
-  DWORD OutputWriteCursor;
-
-  DWORD OutputLocation;
-  DWORD OutputByteCount;
-  DWORD ExpectedFlipPlayCursor;
-
-  DWORD FlipPlayCursor;
-  DWORD FlipWriteCursor;
-};
-
-struct win32_offscreen_buffer {
-  BITMAPINFO Info;
-  void *Memory;
-  int Width;
-  int Height;
-  int BytesPerPixel;
-};
-
-struct win32_sound_buffer {
-  LPDIRECTSOUNDBUFFER Buffer;
-  DWORD SoundBufferSize;
-  int BytesPerSample = sizeof(int16) * 2;
-};
-
-struct win32_sound_output {
-  int SamplingRateInHz;
-  uint32 RunningSampleIndex;
-  int SafetySampleBytes;
-};
-
-global_variable win32_offscreen_buffer GlobalScreenBuffer;
-global_variable win32_sound_buffer GlobalSoundBuffer;
-global_variable win32_sound_output GlobalSoundOutput;
-
-struct win32_window_dimensions {
-  int width;
-  int height;
-};
-
-internal win32_window_dimensions Win32GetWindowSize(HWND Window) {
-  RECT ClientRect;
-  win32_window_dimensions dim;
-
-  GetClientRect(Window, &ClientRect);
-
-  dim.width = ClientRect.right - ClientRect.left;
-  dim.height = ClientRect.bottom - ClientRect.top;
-
-  return dim;
-};
-
-#define DIRECT_SOUND_CREATE(name)                                              \
-  HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS,               \
-                      LPUNKNOWN pUnkOuter)
-typedef DIRECT_SOUND_CREATE(direct_sound_create);
+#include "win32_handmade.h"
+#include <libloaderapi.h>
 
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
                               int32 BufferSize) {
@@ -338,7 +258,8 @@ internal void Win32ProcessXInputDigitalButton(DWORD XInputButtonState,
       (OldState->EndedDown != NewState->EndedDown) ? 1 : 0;
 }
 
-internal void Win32ProcessMessages(game_input *OldInput, game_input *NewInput) {
+internal void Win32ProcessMessages(game_input *OldInput, game_input *NewInput,
+                                   bool *ShallReload) {
 
   MSG message;
 
@@ -442,6 +363,9 @@ internal void Win32ProcessMessages(game_input *OldInput, game_input *NewInput) {
       }
       if (VKCode == VK_F6 && !WasDown && IsDown) {
         GlobalDebuggerState.RenderPause = !GlobalDebuggerState.RenderPause;
+      }
+      if (VKCode == VK_F11 && !WasDown && IsDown) {
+        *ShallReload = true;
       }
 #endif
     } break;
@@ -649,8 +573,40 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
   }
 }
 
+internal win32_game LoadGame() {
+  win32_game Result = {};
+  Result.Dll = LoadLibraryA("handmade.dll");
+  if (Result.Dll) {
+    Result.GetSoundSamples = (game_get_sound_samples *)GetProcAddress(
+        Result.Dll, "GameGetSoundSamples");
+    Result.UpdateAndRender = (game_update_and_render *)GetProcAddress(
+        Result.Dll, "GameUpdateAndRender");
+
+    Result.IsValid = Result.GetSoundSamples && Result.UpdateAndRender;
+  }
+
+  if (!Result.IsValid) {
+    Result.GetSoundSamples = &GameGetSoundSamplesStub;
+    Result.UpdateAndRender = &GameUpdateAndRenderStub;
+  }
+
+  return Result;
+}
+
+internal void UnloadGame(win32_game *Game) {
+  Game->GetSoundSamples = &GameGetSoundSamplesStub;
+  Game->UpdateAndRender = &GameUpdateAndRenderStub;
+
+  if (Game->Dll) {
+    FreeLibrary(Game->Dll);
+    Game->Dll = NULL;
+    Game->IsValid = false;
+  }
+}
+
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
+  win32_game Game = LoadGame();
 #define TargetFrameHz 30
   real32 TargetSecondsPerFrame = 1.0f / TargetFrameHz;
   LARGE_INTEGER LastCounter;
@@ -726,8 +682,14 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         game_input *NewInput = &Inputs[0];
         game_input *OldInput = &Inputs[1];
         while (Running) {
-          Win32ProcessMessages(OldInput, NewInput);
+          bool ShallReload = false;
+          Win32ProcessMessages(OldInput, NewInput, &ShallReload);
           Win32ProcessControllerInput(OldInput, NewInput);
+
+          if (ShallReload) {
+            UnloadGame(&Game);
+            Game = LoadGame();
+          }
 
 #ifdef HANDMADE_INTERNAL
           if (!GlobalDebuggerState.RenderPause) {
@@ -814,24 +776,25 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                   GlobalSoundBuffer
                       .BytesPerSample; // SoundBuffer.SamplesPerSecond / 30;
               SoundBuffer.Samples = Samples;
-              GameGetSoundSamples(&GameMemory, &SoundBuffer);
+              Game.GetSoundSamples(&GameMemory, &SoundBuffer);
               Win32FillSoundBuffer(BytesToLock, BytesToWrite, &SoundBuffer);
             } else {
               SoundIsValid = false;
             }
 
             bool ShallExit = false;
-            GameUpdateAndRender(&GameMemory, NewInput, &ScreenBuffer,
-                                &ShallExit);
+            Game.UpdateAndRender(&GameMemory, NewInput, &ScreenBuffer,
+                                 &ShallExit);
 
             Running = Running && !ShallExit;
 
 #ifdef HANDMADE_INTERNAL
             if (GlobalDebuggerState.AudioSync) {
 
-              Win32DebugSyncDisplay(
-                  &GlobalScreenBuffer, &GlobalSoundBuffer, ArrayCount(DebugTimeMarkers),
-                  TimeMarkerCursor, DebugTimeMarkers, TargetSecondsPerFrame);
+              Win32DebugSyncDisplay(&GlobalScreenBuffer, &GlobalSoundBuffer,
+                                    ArrayCount(DebugTimeMarkers),
+                                    TimeMarkerCursor, DebugTimeMarkers,
+                                    TargetSecondsPerFrame);
             }
 #endif
             LARGE_INTEGER WorkFrame = Win32GetWallClock();
