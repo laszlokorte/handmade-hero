@@ -61,12 +61,14 @@ struct game_memory {
 };
 
 struct game_state {
-  bool initialized;
-  uint64 time;
-  int xpos;
-  int ypos;
-  int note;
-  int volume;
+  bool Muted;
+  uint64 Time;
+  int XPos;
+  int YPos;
+  int XPlayer;
+  int YPlayer;
+  int Note;
+  int Volume;
 };
 
 struct game_sound_synth {
@@ -76,15 +78,15 @@ struct game_sound_synth {
   real32 GeneratorTimeInRadians;
 };
 
-#define GAME_UPDATE_AND_RENDER(name) void  name(game_memory *Memory, game_input *Input, \
-    game_offscreen_buffer *ScreenBuffer, \
-                                  bool *ShallExit)
+#define GAME_UPDATE_AND_RENDER(name)                                           \
+  void name(game_memory *Memory, game_input *Input,                            \
+            game_offscreen_buffer *ScreenBuffer, bool *ShallExit)
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender);
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 
-#define GAME_GET_SOUND_SAMPLES(name) void name(game_memory *Memory, \
-                                  game_sound_output_buffer *SoundBuffer)
+#define GAME_GET_SOUND_SAMPLES(name)                                           \
+  void name(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples);
 

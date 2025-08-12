@@ -219,7 +219,12 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   } break;
 
   case WM_ACTIVATEAPP: {
-    OutputDebugStringA("WM_ACTIVATEAPP\n");
+     if(WParam != 0)  {
+         SetLayeredWindowAttributes(Window, RGB(0,0,0), 255, LWA_ALPHA);
+     } else {
+         SetLayeredWindowAttributes(Window, RGB(0,0,0), 100, LWA_ALPHA);
+     }
+      OutputDebugStringA("WM_ACTIVATEAPP\n");
   } break;
 
   case WM_SETCURSOR: {
@@ -692,14 +697,14 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                                         TargetFrameHz / 2;
   // MessageBox(0, "This is me", "Test", MB_OK|MB_ICONINFORMATION);
   WNDCLASS windowClass = {};
-  windowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+  windowClass.style = CS_HREDRAW | CS_VREDRAW;
   windowClass.lpfnWndProc = *Win32MainWindowCallback;
   windowClass.hInstance = Instance;
   // windowClass.hIcon = ;
   windowClass.lpszClassName = "HandmadeHeroWindowClass";
   if (RegisterClass(&windowClass)) {
     HWND Window = CreateWindowEx(
-        0, windowClass.lpszClassName, "Handmade Window",
+        WS_EX_LAYERED|WS_EX_TOPMOST, windowClass.lpszClassName, "Handmade Window",
         WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
         CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, Instance, 0);
     if (Window) {

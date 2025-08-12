@@ -3,13 +3,14 @@
 
 global_variable game_state global_game_state = {};
 
-internal void GameOutputSound(int32 note, int32 volume,
+internal void GameOutputSound(bool muted, int32 Note, int32 Volume,
                               game_sound_output_buffer *SoundBuffer) {
   local_persist real32 tSin = 0;
-  real32 ToneVolumne = (3000.0f * powf(2.0f, (real32)volume / 5.0f));
+  real32 ToneVolumne =
+      muted ? 0 : (3000.0f * powf(2.0f, (real32)Volume / 5.0f));
   real32 toneHz = 440;
   real32 f = toneHz / (real32)SoundBuffer->SamplesPerSecond *
-             powf(2.0f, NOTE_HALFTONE * (real32)note);
+             powf(2.0f, NOTE_HALFTONE * (real32)Note);
   int16 *SampleOut = SoundBuffer->Samples;
   for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount;
        ++SampleIndex) {
@@ -18,6 +19,37 @@ internal void GameOutputSound(int32 note, int32 volume,
     *SampleOut++ = SampleValue;
 
     tSin = fmodf(tSin + f, 1.0);
+  }
+}
+
+internal void RenderRect(game_offscreen_buffer *Buffer, int X, int Y, int Width,
+                         int Height, int Color) {
+  if (X < 0) {
+      Width += X;
+    X = 0;
+  }
+  if (Y < 0) {
+      Height += Y;
+    Y = 0;
+  }
+  if (X >= Buffer->Width || Y >= Buffer->Height) {
+    return;
+  }
+  if (X + Width >= Buffer->Width) {
+    Width = Buffer->Width - X;
+  }
+  if (Y + Height >= Buffer->Height) {
+    Height = Buffer->Height - Y;
+  }
+  size_t Stride = Buffer->Width * Buffer->BytesPerPixel;
+  uint8 *Row = (uint8 *)Buffer->Memory + Buffer->BytesPerPixel * X + Stride * Y;
+  for (int y = 0; y < Height; y++) {
+    uint8 *Pixel = Row;
+    for (int x = 0; x < Width; x++) {
+      *(int *)Pixel = Color;
+      Pixel += Buffer->BytesPerPixel;
+    }
+    Row += Stride;
   }
 }
 
@@ -46,16 +78,11 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
-  if (!Memory->Initialized) {
-    GameState->time = 0;
-    GameState->note = 0;
-    GameState->volume = 5;
-    GameState->xpos = 0;
-    GameState->ypos = 0;
-    Memory->Initialized = true;
-  }
 
-  GameOutputSound(GameState->note, GameState->volume, SoundBuffer);
+  if (Memory->Initialized) {
+    GameOutputSound(GameState->Muted, GameState->Note, GameState->Volume,
+                    SoundBuffer);
+  }
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
@@ -63,11 +90,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
   if (!Memory->Initialized) {
-    GameState->time = 0;
-    GameState->note = 0;
-    GameState->volume = 5;
-    GameState->xpos = 0;
-    GameState->ypos = 0;
+    GameState->Time = 0;
+    GameState->Note = 0;
+    GameState->Volume = 5;
+    GameState->XPlayer= 0;
+    GameState->YPlayer= 0;
+    GameState->XPos = 0;
+    GameState->YPos = 0;
+    GameState->Muted = true;
     Memory->Initialized = true;
   }
 
@@ -75,34 +105,43 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     game_controller_input *Controller = &Input->Controllers[c];
     if (Controller->LeftShoulder.HalfTransitionCount > 0 &&
         Controller->LeftShoulder.EndedDown) {
-      GameState->note--;
+      GameState->Note--;
     }
     if (Controller->RightShoulder.HalfTransitionCount > 0 &&
         Controller->RightShoulder.EndedDown) {
-      GameState->note++;
+      GameState->Note++;
     }
     if (Controller->ActionUp.HalfTransitionCount > 0 &&
         Controller->ActionUp.EndedDown) {
-      GameState->volume++;
+      GameState->Volume++;
+      GameState->Muted = false;
     }
     if (Controller->ActionDown.HalfTransitionCount > 0 &&
         Controller->ActionDown.EndedDown) {
-      GameState->volume--;
+      GameState->Volume--;
+    }
+    if (Controller->ActionLeft.HalfTransitionCount > 0 &&
+        Controller->ActionLeft.EndedDown) {
+      GameState->Muted = !GameState->Muted;
     }
     if (Controller->isAnalog) {
 
     } else {
       if (Controller->MoveLeft.EndedDown) {
-        GameState->xpos -= 10;
+        GameState->XPos -= 10;
+        GameState->XPlayer -= 5;
       }
       if (Controller->MoveRight.EndedDown) {
-        GameState->xpos += 10;
+        GameState->XPos += 10;
+        GameState->XPlayer += 5;
       }
       if (Controller->MoveUp.EndedDown) {
-        GameState->ypos -= 10;
+        GameState->YPos -= 10;
+        GameState->YPlayer -= 5;
       }
       if (Controller->MoveDown.EndedDown) {
-        GameState->ypos += 10;
+        GameState->YPos += 10;
+        GameState->YPlayer += 5;
       }
     }
 
@@ -111,7 +150,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     }
   }
 
-  RenderGradient(ScreenBuffer, GameState->xpos, GameState->ypos,
-                 (int32)GameState->time);
-  GameState->time++;
+  RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
+                 (int32)GameState->Time);
+  RenderRect(ScreenBuffer, GameState->XPlayer, GameState->YPlayer, 40, 60, 0xffffff);
+  GameState->Time++;
 }
