@@ -5,7 +5,8 @@
 #include <libloaderapi.h>
 
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
-                              int32 BufferSize, win32_sound_buffer *SoundBuffer) {
+                              int32 BufferSize,
+                              win32_sound_buffer *SoundBuffer) {
   HRESULT Res;
   HMODULE DSoundLibrary = LoadLibrary("dsound.dll");
   if (DSoundLibrary) {
@@ -79,9 +80,9 @@ void Win32ClearSoundBuffer(win32_sound_buffer *SoundBuffer) {
   VOID *Region2;
   DWORD Region2Size;
 
-  HRESULT Res = SoundBuffer->Buffer->Lock(
-      0, SoundBuffer->SoundBufferSize, &Region1, &Region1Size, &Region2,
-      &Region2Size, 0);
+  HRESULT Res =
+      SoundBuffer->Buffer->Lock(0, SoundBuffer->SoundBufferSize, &Region1,
+                                &Region1Size, &Region2, &Region2Size, 0);
 
   if (SUCCEEDED(Res)) {
     uint8 *DestSample = (uint8 *)Region1;
@@ -93,8 +94,7 @@ void Win32ClearSoundBuffer(win32_sound_buffer *SoundBuffer) {
       *DestSample++ = 0;
     }
 
-    SoundBuffer->Buffer->Unlock(Region1, Region1Size, Region2,
-                                     Region2Size);
+    SoundBuffer->Buffer->Unlock(Region1, Region1Size, Region2, Region2Size);
   }
 }
 void Win32FillSoundBuffer(DWORD BytesToLock, DWORD BytesToWrite,
@@ -108,7 +108,7 @@ void Win32FillSoundBuffer(DWORD BytesToLock, DWORD BytesToWrite,
 
   HRESULT Res =
       TargetBuffer->Buffer->Lock(BytesToLock, BytesToWrite, &Region1,
-                                     &Region1Size, &Region2, &Region2Size, 0);
+                                 &Region1Size, &Region2, &Region2Size, 0);
 
   if (SUCCEEDED(Res)) {
     int16 *DestSample = (int16 *)Region1;
@@ -129,8 +129,7 @@ void Win32FillSoundBuffer(DWORD BytesToLock, DWORD BytesToWrite,
       SoundOutput->RunningSampleIndex++;
     }
 
-    TargetBuffer->Buffer->Unlock(Region1, Region1Size, Region2,
-                                     Region2Size);
+    TargetBuffer->Buffer->Unlock(Region1, Region1Size, Region2, Region2Size);
   }
 }
 
@@ -525,8 +524,8 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
   int PadY = 16;
   int LineHeight = 64;
 
-  real32 Ratio = (ScreenBuffer->Width - 2 * PadX) /
-                 ((real32)SoundBuffer->SoundBufferSize);
+  real32 Ratio =
+      (ScreenBuffer->Width - 2 * PadX) / ((real32)SoundBuffer->SoundBufferSize);
   for (int CursorIndex = 0; CursorIndex < DebugTimeMarkerCount; CursorIndex++) {
     win32_debug_time_marker *Marker = &DebugTimeMarker[CursorIndex];
 
@@ -679,6 +678,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
   real32 TargetSecondsPerFrame = 1.0f / TargetFrameHz;
   LARGE_INTEGER LastCounter;
   LARGE_INTEGER PerfCounterFrequency;
+  LARGE_INTEGER FlipWallClock = Win32GetWallClock();
   int64 LastCycleCount = __rdtsc();
   UINT DesiredSchedulerMS = 1;
   bool SleepIsGranular =
@@ -703,12 +703,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
       Win32LoadXInput();
       GlobalWin32State.Running = true;
       win32_sound_output SoundOutput;
-        SoundOutput.SamplingRateInHz = 48000;
-        SoundOutput.RunningSampleIndex = 0;
-        SoundOutput.BytesPerSample = sizeof(uint16)* 2;
-        SoundOutput.SafetySampleBytes = SoundOutput.SamplingRateInHz *
-                                        SoundOutput.BytesPerSample /
-                                        TargetFrameHz / 2;
+      SoundOutput.SamplingRateInHz = 48000;
+      SoundOutput.RunningSampleIndex = 0;
+      SoundOutput.BytesPerSample = sizeof(uint16) * 2;
+      SoundOutput.SafetySampleBytes = SoundOutput.SamplingRateInHz *
+                                      SoundOutput.BytesPerSample /
+                                      TargetFrameHz / 2;
 
       win32_sound_buffer SoundBuffer = {};
       SoundBuffer.BytesPerSample = SoundOutput.BytesPerSample;
@@ -784,7 +784,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             DWORD BytesToWrite = 0;
             DWORD BytesToLock = 0;
             Res = SoundBuffer.Buffer->GetCurrentPosition(&PlayCursor,
-                                                               &WriteCursor);
+                                                         &WriteCursor);
             if (SUCCEEDED(Res)) {
               if (!SoundIsValid) {
                 SoundOutput.RunningSampleIndex =
@@ -794,11 +794,21 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
               BytesToLock = SoundOutput.RunningSampleIndex *
                             SoundBuffer.BytesPerSample %
                             SoundBuffer.SoundBufferSize;
-              DWORD ExpectedSoundBytesPerFrame =
-                  SoundOutput.SamplingRateInHz *
-                  SoundBuffer.BytesPerSample / TargetFrameHz;
+              DWORD ExpectedSoundBytesPerFrame = SoundOutput.SamplingRateInHz *
+                                                 SoundBuffer.BytesPerSample /
+
+                                                 TargetFrameHz;
+
+              LARGE_INTEGER AudioWallClock = Win32GetWallClock();
+              real32 FromBeginToAudioSeconds =
+                  Win32GetSecondsElapsed(FlipWallClock, AudioWallClock);
+              real32 SecondsLeftUntilFlip =
+                  TargetSecondsPerFrame - FromBeginToAudioSeconds;
+              DWORD ExpectedBytesUntilFlip =
+                  (DWORD)((SecondsLeftUntilFlip / TargetSecondsPerFrame) *
+                          (real32)ExpectedSoundBytesPerFrame);
               DWORD ExpectedFrameBoundaryByte =
-                  PlayCursor + ExpectedSoundBytesPerFrame;
+                  PlayCursor + ExpectedBytesUntilFlip ;
               DWORD SafeWriteCursor = WriteCursor;
               if (SafeWriteCursor < PlayCursor) {
                 SafeWriteCursor += SoundBuffer.SoundBufferSize;
@@ -836,12 +846,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                 Marker->OutputLocation = BytesToLock;
                 Marker->OutputByteCount = BytesToWrite;
                 Marker->ExpectedFlipPlayCursor = ExpectedFrameBoundaryByte;
-                int DistanceToPlay = (BytesToLock - PlayCursor +
-                                      SoundBuffer.SoundBufferSize) %
-                                     SoundBuffer.SoundBufferSize;
-                int DistanceToWrite = (TargetCursor - PlayCursor +
-                                       SoundBuffer.SoundBufferSize) %
-                                      SoundBuffer.SoundBufferSize;
+                int DistanceToPlay =
+                    (BytesToLock - PlayCursor + SoundBuffer.SoundBufferSize) %
+                    SoundBuffer.SoundBufferSize;
+                int DistanceToWrite =
+                    (TargetCursor - PlayCursor + SoundBuffer.SoundBufferSize) %
+                    SoundBuffer.SoundBufferSize;
                 char OutputBuffer[256] = {};
                 wsprintf(OutputBuffer, "DTP: %d, DTW: %d\n", DistanceToPlay,
                          DistanceToWrite);
@@ -856,7 +866,8 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                       .BytesPerSample; // SoundBuffer.SamplesPerSecond / 30;
               GameSoundBuffer.Samples = Samples;
               Game.GetSoundSamples(&GameMemory, &GameSoundBuffer);
-              Win32FillSoundBuffer(BytesToLock, BytesToWrite, &SoundOutput, &GameSoundBuffer, &SoundBuffer);
+              Win32FillSoundBuffer(BytesToLock, BytesToWrite, &SoundOutput,
+                                   &GameSoundBuffer, &SoundBuffer);
             } else {
               SoundIsValid = false;
             }
@@ -893,7 +904,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                 SecondsElapsedForFrame =
                     Win32GetSecondsElapsed(LastFrame, Win32GetWallClock());
               }
-              Assert(SecondsElapsedForFrame <= 2*TargetSecondsPerFrame);
+              Assert(SecondsElapsedForFrame <= 2 * TargetSecondsPerFrame);
 
             } else {
               // Assert(false);
@@ -901,7 +912,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             }
             LARGE_INTEGER EndFrame = Win32GetWallClock();
             LastFrame = EndFrame;
-
+            FlipWallClock = Win32GetWallClock();
             InvalidateRect(Window, 0, FALSE);
 
             int64 EndCycleCount = __rdtsc();
