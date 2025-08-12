@@ -69,6 +69,7 @@ struct game_state {
   int YPlayer;
   int Note;
   int Volume;
+  int JumpTime;
 };
 
 struct game_sound_synth {

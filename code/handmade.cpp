@@ -98,7 +98,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     GameState->XPos = 0;
     GameState->YPos = 0;
     GameState->Muted = true;
+    GameState->JumpTime = 0;
     Memory->Initialized = true;
+  }
+
+  if(GameState->JumpTime > 0) {
+      GameState->JumpTime--;
   }
 
   for (size_t c = 0; c < ArrayCount(Input->Controllers); c++) {
@@ -148,10 +153,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (Controller->Menu.EndedDown) {
       *ShallExit = true;
     }
+    if(Controller->Back.EndedDown && Controller->Back.HalfTransitionCount > 0 && GameState->JumpTime == 0) {
+        GameState->JumpTime += 15;
+        GameState->YPlayer -= 10;
+    }
   }
 
   RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
                  (int32)GameState->Time);
-  RenderRect(ScreenBuffer, GameState->XPlayer + ScreenBuffer->Width/2-20, GameState->YPlayer + ScreenBuffer->Height/2-30, 40, 60, 0xffffff);
+  RenderRect(ScreenBuffer, GameState->XPlayer + ScreenBuffer->Width/2-20, GameState->YPlayer  - (int32)(80.0f* sinf((real32)GameState->JumpTime/15.0f * Pi32)) + ScreenBuffer->Height/2-30, 40, 60, 0xffffff);
   GameState->Time++;
 }
