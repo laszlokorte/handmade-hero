@@ -83,6 +83,7 @@ typedef DIRECT_SOUND_CREATE(direct_sound_create);
 struct win32_game {
   bool IsValid;
   HMODULE Dll;
+  FILETIME LastWriteTime;
   game_update_and_render *UpdateAndRender;
   game_get_sound_samples *GetSoundSamples;
 };

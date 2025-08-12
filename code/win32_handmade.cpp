@@ -1,4 +1,7 @@
 #include "win32_handmade.h"
+#include <debugapi.h>
+#include <fileapi.h>
+#include <handleapi.h>
 #include <libloaderapi.h>
 
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
@@ -573,15 +576,60 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
   }
 }
 
-internal win32_game LoadGame() {
+internal void ConcatStrings(size_t SourceACount, char *SourceA,
+                            size_t SourceBCount, char *SourceB,
+                            size_t DestCount, char *Dest) {
+  DestCount--;
+  for (int Index = 0; Index < SourceACount && DestCount--; ++Index) {
+    *Dest++ = *SourceA++;
+  }
+  for (int Index = 0; Index < SourceBCount && DestCount--; ++Index) {
+    *Dest++ = *SourceB++;
+  }
+  *Dest++ = 0;
+}
+
+internal FILETIME Win32GetLastWriteTime(LPCSTR Path) {
+  FILETIME LastWriteTime = {};
+  WIN32_FIND_DATA FindData;
+  HANDLE FindHandle = FindFirstFileA(Path, &FindData);
+
+  if (FindHandle != INVALID_HANDLE_VALUE) {
+    LastWriteTime = FindData.ftLastWriteTime;
+    FindClose(FindHandle);
+  }
+
+  return LastWriteTime;
+}
+
+internal void Win32GetPathRelativeToExecutable(size_t *PathLength,
+                                               DWORD MaxLength,
+                                               char *FileName) {
+  DWORD len = GetModuleFileNameA(NULL, FileName, MaxLength);
+  size_t Last = 0;
+  for (size_t l = 0; l < len; l++) {
+    if (FileName[l] == '\0') {
+      break;
+    }
+    if (FileName[l] == '\\') {
+      Last = l;
+    }
+  }
+  *PathLength = Last + 1;
+}
+
+internal win32_game LoadGame(char *SourceDLL, char *TempDLLPath) {
   win32_game Result = {};
-  Result.Dll = LoadLibraryA("handmade.dll");
+
+  CopyFile(SourceDLL, TempDLLPath, FALSE);
+  Result.Dll = LoadLibraryA(TempDLLPath);
   if (Result.Dll) {
+    FILETIME LatestWriteTime = Win32GetLastWriteTime(TempDLLPath);
     Result.GetSoundSamples = (game_get_sound_samples *)GetProcAddress(
         Result.Dll, "GameGetSoundSamples");
     Result.UpdateAndRender = (game_update_and_render *)GetProcAddress(
         Result.Dll, "GameUpdateAndRender");
-
+    Result.LastWriteTime = LatestWriteTime;
     Result.IsValid = Result.GetSoundSamples && Result.UpdateAndRender;
   }
 
@@ -606,7 +654,25 @@ internal void UnloadGame(win32_game *Game) {
 
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
-  win32_game Game = LoadGame();
+  char ExePath[MAX_PATH];
+  size_t ExePathLength = 0;
+  Win32GetPathRelativeToExecutable(&ExePathLength, sizeof(ExePath), ExePath);
+  char SourceGameCodeDLLFilename[] = "handmade.dll";
+  char SourceGameCodeDLLFullPath[MAX_PATH];
+  char TargetGameCodeDLLFilename[] = "handmade_temp.dll";
+  char TargetGameCodeDLLFullPath[MAX_PATH];
+
+  ConcatStrings(ExePathLength, ExePath, sizeof(SourceGameCodeDLLFilename),
+                SourceGameCodeDLLFilename, sizeof(SourceGameCodeDLLFullPath),
+                SourceGameCodeDLLFullPath);
+  ConcatStrings(ExePathLength, ExePath, sizeof(TargetGameCodeDLLFilename),
+                TargetGameCodeDLLFilename, sizeof(TargetGameCodeDLLFullPath),
+                TargetGameCodeDLLFullPath);
+
+  OutputDebugString(TargetGameCodeDLLFullPath);
+
+  win32_game Game =
+      LoadGame(SourceGameCodeDLLFullPath, TargetGameCodeDLLFullPath);
 #define TargetFrameHz 30
   real32 TargetSecondsPerFrame = 1.0f / TargetFrameHz;
   LARGE_INTEGER LastCounter;
@@ -683,12 +749,20 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         game_input *OldInput = &Inputs[1];
         while (Running) {
           bool ShallReload = false;
+
+          FILETIME LatestWriteTime =
+              Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
+          if (CompareFileTime(&LatestWriteTime, &Game.LastWriteTime) != 0) {
+            ShallReload = true;
+          }
+
           Win32ProcessMessages(OldInput, NewInput, &ShallReload);
           Win32ProcessControllerInput(OldInput, NewInput);
 
           if (ShallReload) {
             UnloadGame(&Game);
-            Game = LoadGame();
+            Game =
+                LoadGame(SourceGameCodeDLLFullPath, TargetGameCodeDLLFullPath);
           }
 
 #ifdef HANDMADE_INTERNAL
