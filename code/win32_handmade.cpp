@@ -3,6 +3,7 @@
 #include <fileapi.h>
 #include <handleapi.h>
 #include <libloaderapi.h>
+#include <minwinbase.h>
 
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
                               int32 BufferSize,
@@ -667,14 +668,12 @@ internal void ConcatStrings(size_t SourceACount, char *SourceA,
   *Dest++ = 0;
 }
 
-internal FILETIME Win32GetLastWriteTime(LPCSTR Path) {
+internal FILETIME Win32GetLastWriteTime(LPCSTR Filename) {
   FILETIME LastWriteTime = {};
-  WIN32_FIND_DATA FindData;
-  HANDLE FindHandle = FindFirstFileA(Path, &FindData);
 
-  if (FindHandle != INVALID_HANDLE_VALUE) {
-    LastWriteTime = FindData.ftLastWriteTime;
-    FindClose(FindHandle);
+  WIN32_FILE_ATTRIBUTE_DATA Data = {};
+  if(GetFileAttributesEx(Filename, GetFileExInfoStandard, &Data)) {
+      LastWriteTime = Data.ftLastWriteTime;
   }
 
   return LastWriteTime;
@@ -811,7 +810,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
       game_memory GameMemory = {};
       GameMemory.Initialized = false;
       GameMemory.PermanentStorageSize = Megabytes(10);
-      GameMemory.TransientStorageSize = Megabytes(500);
+      GameMemory.TransientStorageSize = Megabytes(100);
       Win32State.TotalMemorySize =
           GameMemory.TransientStorageSize + GameMemory.PermanentStorageSize;
       Win32State.GameMemoryBlock =

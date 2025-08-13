@@ -25,11 +25,11 @@ internal void GameOutputSound(bool muted, int32 Note, int32 Volume,
 internal void RenderRect(game_offscreen_buffer *Buffer, int X, int Y, int Width,
                          int Height, int Color) {
   if (X < 0) {
-      Width += X;
+    Width += X;
     X = 0;
   }
   if (Y < 0) {
-      Height += Y;
+    Height += Y;
     Y = 0;
   }
   if (X >= Buffer->Width || Y >= Buffer->Height) {
@@ -93,8 +93,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     GameState->Time = 0;
     GameState->Note = 0;
     GameState->Volume = 5;
-    GameState->XPlayer= 0;
-    GameState->YPlayer= 0;
+    GameState->XPlayer = 0;
+    GameState->YPlayer = 0;
     GameState->XPos = 0;
     GameState->YPos = 0;
     GameState->Muted = true;
@@ -102,8 +102,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     Memory->Initialized = true;
   }
 
-  if(GameState->JumpTime > 0) {
-      GameState->JumpTime--;
+  if (GameState->JumpTime > 0) {
+    GameState->JumpTime--;
   }
 
   for (size_t c = 0; c < ArrayCount(Input->Controllers); c++) {
@@ -153,14 +153,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (Controller->Menu.EndedDown) {
       *ShallExit = true;
     }
-    if(Controller->Back.EndedDown && Controller->Back.HalfTransitionCount > 0 && GameState->JumpTime == 0) {
-        GameState->JumpTime += 15;
-        GameState->YPlayer -= 10;
+    if (Controller->Back.EndedDown &&
+        Controller->Back.HalfTransitionCount > 0 && GameState->JumpTime == 0) {
+      GameState->JumpTime += 15;
+      GameState->YPlayer -= 10;
     }
   }
 
-  RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
-                 (int32)GameState->Time);
-  RenderRect(ScreenBuffer, GameState->XPlayer + ScreenBuffer->Width/2-20, GameState->YPlayer  - (int32)(80.0f* sinf((real32)GameState->JumpTime/15.0f * Pi32)) + ScreenBuffer->Height/2-30, 40, 60, 0xffffff);
+  int PlayerHeight = 100;
+  int PlayerWidth = 40;
+  RenderGradient(ScreenBuffer, GameState->XPos,
+                                    GameState->YPos, (int32)GameState->Time);
+  RenderRect(
+      ScreenBuffer, GameState->XPlayer + ScreenBuffer->Width / 2 - PlayerWidth/2,
+      GameState->YPlayer -
+          (int32)(80.0f * sinf((real32)GameState->JumpTime / 15.0f * Pi32)) +
+          ScreenBuffer->Height / 2 - PlayerHeight / 2,
+      PlayerWidth, PlayerHeight, 0xffffff);
   GameState->Time++;
 }
