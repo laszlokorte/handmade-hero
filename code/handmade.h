@@ -2,6 +2,38 @@
 
 #include "./handmade_types.h"
 
+struct thread_context {
+    int Dummy;
+};
+
+inline uint32
+SafeTruncateUInt64(uint64 Value)
+{
+    Assert(Value <= 0xFFFFFFFF);
+    uint32 Result = (uint32)Value;
+    return (Result);
+}
+
+
+#if HANDMADE_INTERNAL
+struct debug_read_file_result {
+  uint32 ContentSize;
+  void *Contents;
+};
+
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(thread_context *Context, void* Memory)
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
+
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(thread_context *Context, char* Filename)
+typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
+
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool name(thread_context *Context, char* Filename, uint32 MemorySize, void* Memory)
+typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
+
+#endif
+
+
+
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
 struct game_offscreen_buffer {
@@ -58,6 +90,12 @@ struct game_memory {
 
   uint64 TransientStorageSize;
   void *TransientStorage;
+
+  #if HANDMADE_INTERNAL
+  DEBUG_PLATFORM_FREE_FILE_MEMORY(*DebugPlatformFreeFileMemory);
+  DEBUG_PLATFORM_READ_ENTIRE_FILE(*DebugPlatformReadEntireFile);
+  DEBUG_PLATFORM_WRITE_ENTIRE_FILE(*DebugPlatformWriteEntireFile);
+  #endif
 };
 
 struct game_state {
@@ -80,14 +118,14 @@ struct game_sound_synth {
 };
 
 #define GAME_UPDATE_AND_RENDER(name)                                           \
-  void name(game_memory *Memory, game_input *Input,                            \
+  void name(thread_context *Context, game_memory *Memory, game_input *Input,                            \
             game_offscreen_buffer *ScreenBuffer, bool *ShallExit)
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender);
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 
 #define GAME_GET_SOUND_SAMPLES(name)                                           \
-  void name(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
+  void name(thread_context *Context, game_memory *Memory, game_sound_output_buffer *SoundBuffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples);
 
