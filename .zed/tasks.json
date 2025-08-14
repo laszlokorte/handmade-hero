@@ -49,7 +49,7 @@
   },
   {
     "label": "Recompile all",
-    "command": "& {  ./.zed/fast-env.ps1 ./build.bat }",
+    "command": "& {  ./.zed/fast-env.ps1 ./build.bat ; exit $LASTEXITCODE }",
     //"args": ["build.bat gameonly"],
     // Env overrides for the command, will be appended to the terminal's environment from the settings.
     "env": {},
@@ -63,7 +63,7 @@
     // * `always` — always show the task's pane, and focus the corresponding tab in it (default)
     // * `no_focus` — always show the task's pane, add the task's tab in it, but don't focus it
     // * `never` — do not alter focus, but still add/reuse the task's tab in its pane
-    "reveal": "never",
+    "reveal": "no_focus",
     // Where to place the task's terminal item after starting the task:
     // * `dock` — in the terminal dock, "regular" terminal items' place (default)
     // * `center` — in the central pane group, "main" editor area
@@ -94,7 +94,7 @@
   },
   {
     "label": "Recompile Game",
-    "command": "& {  ./.zed/fast-env.ps1 ./build.bat gameonly }",
+    "command": "& {  ./.zed/fast-env.ps1 ./build.bat gameonly ; exit $LASTEXITCODE }",
     //"args": ["build.bat gameonly"],
     // Env overrides for the command, will be appended to the terminal's environment from the settings.
     "env": {},
@@ -108,7 +108,7 @@
     // * `always` — always show the task's pane, and focus the corresponding tab in it (default)
     // * `no_focus` — always show the task's pane, add the task's tab in it, but don't focus it
     // * `never` — do not alter focus, but still add/reuse the task's tab in its pane
-    "reveal": "never",
+    "reveal": "no_focus",
     // Where to place the task's terminal item after starting the task:
     // * `dock` — in the terminal dock, "regular" terminal items' place (default)
     // * `center` — in the central pane group, "main" editor area
