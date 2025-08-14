@@ -1,3 +1,4 @@
 build
 *.hmi
 msvc-env.txt
+*.sublime-workspace

@@ -9,6 +9,7 @@
 #include <timeapi.h>
 
 global_variable bool GlobalRunning;
+global_variable bool GlobalTransparent;
 
 struct win32_state {
     uint64 TotalMemorySize;

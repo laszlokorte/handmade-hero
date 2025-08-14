@@ -15,7 +15,7 @@ function Load-EnvVars($path) {
     }
 }
 
-$cacheFile = "$PSScriptRoot/msvc-env.txt"
+$cacheFile = "$PSScriptRoot/build/cached_env.txt"
 
 if (Test-Path $cacheFile) {
     Load-EnvVars $cacheFile

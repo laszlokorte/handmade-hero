@@ -218,7 +218,7 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   } break;
 
   case WM_ACTIVATEAPP: {
-    if (WParam != 0) {
+    if (WParam != 0 || !GlobalTransparent) {
       SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 255, LWA_ALPHA);
     } else {
       SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 100, LWA_ALPHA);
@@ -480,9 +480,6 @@ internal void Win32ProcessPendingMessages(win32_state *Win32State,
       if (VKCode == VK_F6 && !WasDown && IsDown) {
         GlobalDebuggerState.RenderPause = !GlobalDebuggerState.RenderPause;
       }
-      if (VKCode == VK_F11 && !WasDown && IsDown) {
-        *ShallReload = true;
-      }
       if (VKCode == VK_F8 && !WasDown && IsDown) {
         if (Win32State->InputPlayingIndex != 0) {
 
@@ -495,6 +492,12 @@ internal void Win32ProcessPendingMessages(win32_state *Win32State,
           Win32EndRecordingInput(Win32State);
           Win32BeginInputPlayback(Win32State, 1);
         }
+      }
+      if(VKCode == VK_F9 && !WasDown && IsDown) {
+        GlobalTransparent = !GlobalTransparent;
+      }
+      if (VKCode == VK_F11 && !WasDown && IsDown) {
+        *ShallReload = true;
       }
 #endif
     } break;

@@ -1,0 +1,32 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+    "build_systems":
+    [
+        {
+            "name": "Run Game",
+            "shell_cmd": "start /B $project_path/build/win32_handmade.exe &",
+            "working_dir" : "$project_path"
+        },
+        {
+            "name": "Build All",
+            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/build.bat"],
+            "working_dir" : "$project_path"
+        },
+        {
+            "name": "Build All And Run",
+            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/buildrun.bat"],
+            "working_dir" : "$project_path"
+        },
+
+        {
+            "name": "Build Game",
+            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/build.bat", "gameonly"],
+            "working_dir" : "$project_path"
+        }
+    ]
+}
