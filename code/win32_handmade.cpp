@@ -309,7 +309,6 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile) {
   return Result;
 }
 
-
 DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) {
   bool Result = false;
 
@@ -493,7 +492,7 @@ internal void Win32ProcessPendingMessages(win32_state *Win32State,
           Win32BeginInputPlayback(Win32State, 1);
         }
       }
-      if(VKCode == VK_F9 && !WasDown && IsDown) {
+      if (VKCode == VK_F9 && !WasDown && IsDown) {
         GlobalTransparent = !GlobalTransparent;
       }
       if (VKCode == VK_F11 && !WasDown && IsDown) {
@@ -645,6 +644,102 @@ internal void Win32DrawSoundBufferMarker(win32_offscreen_buffer *ScreenBuffer,
                            Top, Bottom, Color);
     Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X) - t,
                            Top, Bottom, Color);
+  }
+}
+
+internal void Win32DebugDrawCircle(win32_offscreen_buffer *Buffer, int CX,
+                                   int CY, int Radius, int32 Color) {
+  int X = CX - Radius;
+  int Y = CY - Radius;
+  int Width = 2 * Radius;
+  int Height = 2 * Radius;
+  if (X < 0) {
+    Width += X;
+    X = 0;
+  }
+  if (Y < 0) {
+    Height += Y;
+    Y = 0;
+  }
+  if (X >= Buffer->Width || Y >= Buffer->Height) {
+    return;
+  }
+  if (X + Width >= Buffer->Width) {
+    Width = Buffer->Width - X;
+  }
+  if (Y + Height >= Buffer->Height) {
+    Height = Buffer->Height - Y;
+  }
+  size_t Stride = Buffer->Width * Buffer->BytesPerPixel;
+  uint8 *Row = (uint8 *)Buffer->Memory + Buffer->BytesPerPixel * X + Stride * Y;
+  for (int y = 0; y < Height; y++) {
+    uint8 *Pixel = Row;
+    for (int x = 0; x < Width; x++) {
+      int dx = (X + x - CX);
+      int dy = (Y + y - CY);
+      if (dx * dx + dy * dy < Radius * Radius) {
+        *(int *)Pixel = Color;
+      }
+      Pixel += Buffer->BytesPerPixel;
+    }
+    Row += Stride;
+  }
+}
+
+internal void Win32DebugDrawTriangle(win32_offscreen_buffer *Buffer, int X,
+                                     int Y, int Width, int Height,
+                                     bool FillLeft, bool FillTop, int Color) {
+  int Left = X;
+  int Top = Y;
+  int Right = X + Width;
+  int Bottom = Y + Height;
+  if (X < 0) {
+    Width += X;
+    X = 0;
+  }
+  if (Y < 0) {
+    Height += Y;
+    Y = 0;
+  }
+  if (X >= Buffer->Width || Y >= Buffer->Height) {
+    return;
+  }
+  if (X + Width >= Buffer->Width) {
+    Width = Buffer->Width - X;
+  }
+  if (Y + Height >= Buffer->Height) {
+    Height = Buffer->Height - Y;
+  }
+  size_t Stride = Buffer->Width * Buffer->BytesPerPixel;
+  uint8 *Row = (uint8 *)Buffer->Memory + Buffer->BytesPerPixel * X + Stride * Y;
+  for (int y = 0; y < Height; y++) {
+    uint8 *Pixel = Row;
+    for (int x = 0; x < Width; x++) {
+      int dx = FillLeft ? (Right - 1 - (X + x)) : (X + x) - Left;
+      int dy = FillTop ? (Bottom - 1 - (Y + y)) : (Y + y) - Top;
+
+      if (dy * (Width - 1) <= dx * (Height - 1)) {
+        *(int *)Pixel = Color;
+      }
+      Pixel += Buffer->BytesPerPixel;
+    }
+    Row += Stride;
+  }
+}
+
+internal void Win32DisplayRecordingState(win32_offscreen_buffer *ScreenBuffer,
+                                         int RecordingIndex, int PlayingIndex) {
+  int Padding = 16;
+  int Radius = 16;
+  int32 Color = 0xff0000;
+  if (RecordingIndex) {
+    Win32DebugDrawCircle(ScreenBuffer, Padding + Radius, Padding + Radius,
+                         Radius, Color);
+  } else if (PlayingIndex) {
+    Win32DebugDrawTriangle(ScreenBuffer, Padding, Padding, Radius * 2, Radius,
+                           true, true, Color);
+    Win32DebugDrawTriangle(ScreenBuffer, Padding, Padding + Radius, Radius * 2,
+                           Radius, true, false, Color);
   }
 }
 
@@ -1039,6 +1134,10 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                                     TargetSecondsPerFrame);
             }
 #endif
+            Win32DisplayRecordingState(&GlobalScreenBuffer,
+                                       Win32State.InputRecordingIndex,
+                                       Win32State.InputPlayingIndex);
+
             LARGE_INTEGER WorkFrame = Win32GetWallClock();
             real32 WorkSecondsEllapsed =
                 Win32GetSecondsElapsed(LastFrame, WorkFrame);

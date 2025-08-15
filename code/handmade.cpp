@@ -161,12 +161,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     }
   }
 
-  int PlayerHeight = 60;
-  int PlayerWidth = 30;
-  RenderGradient(ScreenBuffer, GameState->XPos,
-                                    GameState->YPos, (int32)GameState->Time);
+  int PlayerHeight = 128;
+  int PlayerWidth = 32;
+  RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
+                 (int32)GameState->Time);
   RenderRect(
-      ScreenBuffer, GameState->XPlayer + ScreenBuffer->Width / 2 - PlayerWidth/2,
+      ScreenBuffer,
+      GameState->XPlayer + ScreenBuffer->Width / 2 - PlayerWidth / 2,
       GameState->YPlayer -
           (int32)(100.0f * sinf((real32)GameState->JumpTime / 15.0f * Pi32)) +
           ScreenBuffer->Height / 2 - PlayerHeight / 2,
