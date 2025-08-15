@@ -1,11 +1,6 @@
 #include "win32_handmade.h"
 #include "handmade.h"
-#include <debugapi.h>
-#include <fileapi.h>
-#include <handleapi.h>
-#include <libloaderapi.h>
-#include <minwinbase.h>
-#include <wingdi.h>
+#include <winuser.h>
 
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
                               int32 BufferSize,
@@ -218,6 +213,12 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   } break;
 
   case WM_ACTIVATEAPP: {
+      // if(WParam != 0) {
+      //     SetCapture(Window);
+      // } else {
+      //     ReleaseCapture();
+      // }
+
     if (WParam != 0 || !GlobalTransparent) {
       SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 255, LWA_ALPHA);
     } else {
@@ -371,7 +372,16 @@ internal void Win32PlaybackInput(win32_state *Win32State, game_input *Input) {
     }
   }
 }
-internal void Win32ProcessPendingMessages(win32_state *Win32State,
+
+internal void Win32ProcessMouseButton(game_button_state *ButtonState,
+                                      WPARAM ActualButton,
+                                      WPARAM ExpectedButton) {
+  bool NewDown = ActualButton & ExpectedButton;
+  ButtonState->HalfTransitionCount += ButtonState->EndedDown != NewDown ? 0 : 1;
+  ButtonState->EndedDown = NewDown;
+}
+
+internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
                                           game_input *OldInput,
                                           game_input *NewInput,
                                           bool *ShallReload) {
@@ -381,7 +391,17 @@ internal void Win32ProcessPendingMessages(win32_state *Win32State,
   game_controller_input *KeyBoardController = &NewInput->Controllers[0];
   game_controller_input *OldKeyBoardController = &OldInput->Controllers[0];
 
+  game_mouse_input *Mouse = &NewInput->Mouse;
+  game_mouse_input *OldMouse = &OldInput->Mouse;
+
   game_controller_input reset_controller = {};
+  game_mouse_input reset_mouse = {};
+
+  reset_mouse.MouseX = OldMouse->MouseX;
+  reset_mouse.MouseY = OldMouse->MouseY;
+  for (int b = 0; b < ArrayCount(reset_mouse.Buttons); b++) {
+    reset_mouse.Buttons[b].EndedDown = OldMouse->Buttons[b].EndedDown;
+  }
 
   for (int b = 0; b < ArrayCount(reset_controller.Buttons); b++) {
     reset_controller.Buttons[b].EndedDown =
@@ -389,12 +409,40 @@ internal void Win32ProcessPendingMessages(win32_state *Win32State,
   }
 
   *KeyBoardController = reset_controller;
+  *Mouse = reset_mouse;
 
   while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
     if (message.message == WM_QUIT) {
       GlobalRunning = false;
     }
     switch (message.message) {
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+    case WM_XBUTTONDOWN: {
+      Win32ProcessMouseButton(&Mouse->Left, message.wParam, MK_LBUTTON);
+      Win32ProcessMouseButton(&Mouse->Middle, message.wParam, MK_MBUTTON);
+      Win32ProcessMouseButton(&Mouse->Right, message.wParam, MK_RBUTTON);
+      Win32ProcessMouseButton(&Mouse->Extra1, message.wParam, MK_XBUTTON1);
+      Win32ProcessMouseButton(&Mouse->Extra2, message.wParam, MK_XBUTTON2);
+    } break;
+    case WM_LBUTTONUP:
+    case WM_RBUTTONUP:
+    case WM_MBUTTONUP:
+    case WM_XBUTTONUP: {
+      Win32ProcessMouseButton(&Mouse->Left, message.wParam, MK_LBUTTON);
+      Win32ProcessMouseButton(&Mouse->Middle, message.wParam, MK_MBUTTON);
+      Win32ProcessMouseButton(&Mouse->Right, message.wParam, MK_RBUTTON);
+      Win32ProcessMouseButton(&Mouse->Extra1, message.wParam, MK_XBUTTON1);
+      Win32ProcessMouseButton(&Mouse->Extra2, message.wParam, MK_XBUTTON2);
+    } break;
+    case WM_MOUSEMOVE: {
+      POINT Point;
+      Point.x = GET_X_LPARAM(message.lParam);
+      Point.y = GET_Y_LPARAM(message.lParam);
+      Mouse->MouseX = Point.x;
+      Mouse->MouseY = Point.y;
+    } break;
     case WM_SYSKEYDOWN:
     case WM_SYSKEYUP:
     case WM_KEYUP:
@@ -999,7 +1047,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             ShallReload = true;
           }
 
-          Win32ProcessPendingMessages(&Win32State, OldInput, NewInput,
+          Win32ProcessPendingMessages(Window, &Win32State, OldInput, NewInput,
                                       &ShallReload);
           Win32ProcessControllerInput(&Win32State, OldInput, NewInput);
 

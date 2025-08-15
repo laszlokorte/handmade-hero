@@ -3,6 +3,7 @@
 #include "handmade.h"
 
 #include <windows.h>
+#include <windowsx.h>
 #include <Xinput.h>
 #include <dsound.h>
 #include <math.h>

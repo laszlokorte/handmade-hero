@@ -79,8 +79,24 @@ struct game_controller_input {
   };
 };
 
+struct game_mouse_input {
+    int MouseX;
+    int MouseY;
+    union {
+        game_button_state Buttons[5];
+        struct {
+          game_button_state Left;
+          game_button_state Middle;
+          game_button_state Right;
+          game_button_state Extra1;
+          game_button_state Extra2;
+        };
+      };
+};
+
 struct game_input {
-  game_controller_input Controllers[5];
+    game_mouse_input Mouse;
+    game_controller_input Controllers[5];
 };
 
 struct game_memory {

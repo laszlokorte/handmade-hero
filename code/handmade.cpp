@@ -172,5 +172,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
           (int32)(100.0f * sinf((real32)GameState->JumpTime / 15.0f * Pi32)) +
           ScreenBuffer->Height / 2 - PlayerHeight / 2,
       PlayerWidth, PlayerHeight, 0xffffff);
+
+  for(int m = 0;m<ArrayCount(Input->Mouse.Buttons); m++) {
+      game_button_state Button = Input->Mouse.Buttons[m];
+      RenderRect(
+              ScreenBuffer,
+              Input->Mouse.MouseX + 10*m,
+              Input->Mouse.MouseY,
+              10, 10, Button.EndedDown ? 0x00aaaa : 0xffffff);
+  }
+
   GameState->Time++;
 }
