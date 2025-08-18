@@ -250,6 +250,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     char FileName[] = "./data/logo.bmp";
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
+    InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(GameState), Memory->PermanentStorage + sizeof(GameState));
     Memory->Initialized = true;
   }
 

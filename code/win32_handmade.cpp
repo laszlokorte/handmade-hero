@@ -1067,7 +1067,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
       Win32State.GameMemoryBlock =
           VirtualAlloc(0, Win32State.TotalMemorySize, MEM_RESERVE | MEM_COMMIT,
                        PAGE_READWRITE);
-      GameMemory.PermanentStorage = Win32State.GameMemoryBlock;
+      GameMemory.PermanentStorage = (uint8*) Win32State.GameMemoryBlock;
       GameMemory.TransientStorage = (uint8 *)GameMemory.PermanentStorage +
                                     GameMemory.PermanentStorageSize;
 

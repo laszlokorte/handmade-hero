@@ -2,6 +2,8 @@
 
 #include "./handmade_types.h"
 
+typedef size_t memory_index;
+
 struct thread_context {
   int Dummy;
 };
@@ -99,11 +101,11 @@ struct game_input {
 
 struct game_memory {
   bool Initialized;
-  uint64 PermanentStorageSize;
-  void *PermanentStorage;
+  memory_index PermanentStorageSize;
+  uint8 *PermanentStorage;
 
-  uint64 TransientStorageSize;
-  void *TransientStorage;
+  memory_index TransientStorageSize;
+  uint8 *TransientStorage;
 
   debug_platform_free_file_memory *DebugPlatformFreeFileMemory;
   debug_platform_read_entire_file *DebugPlatformReadEntireFile;
@@ -157,6 +159,26 @@ struct loaded_bitmap {
   uint32 *Memory;
 };
 
+struct memory_arena {
+    memory_index Size;
+    memory_index Used;
+    uint8 *Base;
+};
+
+internal void InitializeArena(memory_arena *Arena, memory_index Size, uint8 *Base) {
+    Arena->Size = Size;
+    Arena->Used = 0;
+    Arena->Base = Base;
+}
+
+#define ArenaPushStruct(Arena, Type) (Type *)ArenaPushSize(Arena, sizeof(Type))
+#define ArenaPushArray(Arena, Type, Count) (Type*)ArenaPushSize(Arena, sizeof(Type) * Count)
+internal void *ArenaPushSize(memory_arena *Arena, memory_index Size) {
+    void *Result = Arena->Base + Arena->Used;
+    Arena->Used += Size;
+
+    return Result;
+}
 
 #define ENTITY_MAX 30
 struct game_state {
@@ -173,6 +195,7 @@ struct game_state {
   loaded_bitmap Logo;
   game_controller_entity_map ControllerMap;
   game_entity Entities[ENTITY_MAX];
+  memory_arena WorldArena;
 };
 
 struct game_sound_synth {
