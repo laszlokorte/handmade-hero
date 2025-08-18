@@ -1,5 +1,6 @@
 #include "win32_handmade.h"
 #include "handmade.h"
+#include <Xinput.h>
 #include <winuser.h>
 
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
@@ -213,11 +214,11 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   } break;
 
   case WM_ACTIVATEAPP: {
-      // if(WParam != 0) {
-      //     SetCapture(Window);
-      // } else {
-      //     ReleaseCapture();
-      // }
+    // if(WParam != 0) {
+    //     SetCapture(Window);
+    // } else {
+    //     ReleaseCapture();
+    // }
 
     if (WParam != 0 || !GlobalTransparent) {
       SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 255, LWA_ALPHA);
@@ -227,9 +228,9 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
     OutputDebugStringA("WM_ACTIVATEAPP\n");
   } break;
 
-  case WM_SETCURSOR: {
-    // SetCursor(0);
-  } break;
+    // case WM_SETCURSOR: {
+    //  SetCursor(0);
+    // } break;
 
   case WM_SYSKEYDOWN:
   case WM_SYSKEYUP:
@@ -636,6 +637,24 @@ internal void Win32ProcessControllerInput(win32_state *Win32State,
       Win32ProcessXInputDigitalButton(Pad->wButtons, XINPUT_GAMEPAD_Y,
                                       &OldController->ActionUp,
                                       &NewController->ActionUp);
+      Win32ProcessXInputDigitalButton(Pad->wButtons, XINPUT_GAMEPAD_DPAD_UP,
+                                      &OldController->MoveUp,
+                                      &NewController->MoveUp);
+      Win32ProcessXInputDigitalButton(Pad->wButtons, XINPUT_GAMEPAD_DPAD_DOWN,
+                                      &OldController->MoveDown,
+                                      &NewController->MoveDown);
+      Win32ProcessXInputDigitalButton(Pad->wButtons, XINPUT_GAMEPAD_DPAD_LEFT,
+                                      &OldController->MoveLeft,
+                                      &NewController->MoveLeft);
+      Win32ProcessXInputDigitalButton(Pad->wButtons, XINPUT_GAMEPAD_DPAD_RIGHT,
+                                      &OldController->MoveRight,
+                                      &NewController->MoveRight);
+      Win32ProcessXInputDigitalButton(
+          Pad->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER,
+          &OldController->LeftShoulder, &NewController->LeftShoulder);
+      Win32ProcessXInputDigitalButton(
+          Pad->wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER,
+          &OldController->RightShoulder, &NewController->RightShoulder);
     } else {
       // Not available
     }
@@ -969,6 +988,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
   windowClass.style = CS_HREDRAW | CS_VREDRAW;
   windowClass.lpfnWndProc = *Win32MainWindowCallback;
   windowClass.hInstance = Instance;
+  windowClass.hCursor = LoadCursorA(0, IDC_ARROW);
   // windowClass.hIcon = ;
   windowClass.lpszClassName = "HandmadeHeroWindowClass";
   if (RegisterClass(&windowClass)) {

@@ -131,7 +131,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       GameState->Muted = !GameState->Muted;
     }
     if (Controller->isAnalog) {
-
+      GameState->XPos +=  (int)(10*Controller->AverageStickX);
+      GameState->XPlayer += (int)(5*Controller->AverageStickX);
+      GameState->YPos -= (int)(10*Controller->AverageStickY);
+      GameState->YPlayer -= (int)(5*Controller->AverageStickY);
     } else {
       if (Controller->MoveLeft.EndedDown) {
         GameState->XPos -= 10;
@@ -161,8 +164,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     }
   }
 
-  int PlayerHeight = 128;
-  int PlayerWidth = 32;
+  int PlayerHeight = 50;
+  int PlayerWidth = 10;
+  int PlayerColor = 0x00ff44;
+
   RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
                  (int32)GameState->Time);
   RenderRect(
@@ -171,15 +176,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       GameState->YPlayer -
           (int32)(100.0f * sinf((real32)GameState->JumpTime / 15.0f * Pi32)) +
           ScreenBuffer->Height / 2 - PlayerHeight / 2,
-      PlayerWidth, PlayerHeight, 0xffffff);
+      PlayerWidth, PlayerHeight, PlayerColor);
 
-  for(int m = 0;m<ArrayCount(Input->Mouse.Buttons); m++) {
-      game_button_state Button = Input->Mouse.Buttons[m];
-      RenderRect(
-              ScreenBuffer,
-              Input->Mouse.MouseX + 10*m,
-              Input->Mouse.MouseY,
-              10, 10, Button.EndedDown ? 0x00aaaa : 0xffffff);
+  for (int m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
+    game_button_state Button = Input->Mouse.Buttons[m];
+    RenderRect(ScreenBuffer, Input->Mouse.MouseX + 10 * m, Input->Mouse.MouseY,
+               10, 10, Button.EndedDown ? 0x00aaaa : 0xffffff);
   }
 
   GameState->Time++;
