@@ -374,6 +374,29 @@ internal void Win32PlaybackInput(win32_state *Win32State, game_input *Input) {
   }
 }
 
+WINDOWPLACEMENT GlobalWindowPlacement = {sizeof(GlobalWindowPlacement)};
+internal void Win32ToggleFullScreen(HWND Window) {
+  DWORD dwStyle = GetWindowLong(Window, GWL_STYLE);
+  if (dwStyle & WS_OVERLAPPEDWINDOW) {
+    MONITORINFO mi = {sizeof(mi)};
+    if (GetWindowPlacement(Window, &GlobalWindowPlacement) &&
+        GetMonitorInfo(MonitorFromWindow(Window, MONITOR_DEFAULTTOPRIMARY),
+                       &mi)) {
+      SetWindowLong(Window, GWL_STYLE, dwStyle & ~WS_OVERLAPPEDWINDOW);
+      SetWindowPos(Window, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top,
+                   mi.rcMonitor.right - mi.rcMonitor.left,
+                   mi.rcMonitor.bottom - mi.rcMonitor.top,
+                   SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+  } else {
+    SetWindowLong(Window, GWL_STYLE, dwStyle | WS_OVERLAPPEDWINDOW);
+    SetWindowPlacement(Window, &GlobalWindowPlacement);
+    SetWindowPos(Window, NULL, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER |
+                     SWP_FRAMECHANGED);
+  }
+}
+
 internal void Win32ProcessMouseButton(game_button_state *ButtonState,
                                       WPARAM ActualButton,
                                       WPARAM ExpectedButton) {
@@ -520,6 +543,9 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
       }
       if (VKCode == VK_F4 && AltIsDown) {
         GlobalRunning = false;
+      }
+      if (VKCode == VK_RETURN && AltIsDown && !WasDown && IsDown) {
+        Win32ToggleFullScreen(Window);
       }
 #ifdef HANDMADE_INTERNAL
       if (VKCode == VK_F5 && !WasDown && IsDown) {
@@ -1188,6 +1214,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
               Win32PlaybackInput(&Win32State, NewInput);
             }
 
+            NewInput->DeltaTime = TargetSecondsPerFrame;
             Game.UpdateAndRender(&Context, &GameMemory, NewInput, &ScreenBuffer,
                                  &ShallExit);
 

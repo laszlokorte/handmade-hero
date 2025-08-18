@@ -23,6 +23,45 @@ internal void GameOutputSound(bool muted, int32 Note, int32 Volume,
   }
 }
 
+internal int RoundRealToInt(real32 Real) { return (int)(Real + 0.5); }
+
+internal int Clamp(int value, int min, int max) {
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
+}
+
+internal void FillRect(game_offscreen_buffer *Buffer, real32 XMinReal,
+                       real32 YMinReal, real32 XMaxReal, real32 YMaxReal,
+                       game_color_rgb Color) {
+  int XMin = Clamp(RoundRealToInt(XMinReal), 0, Buffer->Width);
+  int XMax = Clamp(RoundRealToInt(XMaxReal), 0, Buffer->Width);
+  int YMin = Clamp(RoundRealToInt(YMinReal), 0, Buffer->Height);
+  int YMax = Clamp(RoundRealToInt(YMaxReal), 0, Buffer->Height);
+
+  int Red = RoundRealToInt(255.0f * Color.r);
+  int Green = RoundRealToInt(255.0f * Color.g);
+  int Blue = RoundRealToInt(255.0f * Color.b);
+
+  int RGB = Red << 16 | Green << 8 | Blue;
+
+  size_t Stride = Buffer->Width * Buffer->BytesPerPixel;
+  uint8 *Row =
+      (uint8 *)Buffer->Memory + Buffer->BytesPerPixel * XMin + Stride * YMin;
+  for (int y = YMin; y < YMax; y++) {
+    uint8 *Pixel = Row;
+    for (int x = XMin; x < XMax; x++) {
+      *(int *)Pixel = RGB;
+      Pixel += Buffer->BytesPerPixel;
+    }
+    Row += Stride;
+  }
+}
+
 internal void RenderRect(game_offscreen_buffer *Buffer, int X, int Y, int Width,
                          int Height, int Color) {
   if (X < 0) {
@@ -91,6 +130,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
   if (!Memory->Initialized) {
+    game_state NewGameState = {};
+    *GameState = NewGameState;
     GameState->Time = 0;
     GameState->Note = 0;
     GameState->Volume = 5;
@@ -130,30 +171,59 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         Controller->ActionLeft.EndedDown) {
       GameState->Muted = !GameState->Muted;
     }
-    if (Controller->isAnalog) {
-      GameState->XPos +=  (int)(10*Controller->AverageStickX);
-      GameState->XPlayer += (int)(5*Controller->AverageStickX);
-      GameState->YPos -= (int)(10*Controller->AverageStickY);
-      GameState->YPlayer -= (int)(5*Controller->AverageStickY);
-    } else {
-      if (Controller->MoveLeft.EndedDown) {
-        GameState->XPos -= 10;
-        GameState->XPlayer -= 5;
-      }
-      if (Controller->MoveRight.EndedDown) {
-        GameState->XPos += 10;
-        GameState->XPlayer += 5;
-      }
-      if (Controller->MoveUp.EndedDown) {
-        GameState->YPos -= 10;
-        GameState->YPlayer -= 5;
-      }
-      if (Controller->MoveDown.EndedDown) {
-        GameState->YPos += 10;
-        GameState->YPlayer += 5;
+
+    if (Controller->ActionRight.HalfTransitionCount > 0 &&
+        Controller->ActionRight.EndedDown) {
+      if (!GameState->ControllerMap.controllers[c]) {
+        if (GameState->EntityCount < ENTITY_MAX) {
+          game_entity NewEntity{};
+          NewEntity.active = true;
+          NewEntity.p = {0.0f, 10.0f};
+          NewEntity.v = {0.0f, 0.0f};
+          NewEntity.s = {50.0f, 50.0f};
+          NewEntity.c = {0.2f, 0.1f * GameState->EntityCount, 0.3f};
+          GameState->Entities[GameState->EntityCount] = NewEntity;
+          GameState->ControllerMap.controllers[c] =
+              &GameState->Entities[GameState->EntityCount];
+          GameState->EntityCount++;
+        }
+      } else {
+          GameState->ControllerMap.controllers[c]->active = false;
+          GameState->ControllerMap.controllers[c] = 0;
       }
     }
+    game_entity *Entity = GameState->ControllerMap.controllers[c];
+    if (Entity) {
 
+      game_velocity NewVelocity = {};
+      if (Controller->isAnalog) {
+        NewVelocity.x = Controller->AverageStickX;
+        NewVelocity.y = -Controller->AverageStickY;
+      } else {
+        if (Controller->MoveLeft.EndedDown) {
+          NewVelocity.x -= 1;
+        }
+        if (Controller->MoveRight.EndedDown) {
+          NewVelocity.x += 1;
+        }
+        if (Controller->MoveUp.EndedDown) {
+          NewVelocity.y -= 1;
+        }
+        if (Controller->MoveDown.EndedDown) {
+          NewVelocity.y += 1;
+        }
+        if (NewVelocity.x != 0 || NewVelocity.y != 0) {
+          real32 Speed =
+              sqrtf(NewVelocity.x * NewVelocity.x + NewVelocity.y * NewVelocity.y);
+              NewVelocity.x /= Speed;
+              NewVelocity.y /= Speed;
+        }
+      }
+
+      NewVelocity.x *= 512 * Input->DeltaTime;
+      NewVelocity.y *= 512* Input->DeltaTime;
+      Entity->v = NewVelocity;
+    }
     if (Controller->Menu.EndedDown) {
       *ShallExit = true;
     }
@@ -163,7 +233,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       GameState->YPlayer -= 10;
     }
   }
-
+  for (int e = 0; e < GameState->EntityCount; e++) {
+    game_entity *Entity = &GameState->Entities[e];
+    if(!Entity->active) {
+        continue;
+    }
+    Entity->p.x += Entity->v.x;
+    Entity->p.y += Entity->v.y;
+  }
   int PlayerHeight = 50;
   int PlayerWidth = 10;
   int PlayerColor = 0x00ff44;
@@ -182,6 +259,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     game_button_state Button = Input->Mouse.Buttons[m];
     RenderRect(ScreenBuffer, Input->Mouse.MouseX + 10 * m, Input->Mouse.MouseY,
                10, 10, Button.EndedDown ? 0x00aaaa : 0xffffff);
+  }
+
+  for (int e = 0; e < GameState->EntityCount; e++) {
+    game_entity *Entity = &GameState->Entities[e];
+    if(!Entity->active) {
+        continue;
+    }
+     FillRect(
+        ScreenBuffer, Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
+        Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,
+        Entity->p.x + Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
+        Entity->p.y + Entity->s.x / 2 + ScreenBuffer->Height / 2.0f, Entity->c);
   }
 
   GameState->Time++;
