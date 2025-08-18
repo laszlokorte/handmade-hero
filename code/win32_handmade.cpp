@@ -280,7 +280,6 @@ internal void Win32BeginRecordingInput(win32_state *State,
             &BytesWritten, 0);
 }
 
-#if HANDMADE_INTERNAL
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory) {
   if (Memory) {
@@ -329,7 +328,6 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) {
   return Result;
 }
 
-#endif
 internal void Win32EndRecordingInput(win32_state *State) {
   CloseHandle(State->RecordingHandle);
   State->InputRecordingIndex = 0;
@@ -1072,6 +1070,11 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
       GameMemory.PermanentStorage = Win32State.GameMemoryBlock;
       GameMemory.TransientStorage = (uint8 *)GameMemory.PermanentStorage +
                                     GameMemory.PermanentStorageSize;
+
+      GameMemory.DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
+      GameMemory.DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
+      GameMemory.DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
+
 
       if (Samples && GameMemory.PermanentStorage &&
           GameMemory.TransientStorage) {

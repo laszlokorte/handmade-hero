@@ -12,7 +12,6 @@ inline uint32 SafeTruncateUInt64(uint64 Value) {
   return (Result);
 }
 
-#if HANDMADE_INTERNAL
 struct debug_read_file_result {
   uint32 ContentSize;
   void *Contents;
@@ -31,7 +30,6 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
             void *Memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
-#endif
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
@@ -107,11 +105,9 @@ struct game_memory {
   uint64 TransientStorageSize;
   void *TransientStorage;
 
-#if HANDMADE_INTERNAL
-  DEBUG_PLATFORM_FREE_FILE_MEMORY(*DebugPlatformFreeFileMemory);
-  DEBUG_PLATFORM_READ_ENTIRE_FILE(*DebugPlatformReadEntireFile);
-  DEBUG_PLATFORM_WRITE_ENTIRE_FILE(*DebugPlatformWriteEntireFile);
-#endif
+  debug_platform_free_file_memory *DebugPlatformFreeFileMemory;
+  debug_platform_read_entire_file *DebugPlatformReadEntireFile;
+  debug_platform_write_entire_file *DebugPlatformWriteEntireFile;
 };
 
 struct game_position {
@@ -154,6 +150,14 @@ struct game_controller_entity_map {
   game_entity *controllers[5];
 };
 
+
+struct loaded_bitmap {
+  size_t Width;
+  size_t Height;
+  uint32 *Memory;
+};
+
+
 #define ENTITY_MAX 30
 struct game_state {
   bool Muted;
@@ -166,6 +170,7 @@ struct game_state {
   int Volume;
   int JumpTime;
   int EntityCount;
+  loaded_bitmap Logo;
   game_controller_entity_map ControllerMap;
   game_entity Entities[ENTITY_MAX];
 };
