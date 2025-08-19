@@ -3,7 +3,6 @@
 #include "./handmade_types.h"
 #include "./tilemap.h"
 
-typedef size_t memory_index;
 
 struct thread_context {
   int Dummy;
@@ -157,29 +156,6 @@ struct loaded_bitmap {
   size_t Height;
   uint32 *Memory;
 };
-
-struct memory_arena {
-  memory_index Size;
-  memory_index Used;
-  uint8 *Base;
-};
-
-internal void InitializeArena(memory_arena *Arena, memory_index Size,
-                              uint8 *Base) {
-  Arena->Size = Size;
-  Arena->Used = 0;
-  Arena->Base = Base;
-}
-
-#define ArenaPushStruct(Arena, Type) (Type *)ArenaPushSize(Arena, sizeof(Type))
-#define ArenaPushArray(Arena, Type, Count)                                     \
-  (Type *)ArenaPushSize(Arena, sizeof(Type) * Count)
-internal void *ArenaPushSize(memory_arena *Arena, memory_index Size) {
-  void *Result = Arena->Base + Arena->Used;
-  Arena->Used += Size;
-
-  return Result;
-}
 
 struct game_camera {
   tile_position pos;

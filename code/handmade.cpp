@@ -1,4 +1,5 @@
 #include "./handmade.h"
+#include "handmade_types.h"
 #include "math.h"
 #include "entropy.h"
 #include "tilemap.h"
@@ -301,6 +302,16 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
   }
 }
 
+internal tile_kind GetTileKind(tile_map *Map, int TileX, int TileY) {
+  return ((TileX - 3) % 8 == 0 && (TileY - 3) % 4 != 0) ||
+                 ((TileY - 3) % 8 == 0 && (TileX + 1) % 16 != ((TileY-3)%8!= 0))
+             ? TILE_WALL
+             : TILE_EMPTY;
+}
+
+internal void SetTileKind(memory_arena *Arena, tile_map *Map, int TileX,
+                          int TileY, uint16 Kind) {}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
@@ -434,9 +445,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (!Entity->active) {
       continue;
     }
-    Entity->p.RelX += Entity->v.x / GameState->TileMap.TileWidth;
-    Entity->p.RelY += Entity->v.y / GameState->TileMap.TileHeight;
-    TilePositionNormalize(&Entity->p);
+    {
+      tile_position NewPos = Entity->p;
+      NewPos.RelX += Entity->v.x / GameState->TileMap.TileWidth;
+      TilePositionNormalize(&NewPos);
+      if (TILE_WALL != GetTileKind(&GameState->TileMap, NewPos.X, NewPos.Y)) {
+        Entity->p = NewPos;
+      }
+    }
+    {
+      tile_position NewPos = Entity->p;
+      NewPos.RelY += Entity->v.y / GameState->TileMap.TileHeight;
+      TilePositionNormalize(&NewPos);
+      if (TILE_WALL != GetTileKind(&GameState->TileMap, NewPos.X, NewPos.Y)) {
+        Entity->p = NewPos;
+      }
+    }
   }
   if (GameState->CameraTrack) {
     game_entity *Entity = GameState->CameraTrack;
@@ -495,13 +519,36 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                1;
   for (int32 y = MinY; y <= MaxY; y++) {
     for (int32 x = MinX; x <= MaxX; x++) {
-      FillRect(ScreenBuffer,
-               CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
-               CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
-               CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
-               CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-               game_color_rgb{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
-                              x % 2 == 0 ? 0.6f : 0.8f});
+      tile_kind Kind = GetTileKind(&GameState->TileMap, x, y);
+      switch (Kind) {
+      case TILE_WALL: {
+
+        FillRect(ScreenBuffer,
+                 CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+                 CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+                 CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+                 CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+                 game_color_rgb{1.0f, 1.0f, 1.0f});
+      } break;
+      case TILE_DOOR: {
+        FillRect(ScreenBuffer,
+                 CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+                 CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+                 CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+                 CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+                 game_color_rgb{0.0f, 0.0f, 0.0f});
+      } break;
+      case TILE_EMPTY: {
+
+        FillRect(ScreenBuffer,
+                 CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+                 CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+                 CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+                 CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+                 game_color_rgb{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
+                                x % 2 == 0 ? 0.6f : 0.8f});
+      } break;
+      }
     }
   }
 

@@ -13,6 +13,35 @@ struct tile_position {
 struct tile_map {
   int32 TileWidth;
   int32 TileHeight;
+
+  uint32 ChunkWidth;
+  uint32 ChunkHeight;
+};
+
+enum tile_kind {
+    TILE_EMPTY,
+    TILE_WALL,
+    TILE_DOOR,
+};
+
+struct tile {
+    tile_kind Kind;
+};
+
+struct tile_chunk {
+    tile *tiles;
+};
+
+internal tile_kind GetTile(tile_map *Map, int TileX, int TileY);
+
+internal void SetTileKind(memory_arena *Arena, tile_map *Map, int TileX, int TileY, uint16 Kind);
+
+struct chunk_position {
+    int ChunkX;
+    int ChunkY;
+
+    int TileX;
+    int TileY;
 };
 
 internal void TilePositionNormalize(tile_position *Pos) {
