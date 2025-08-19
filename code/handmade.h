@@ -199,6 +199,7 @@ struct game_state {
   game_entity Entities[ENTITY_MAX];
   memory_arena WorldArena;
   game_camera Camera;
+  game_entity *CameraTrack;
   tile_map TileMap;
 };
 

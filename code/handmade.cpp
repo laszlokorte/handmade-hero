@@ -380,6 +380,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
           GameState->Entities[GameState->EntityCount] = NewEntity;
           GameState->ControllerMap.controllers[c] =
               &GameState->Entities[GameState->EntityCount];
+          GameState->CameraTrack = &GameState->Entities[GameState->EntityCount];
           GameState->EntityCount++;
         }
       } else {
@@ -436,15 +437,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     Entity->p.RelX += Entity->v.x / GameState->TileMap.TileWidth;
     Entity->p.RelY += Entity->v.y / GameState->TileMap.TileHeight;
     TilePositionNormalize(&Entity->p);
-    if (abs(GameState->Camera.pos.X - Entity->p.X) > 4) {
-      GameState->Camera.pos.X = Entity->p.X;
-      GameState->Camera.pos.RelX = Entity->p.RelX;
-    }
-    if (abs(GameState->Camera.pos.Y - Entity->p.Y) > 2) {
-      GameState->Camera.pos.Y = Entity->p.Y;
-      GameState->Camera.pos.RelY = Entity->p.RelY;
-    }
   }
+  if (GameState->CameraTrack) {
+    game_entity *Entity = GameState->CameraTrack;
+    tile_distance Distance = TileDistance(GameState->Camera.pos, Entity->p);
+    real32 ScreenDistX = Distance.DX * GameState->TileMap.TileWidth +
+                         Distance.DRelX * GameState->TileMap.TileWidth;
+    real32 ScreenDistY = Distance.DY * GameState->TileMap.TileHeight +
+                         Distance.DRelY * GameState->TileMap.TileHeight;
+    real32 MaxDistX = ScreenBuffer->Width / 3.0f;
+    real32 MaxDistY = ScreenBuffer->Height / 3.0f;
+    if (ScreenDistX < -MaxDistX || ScreenDistX > MaxDistX) {
+      GameState->Camera.pos.X -= Distance.DX;
+      // GameState->Camera.pos.RelX -= Distance.DRelX;
+    }
+    if (ScreenDistY < -MaxDistY || ScreenDistY > MaxDistY) {
+      GameState->Camera.pos.Y -= Distance.DY;
+      // GameState->Camera.pos.RelY -= Distance.DRelY;
+    }
+    TilePositionNormalize(&GameState->Camera.pos);
+  }
+
   int PlayerHeight = 50;
   int PlayerWidth = 10;
   int PlayerColor = 0x00ff44;
