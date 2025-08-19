@@ -1,6 +1,7 @@
 #include "./handmade.h"
 #include "math.h"
 #include "entropy.h"
+#include "tilemap.h"
 
 global_variable game_state global_game_state = {};
 struct bit_scan_result {
@@ -368,12 +369,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         if (GameState->EntityCount < ENTITY_MAX) {
           game_entity NewEntity{};
           NewEntity.active = true;
-          real32 RandomX =
-              256.0f * ((real32)RandomNumbers[GameState->EntityCount] / 64000);
-          real32 RandomY =
-              256.0f *
-              ((real32)RandomNumbers[GameState->EntityCount + 42] / 64000);
-          NewEntity.p = {RandomX, RandomY};
+          int32 RandomX = RandomNumbers[GameState->EntityCount] % 3 - 1;
+          int32 RandomY = RandomNumbers[GameState->EntityCount + 42] % 3 - 1;
+          NewEntity.p = tile_position{};
+          NewEntity.p.X = 0; // RandomX;
+          NewEntity.p.Y = 0; // RandomY;
           NewEntity.v = {0.0f, 0.0f};
           NewEntity.s = {50.0f, 50.0f};
           NewEntity.c = {0.2f, 0.1f * GameState->EntityCount, 0.3f};
@@ -433,8 +433,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (!Entity->active) {
       continue;
     }
-    Entity->p.x += Entity->v.x;
-    Entity->p.y += Entity->v.y;
+    Entity->p.RelX += Entity->v.x / GameState->TileMap.TileWidth;
+    Entity->p.RelY += Entity->v.y / GameState->TileMap.TileHeight;
+    TilePositionNormalize(&Entity->p);
+    if (abs(GameState->Camera.pos.X - Entity->p.X) > 4) {
+      GameState->Camera.pos.X = Entity->p.X;
+      GameState->Camera.pos.RelX = Entity->p.RelX;
+    }
+    if (abs(GameState->Camera.pos.Y - Entity->p.Y) > 2) {
+      GameState->Camera.pos.Y = Entity->p.Y;
+      GameState->Camera.pos.RelY = Entity->p.RelY;
+    }
   }
   int PlayerHeight = 50;
   int PlayerWidth = 10;
@@ -444,26 +453,32 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   // RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
   // (int32)GameState->Time);
 
-  real32 CenterX = ScreenBuffer->Width / 2.0f +
-                   GameState->Camera.pos.X * GameState->TileMap.TileWidth;
-  real32 CenterY = ScreenBuffer->Height / 2.0f +
-                   GameState->Camera.pos.Y * GameState->TileMap.TileHeight;
-  int32 MinX = RoundRealToInt(GameState->Camera.pos.X -
-                              ScreenBuffer->Width / 2.0f /
-                                  GameState->TileMap.TileWidth) -
-               1;
+  real32 CenterX = ScreenBuffer->Width / 2.0f -
+                   GameState->Camera.pos.X * GameState->TileMap.TileWidth -
+                   GameState->Camera.pos.RelX * GameState->TileMap.TileWidth;
+  real32 CenterY = ScreenBuffer->Height / 2.0f -
+                   GameState->Camera.pos.Y * GameState->TileMap.TileHeight -
+                   GameState->Camera.pos.RelY * GameState->TileMap.TileHeight;
+  int32 MinX =
+      RoundRealToInt(GameState->Camera.pos.X -
+                     ScreenBuffer->Width / 2.0f / GameState->TileMap.TileWidth +
+                     GameState->Camera.pos.RelX) -
+      1;
   int32 MinY = RoundRealToInt(GameState->Camera.pos.Y -
                               ScreenBuffer->Height / 2.0f /
-                                  GameState->TileMap.TileHeight) -
+                                  GameState->TileMap.TileHeight +
+                              GameState->Camera.pos.RelY) -
                1;
 
-  int32 MaxX = RoundRealToInt(GameState->Camera.pos.X +
-                              ScreenBuffer->Width / 2.0f /
-                                  GameState->TileMap.TileWidth) +
-               1;
+  int32 MaxX =
+      RoundRealToInt(GameState->Camera.pos.X +
+                     ScreenBuffer->Width / 2.0f / GameState->TileMap.TileWidth +
+                     GameState->Camera.pos.RelX) +
+      1;
   int32 MaxY = RoundRealToInt(GameState->Camera.pos.Y +
                               ScreenBuffer->Height / 2.0f /
-                                  GameState->TileMap.TileHeight) +
+                                  GameState->TileMap.TileHeight +
+                              GameState->Camera.pos.RelY) +
                1;
   for (int32 y = MinY; y <= MaxY; y++) {
     for (int32 x = MinX; x <= MaxX; x++) {
@@ -472,7 +487,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
                CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
                CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-               game_color_rgb{0.0f, y % 2 == 0 ? 0.5f : 0.7f,
+               game_color_rgb{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
                               x % 2 == 0 ? 0.6f : 0.8f});
     }
   }
@@ -494,12 +509,33 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     //// 2.0f, /             Entity->p.x + Entity->s.x / 2 + ScreenBuffer->Width
     //// 2.0f, /             Entity->p.y + Entity->s.x / 2 +
     /// ScreenBuffer->Height / 2.0f, /             Entity->c);
-    FillRectTexture(ScreenBuffer,
-                    Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
-                    Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,
-                    Entity->p.x + Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
-                    Entity->p.y + Entity->s.x / 2 + ScreenBuffer->Height / 2.0f,
-                    &GameState->Logo);
+
+    real32 CX =
+        Entity->p.X - GameState->Camera.pos.X - GameState->Camera.pos.RelX;
+    real32 CY =
+        Entity->p.Y - GameState->Camera.pos.Y - GameState->Camera.pos.RelY;
+    real32 CXR = Entity->p.RelX;
+    real32 CYR = Entity->p.RelY;
+    real32 X =
+        CX * GameState->TileMap.TileWidth + CXR * GameState->TileMap.TileWidth;
+    real32 Y = CY * GameState->TileMap.TileHeight +
+               CYR * GameState->TileMap.TileHeight;
+
+    FillRect(
+        ScreenBuffer,
+        (CX - 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width / 2.0f,
+        (CY - 0.2f) * GameState->TileMap.TileHeight +
+            ScreenBuffer->Height / 2.0f,
+        (CX + 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width / 2.0f,
+        (CY + 0.2f) * GameState->TileMap.TileHeight +
+            ScreenBuffer->Height / 2.0f,
+        game_color_rgb{0.0f, 0.0f, 0.0f});
+
+    FillRectTexture(
+        ScreenBuffer, X - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
+        Y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,
+        X + Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
+        Y + Entity->s.x / 2 + ScreenBuffer->Height / 2.0f, &GameState->Logo);
   }
 
   int BX = 0;

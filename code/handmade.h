@@ -142,7 +142,7 @@ enum game_direction {
 
 struct game_entity {
   bool active;
-  game_position p;
+  tile_position p;
   game_velocity v;
   game_size s;
   game_color_rgb c;
