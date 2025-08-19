@@ -327,6 +327,24 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) {
   return Result;
 }
 
+internal void Win32SetupGameMemory(win32_state *Win32State,
+                                   game_memory *GameMemory) {
+  GameMemory->Initialized = false;
+  GameMemory->PermanentStorageSize = Megabytes(10);
+  GameMemory->TransientStorageSize = Megabytes(100);
+  Win32State->TotalMemorySize =
+      GameMemory->TransientStorageSize + GameMemory->PermanentStorageSize;
+  Win32State->GameMemoryBlock = VirtualAlloc(
+      0, Win32State->TotalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+  GameMemory->PermanentStorage = (uint8 *)Win32State->GameMemoryBlock;
+  GameMemory->TransientStorage =
+      (uint8 *)GameMemory->PermanentStorage + GameMemory->PermanentStorageSize;
+
+  GameMemory->DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
+  GameMemory->DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
+  GameMemory->DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
+}
+
 internal void Win32EndRecordingInput(win32_state *State) {
   CloseHandle(State->RecordingHandle);
   State->InputRecordingIndex = 0;
@@ -403,6 +421,7 @@ internal void Win32ProcessMouseButton(game_button_state *ButtonState,
 }
 
 internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
+                                          game_memory *GameMemory,
                                           game_input *OldInput,
                                           game_input *NewInput,
                                           bool *ShallReload) {
@@ -538,6 +557,7 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
         KeyBoardController->Back.HalfTransitionCount +=
             IsDown != WasDown ? 1 : 0;
       }
+
       if (VKCode == VK_F4 && AltIsDown) {
         GlobalRunning = false;
       }
@@ -552,7 +572,11 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
         GlobalDebuggerState.RenderPause = !GlobalDebuggerState.RenderPause;
       }
       if (VKCode == VK_F8 && !WasDown && IsDown) {
-        if (Win32State->InputPlayingIndex != 0) {
+        if (AltIsDown) {
+          Win32SetupGameMemory(Win32State, GameMemory);
+          Win32EndInputPlayback(Win32State);
+          Win32EndRecordingInput(Win32State);
+        } else if (Win32State->InputPlayingIndex != 0) {
 
           game_controller_input total_reset_controller = {};
           *KeyBoardController = total_reset_controller;
@@ -969,7 +993,6 @@ internal void UnloadGame(win32_game *Game) {
     Game->IsValid = false;
   }
 }
-
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
   char ExePath[MAX_PATH];
@@ -1064,22 +1087,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
 #endif
 
       game_memory GameMemory = {};
-      GameMemory.Initialized = false;
-      GameMemory.PermanentStorageSize = Megabytes(10);
-      GameMemory.TransientStorageSize = Megabytes(100);
-      Win32State.TotalMemorySize =
-          GameMemory.TransientStorageSize + GameMemory.PermanentStorageSize;
-      Win32State.GameMemoryBlock =
-          VirtualAlloc(0, Win32State.TotalMemorySize, MEM_RESERVE | MEM_COMMIT,
-                       PAGE_READWRITE);
-      GameMemory.PermanentStorage = (uint8 *)Win32State.GameMemoryBlock;
-      GameMemory.TransientStorage = (uint8 *)GameMemory.PermanentStorage +
-                                    GameMemory.PermanentStorageSize;
-
-      GameMemory.DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
-      GameMemory.DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
-      GameMemory.DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
-
+      Win32SetupGameMemory(&Win32State, &GameMemory);
       if (Samples && GameMemory.PermanentStorage &&
           GameMemory.TransientStorage) {
 
@@ -1103,8 +1111,8 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             ShallReload = true;
           }
 
-          Win32ProcessPendingMessages(Window, &Win32State, OldInput, NewInput,
-                                      &ShallReload);
+          Win32ProcessPendingMessages(Window, &Win32State, &GameMemory,
+                                      OldInput, NewInput, &ShallReload);
           Win32ProcessControllerInput(&Win32State, OldInput, NewInput);
 
           if (ShallReload) {
