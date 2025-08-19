@@ -302,15 +302,99 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
   }
 }
 
+internal tile_chunk *GetOrCreateTileChunk(memory_arena *Arena, tile_map *Map,
+                                          int ChunkX, int ChunkY) {
+  for (int i = 0; i < Map->MaxChunks; i++) {
+    uint32 Hash = (ChunkX * 7 + ChunkY * 13 + i * 11) % Map->MaxChunks;
+
+    tile_hash_entry *Entry = &Map->Chunks[Hash];
+    if (Entry->Removed || Entry->Chunk == 0) {
+      Entry->Chunk = ArenaPushStruct(Arena, tile_chunk);
+      if (!Entry->Chunk) {
+        break;
+      }
+      Entry->Chunk->tiles =
+          ArenaPushArray(Arena, tile, Map->ChunkHeight * Map->ChunkWidth);
+      if (!Entry->Chunk->tiles) {
+        break;
+      }
+      Entry->Position.ChunkX = ChunkX;
+      Entry->Position.ChunkY = ChunkY;
+      Entry->Removed = false;
+      return Entry->Chunk;
+
+    } else {
+      if (Entry->Position.ChunkX == ChunkX &&
+          Entry->Position.ChunkY == ChunkY) {
+        return Entry->Chunk;
+      } else {
+        continue;
+      }
+    }
+  }
+  return 0;
+}
+
+internal tile_chunk *GetTileChunk(tile_map *Map, int ChunkX, int ChunkY) {
+  for (int i = 0; i < Map->MaxChunks; i++) {
+    uint32 Hash = (ChunkX * 7 + ChunkY * 13 + i * 11) % Map->MaxChunks;
+
+    tile_hash_entry Entry = Map->Chunks[Hash];
+    if (Entry.Removed) {
+      continue;
+    } else if (Entry.Chunk != 0) {
+      if (Entry.Position.ChunkX == ChunkX && Entry.Position.ChunkY == ChunkY) {
+        return Entry.Chunk;
+      } else {
+        continue;
+      }
+    } else {
+      break;
+    }
+  }
+  return 0;
+}
+
+internal chunk_tile_position GetChunkPosition(tile_map *Map, int TileX,
+                                              int TileY) {
+  chunk_tile_position Result = {};
+  Result.ChunkX = TileX / Map->ChunkWidth;
+  Result.ChunkY = TileY / Map->ChunkHeight;
+  Result.TileX = TileX % Map->ChunkWidth;
+  Result.TileY = TileY % Map->ChunkHeight;
+
+  return Result;
+}
+
 internal tile_kind GetTileKind(tile_map *Map, int TileX, int TileY) {
-  return ((TileX - 3) % 8 == 0 && (TileY - 3) % 4 != 0) ||
-                 ((TileY - 3) % 8 == 0 && (TileX + 1) % 16 != ((TileY-3)%8!= 0))
-             ? TILE_WALL
-             : TILE_EMPTY;
+  chunk_tile_position ChunkTilePos = GetChunkPosition(Map, TileX, TileY);
+  tile_chunk *Chunk =
+      GetTileChunk(Map, ChunkTilePos.ChunkX, ChunkTilePos.ChunkY);
+
+  if (Chunk != 0) {
+    tile Tile =
+        Chunk->tiles[ChunkTilePos.TileX + Map->ChunkWidth * ChunkTilePos.TileY];
+
+    return Tile.Kind;
+  } else {
+    return TILE_EMPTY;
+  }
 }
 
 internal void SetTileKind(memory_arena *Arena, tile_map *Map, int TileX,
-                          int TileY, uint16 Kind) {}
+                          int TileY, tile_kind Kind) {
+
+  chunk_tile_position ChunkTilePos = GetChunkPosition(Map, TileX, TileY);
+  tile_chunk *Chunk = GetOrCreateTileChunk(Arena, Map, ChunkTilePos.ChunkX,
+                                           ChunkTilePos.ChunkY);
+
+  if (Chunk) {
+    tile *Tile =
+        &Chunk
+             ->tiles[ChunkTilePos.TileX + Map->ChunkWidth * ChunkTilePos.TileY];
+    Tile->Kind = Kind;
+  }
+}
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
@@ -331,12 +415,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     GameState->Camera.pos.RelY = 0;
     GameState->TileMap.TileWidth = 128;
     GameState->TileMap.TileHeight = 128;
+    GameState->TileMap.ChunkHeight = 64;
+    GameState->TileMap.ChunkWidth = 64;
+    GameState->TileMap.MaxChunks = 256;
     char FileName[] = "./data/logo.bmp";
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
     InitializeArena(&GameState->WorldArena,
                     Memory->PermanentStorageSize - sizeof(*GameState),
                     Memory->PermanentStorage + sizeof(*GameState));
+    GameState->TileMap.Chunks = ArenaPushArray(
+        &GameState->WorldArena, tile_hash_entry, GameState->TileMap.MaxChunks);
+
+    SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 0, TILE_WALL);
+    SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 2, TILE_WALL);
+    SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 1, TILE_WALL);
+    SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 3, TILE_WALL);
+
     Memory->Initialized = true;
   }
 
@@ -374,14 +469,26 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       GameState->Muted = !GameState->Muted;
     }
 
+    if (GameState->ControllerMap.controllers[c]) {
+      if (Controller->Back.EndedDown &&
+          Controller->Back.HalfTransitionCount > 0) {
+
+        game_entity *Entity = GameState->ControllerMap.controllers[c];
+        SetTileKind(&GameState->WorldArena, &GameState->TileMap, Entity->p.X,
+                    Entity->p.Y, TILE_WALL);
+      }
+    }
+
     if (Controller->ActionRight.HalfTransitionCount > 0 &&
         Controller->ActionRight.EndedDown) {
       if (!GameState->ControllerMap.controllers[c]) {
         if (GameState->EntityCount < ENTITY_MAX) {
           game_entity NewEntity{};
           NewEntity.active = true;
-          int32 RandomX = RandomNumbers[GameState->EntityCount] % 3 - 1;
-          int32 RandomY = RandomNumbers[GameState->EntityCount + 42] % 3 - 1;
+          int32 RandomX = GameState->EntityCount *
+                          (RandomNumbers[GameState->EntityCount] % 3 - 1);
+          int32 RandomY = GameState->EntityCount *
+                          (RandomNumbers[GameState->EntityCount + 42] % 3 - 1);
           NewEntity.p = tile_position{};
           NewEntity.p.X = 0; // RandomX;
           NewEntity.p.Y = 0; // RandomY;
@@ -445,11 +552,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (!Entity->active) {
       continue;
     }
+
+    bool CurrentWall =
+        TILE_WALL == GetTileKind(&GameState->TileMap, Entity->p.X, Entity->p.Y);
     {
       tile_position NewPos = Entity->p;
       NewPos.RelX += Entity->v.x / GameState->TileMap.TileWidth;
       TilePositionNormalize(&NewPos);
-      if (TILE_WALL != GetTileKind(&GameState->TileMap, NewPos.X, NewPos.Y)) {
+      if (CurrentWall ||
+          TILE_WALL != GetTileKind(&GameState->TileMap, NewPos.X, NewPos.Y)) {
         Entity->p = NewPos;
       }
     }
@@ -457,7 +568,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       tile_position NewPos = Entity->p;
       NewPos.RelY += Entity->v.y / GameState->TileMap.TileHeight;
       TilePositionNormalize(&NewPos);
-      if (TILE_WALL != GetTileKind(&GameState->TileMap, NewPos.X, NewPos.Y)) {
+      if (CurrentWall ||
+          TILE_WALL != GetTileKind(&GameState->TileMap, NewPos.X, NewPos.Y)) {
         Entity->p = NewPos;
       }
     }

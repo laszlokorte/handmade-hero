@@ -3,7 +3,6 @@
 #include "./handmade_types.h"
 #include "./tilemap.h"
 
-
 struct thread_context {
   int Dummy;
 };
