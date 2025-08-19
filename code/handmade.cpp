@@ -2,6 +2,22 @@
 #include "math.h"
 
 global_variable game_state global_game_state = {};
+struct bit_scan_result {
+  bool Found;
+  uint32 Index;
+};
+internal bit_scan_result FindLowestBit(uint32 Value) {
+  bit_scan_result Result = {};
+  for (uint32 Test = 0; Test < 32; ++Test) {
+    if (Value & (1 << Test)) {
+      Result.Index = Test;
+      Result.Found = true;
+      break;
+    }
+  }
+
+  return Result;
+}
 
 #pragma pack(push, 1)
 struct bitmap_header {
@@ -15,6 +31,15 @@ struct bitmap_header {
   int32 Height;
   uint16 Planes;
   uint16 BitsPerPixel;
+  uint32 Compression;
+  uint32 SizeOfBitmap;
+  int32 HorzResolution;
+  int32 VertResolution;
+  uint32 ColorsUsed;
+  uint32 ColorsImportant;
+  uint32 RedMask;
+  uint32 GreenMask;
+  uint32 BlueMask;
 };
 #pragma pack(pop)
 
@@ -26,20 +51,38 @@ DEBUGLoadBMP(thread_context *Context,
 
   if (ReadResult.ContentSize != 0) {
     bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
-    uint32 *Pixels =
-        (uint32 *)((uint8 *)ReadResult.Contents + Header->BitmapOffset);
 
-    uint32 *SourceDest = Pixels;
-    for (int32 Y = 0; Y < Header->Height; Y++) {
-      for (int32 X = 0; X < Header->Width; X++) {
-        // *SourceDest = (*SourceDest >> 8) | (*SourceDest << 24);
-        SourceDest++;
+    if (Header->Compression == 3) {
+
+      uint32 RedMask = Header->RedMask;
+      uint32 GreenMask = Header->GreenMask;
+      uint32 BlueMask = Header->BlueMask;
+      uint32 AlphaMask = ~(RedMask | GreenMask | BlueMask);
+
+      bit_scan_result RedShift = FindLowestBit(RedMask);
+      bit_scan_result GreenShift = FindLowestBit(GreenMask);
+      bit_scan_result BlueShift = FindLowestBit(BlueMask);
+      bit_scan_result AlphaShift = FindLowestBit(AlphaMask);
+
+      uint32 *Pixels =
+          (uint32 *)((uint8 *)ReadResult.Contents + Header->BitmapOffset);
+
+      uint32 *SourceDest = Pixels;
+      for (int32 Y = 0; Y < Header->Height; Y++) {
+        for (int32 X = 0; X < Header->Width; X++) {
+          uint32 Red = (*SourceDest & RedMask) >> RedShift.Index;
+          uint32 Green = (*SourceDest & GreenMask) >> GreenShift.Index;
+          uint32 Blue = (*SourceDest & BlueMask) >> BlueShift.Index;
+          uint32 Alpha = (*SourceDest & AlphaMask) >> AlphaShift.Index;
+          *SourceDest = Alpha << 24 | Red << 16 | Green << 8 | Blue;
+          SourceDest++;
+        }
       }
-    }
 
-    Result.Memory = Pixels;
-    Result.Width = Header->Width;
-    Result.Height = Header->Height;
+      Result.Memory = Pixels;
+      Result.Width = Header->Width;
+      Result.Height = Header->Height;
+    }
   }
 
   return Result;
@@ -111,9 +154,11 @@ internal int32 SampleBitmap(loaded_bitmap *Bitmap, int x, int y) {
 }
 
 internal uint32 lerpColor(real32 t, uint32 c1, uint32 c2) {
+  uint32 a1 = (c1 >> 24) & 0xff;
   uint32 r1 = (c1 >> 16) & 0xff;
   uint32 g1 = (c1 >> 8) & 0xff;
   uint32 b1 = (c1 >> 0) & 0xff;
+  uint32 a2 = (c2 >> 24) & 0xff;
   uint32 r2 = (c2 >> 16) & 0xff;
   uint32 g2 = (c2 >> 8) & 0xff;
   uint32 b2 = (c2 >> 0) & 0xff;
@@ -121,10 +166,16 @@ internal uint32 lerpColor(real32 t, uint32 c1, uint32 c2) {
   real32 rm = r1 * (1.0f - t) + r2 * t;
   real32 gm = g1 * (1.0f - t) + g2 * t;
   real32 bm = b1 * (1.0f - t) + b2 * t;
-  return ((int)rm << 16) | ((int)gm << 8) | ((int)bm << 0);
+  real32 am = a1 * (1.0f - t) + a2 * t;
+  return ((int)am << 24) | ((int)rm << 16) | ((int)gm << 8) | ((int)bm << 0);
 }
 
-internal int32 SampleBitmapBilinear(loaded_bitmap *Bitmap, real32 x, real32 y) {
+internal uint32 AlphaBlendARGB(uint32 Bg, uint32 Fg) {
+    real32 Alpha = (((Fg>>24) & 0xff) / 255.0f);
+    return lerpColor(Alpha, Bg, Fg);
+}
+
+internal uint32 SampleBitmapBilinear(loaded_bitmap *Bitmap, real32 x, real32 y) {
   real32 xr = x * Bitmap->Width;
   real32 yr = y * Bitmap->Height;
   int x0 = (int)xr;
@@ -147,10 +198,15 @@ internal void FillRectTexture(game_offscreen_buffer *Buffer, real32 XMinReal,
                               loaded_bitmap *Bitmap) {
   real32 RealWidth = YMaxReal - YMinReal;
   real32 RealHeight = YMaxReal - YMinReal;
-  int XMin = Clamp(RoundRealToInt(XMinReal), 0, Buffer->Width);
-  int XMax = Clamp(RoundRealToInt(XMaxReal), 0, Buffer->Width);
-  int YMin = Clamp(RoundRealToInt(YMinReal), 0, Buffer->Height);
-  int YMax = Clamp(RoundRealToInt(YMaxReal), 0, Buffer->Height);
+
+  int XMinRealRound = RoundRealToInt(XMinReal);
+  int XMaxRealRound = RoundRealToInt(XMaxReal);
+  int YMinRealRound = RoundRealToInt(YMinReal);
+  int YMaxRealRound = RoundRealToInt(YMaxReal);
+  int XMin = Clamp(XMinRealRound, 0, Buffer->Width);
+  int XMax = Clamp(XMaxRealRound, 0, Buffer->Width);
+  int YMin = Clamp(YMinRealRound, 0, Buffer->Height);
+  int YMax = Clamp(YMaxRealRound, 0, Buffer->Height);
 
   size_t Stride = Buffer->Width * Buffer->BytesPerPixel;
   uint8 *Row =
@@ -158,10 +214,10 @@ internal void FillRectTexture(game_offscreen_buffer *Buffer, real32 XMinReal,
   for (int y = YMin; y < YMax; y++) {
     uint8 *Pixel = Row;
     for (int x = XMin; x < XMax; x++) {
-      real32 u = (x - XMinReal) / (RealWidth);
-      real32 v = (y - YMinReal) / (RealHeight);
-      int RGB = SampleBitmapBilinear(Bitmap, u, v);
-      *(int *)Pixel = RGB;
+      real32 u = (x - XMinRealRound) / (RealWidth);
+      real32 v = (y - YMinRealRound) / (RealHeight);
+      int ARGB = SampleBitmapBilinear(Bitmap, u, v);
+      *(int *)Pixel = AlphaBlendARGB(*(int *)Pixel, ARGB);
       Pixel += Buffer->BytesPerPixel;
     }
     Row += Stride;
@@ -250,7 +306,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     char FileName[] = "./data/logo.bmp";
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
-    InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(GameState), Memory->PermanentStorage + sizeof(GameState));
+    InitializeArena(&GameState->WorldArena,
+                    Memory->PermanentStorageSize - sizeof(*GameState),
+                    Memory->PermanentStorage + sizeof(*GameState));
     Memory->Initialized = true;
   }
 
@@ -298,7 +356,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
           GameState->EntityCount++;
         }
       } else {
-        GameState->ControllerMap.controllers[c]->active = false;
+        //GameState->ControllerMap.controllers[c]->active = false;
         GameState->ControllerMap.controllers[c] = 0;
       }
     }
@@ -376,12 +434,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (!Entity->active) {
       continue;
     }
-    FillRect(ScreenBuffer,
-             Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
-             Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,
-             Entity->p.x + Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
-             Entity->p.y + Entity->s.x / 2 + ScreenBuffer->Height / 2.0f,
-             Entity->c);
+////    FillRect(ScreenBuffer,
+////             Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
+////             Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,
+////             Entity->p.x + Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
+////             Entity->p.y + Entity->s.x / 2 + ScreenBuffer->Height / 2.0f,
+////             Entity->c);
     FillRectTexture(ScreenBuffer,
                     Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
                     Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,

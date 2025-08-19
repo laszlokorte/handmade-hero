@@ -27,7 +27,6 @@ typedef int8_t int8;
 typedef float real32;
 typedef double real64;
 
-typedef size_t memory_index;
 
 #define Pi32 3.14159265359f
 #define NOTE_HALFTONE (1.0f / 12.0f)
