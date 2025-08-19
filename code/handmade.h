@@ -1,6 +1,7 @@
 #if !defined(HANDMADE_H)
 
 #include "./handmade_types.h"
+#include "./tilemap.h"
 
 typedef size_t memory_index;
 
@@ -180,14 +181,14 @@ internal void *ArenaPushSize(memory_arena *Arena, memory_index Size) {
     return Result;
 }
 
+struct game_camera {
+    tile_position pos;
+};
+
 #define ENTITY_MAX 30
 struct game_state {
   bool Muted;
   uint64 Time;
-  int XPos;
-  int YPos;
-  int XPlayer;
-  int YPlayer;
   int Note;
   int VolumeRange;
   int Volume;
@@ -197,6 +198,8 @@ struct game_state {
   game_controller_entity_map ControllerMap;
   game_entity Entities[ENTITY_MAX];
   memory_arena WorldArena;
+  game_camera Camera;
+  tile_map TileMap;
 };
 
 struct game_sound_synth {

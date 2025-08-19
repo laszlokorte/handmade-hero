@@ -93,7 +93,7 @@ internal void GameOutputSound(bool muted, int32 Note, real32 Volume,
                               game_sound_output_buffer *SoundBuffer) {
 
   local_persist real32 tSin = 0;
-  real32 ToneVolumne = muted ? 0 : (2.0f * powf(2.0f, 8+4*Volume));
+  real32 ToneVolumne = muted ? 0 : (2.0f * powf(2.0f, 8 + 4 * Volume));
   real32 toneHz = 440;
   real32 f = toneHz / (real32)SoundBuffer->SamplesPerSecond *
              powf(2.0f, NOTE_HALFTONE * (real32)Note);
@@ -256,6 +256,17 @@ internal void RenderRect(game_offscreen_buffer *Buffer, int X, int Y, int Width,
   }
 }
 
+internal void ClearScreen(game_offscreen_buffer *Buffer, int ClearColor) {
+  unsigned int *canvas = (unsigned int *)(Buffer->Memory);
+  int cx = Buffer->Width / 2;
+  int cy = Buffer->Height / 2;
+  for (int x = 0; x < Buffer->Width; x++) {
+    for (int y = 0; y < Buffer->Height; y++) {
+      canvas[(y)*Buffer->Width + (x)] = ClearColor;
+    }
+  }
+}
+
 internal void RenderGradient(game_offscreen_buffer *Buffer, int xoff, int yoff,
                              int zoff) {
   unsigned int *canvas = (unsigned int *)(Buffer->Memory);
@@ -283,7 +294,8 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
   game_state *GameState = (game_state *)Memory->PermanentStorage;
 
   if (Memory->Initialized) {
-    GameOutputSound(GameState->Muted, GameState->Note, ((real32)GameState->Volume)/GameState->VolumeRange,
+    GameOutputSound(GameState->Muted, GameState->Note,
+                    ((real32)GameState->Volume) / GameState->VolumeRange,
                     SoundBuffer);
   }
 }
@@ -299,12 +311,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     GameState->Note = 0;
     GameState->VolumeRange = 5;
     GameState->Volume = 0;
-    GameState->XPlayer = 0;
-    GameState->YPlayer = 0;
-    GameState->XPos = 0;
-    GameState->YPos = 0;
     GameState->Muted = true;
     GameState->JumpTime = 0;
+    GameState->Camera.pos.X = 0;
+    GameState->Camera.pos.Y = 0;
+    GameState->Camera.pos.RelX = 0;
+    GameState->Camera.pos.RelY = 0;
+    GameState->TileMap.TileWidth = 128;
+    GameState->TileMap.TileHeight = 128;
     char FileName[] = "./data/logo.bmp";
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
@@ -354,8 +368,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         if (GameState->EntityCount < ENTITY_MAX) {
           game_entity NewEntity{};
           NewEntity.active = true;
-          real32 RandomX = 256.0f * ((real32)RandomNumbers[GameState->EntityCount] / 64000);
-          real32 RandomY = 256.0f * ((real32)RandomNumbers[GameState->EntityCount + 42] / 64000);
+          real32 RandomX =
+              256.0f * ((real32)RandomNumbers[GameState->EntityCount] / 64000);
+          real32 RandomY =
+              256.0f *
+              ((real32)RandomNumbers[GameState->EntityCount + 42] / 64000);
           NewEntity.p = {RandomX, RandomY};
           NewEntity.v = {0.0f, 0.0f};
           NewEntity.s = {50.0f, 50.0f};
@@ -409,7 +426,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (Controller->Back.EndedDown &&
         Controller->Back.HalfTransitionCount > 0 && GameState->JumpTime == 0) {
       GameState->JumpTime += 15;
-      GameState->YPlayer -= 10;
     }
   }
   for (int e = 0; e < GameState->EntityCount; e++) {
@@ -424,15 +440,34 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   int PlayerWidth = 10;
   int PlayerColor = 0x00ff44;
 
-  RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
-                 (int32)GameState->Time);
-  RenderRect(
-      ScreenBuffer,
-      GameState->XPlayer + ScreenBuffer->Width / 2 - PlayerWidth / 2,
-      GameState->YPlayer -
-          (int32)(100.0f * sinf((real32)GameState->JumpTime / 15.0f * Pi32)) +
-          ScreenBuffer->Height / 2 - PlayerHeight / 2,
-      PlayerWidth, PlayerHeight, PlayerColor);
+  ClearScreen(ScreenBuffer, 0x00000000);
+  // RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
+  // (int32)GameState->Time);
+
+  real32 CenterX = ScreenBuffer->Width / 2.0f +
+                   GameState->Camera.pos.X * GameState->TileMap.TileWidth;
+  real32 CenterY = ScreenBuffer->Height / 2.0f +
+                   GameState->Camera.pos.Y * GameState->TileMap.TileHeight;
+  int32 MinX = RoundRealToInt(GameState->Camera.pos.X -
+                ScreenBuffer->Width / 2.0f / GameState->TileMap.TileWidth) -1;
+  int32 MinY = RoundRealToInt(GameState->Camera.pos.Y -
+                ScreenBuffer->Height / 2.0f / GameState->TileMap.TileHeight) -1;
+
+  int32 MaxX = RoundRealToInt(GameState->Camera.pos.X +
+                ScreenBuffer->Width / 2.0f / GameState->TileMap.TileWidth) +1;
+  int32 MaxY = RoundRealToInt(GameState->Camera.pos.Y +
+      ScreenBuffer->Height / 2.0f / GameState->TileMap.TileHeight)+1;
+  for (int32 y = MinY; y <= MaxY; y++) {
+    for (int32 x = MinX; x <= MaxX; x++) {
+      FillRect(ScreenBuffer,
+               CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+               CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+               CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+               CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+               game_color_rgb{0.0f, y % 2 == 0 ? 0.5f : 0.3f,
+                              x % 2 == 0 ? 0.2f : 0.3f});
+    }
+  }
 
   for (int m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
     game_button_state Button = Input->Mouse.Buttons[m];
@@ -450,7 +485,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     ////             Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height
     //// 2.0f, /             Entity->p.x + Entity->s.x / 2 + ScreenBuffer->Width
     //// 2.0f, /             Entity->p.y + Entity->s.x / 2 +
-    ///ScreenBuffer->Height / 2.0f, /             Entity->c);
+    /// ScreenBuffer->Height / 2.0f, /             Entity->c);
     FillRectTexture(ScreenBuffer,
                     Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
                     Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,
