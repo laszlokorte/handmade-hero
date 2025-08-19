@@ -13,23 +13,19 @@ global_variable bool GlobalRunning;
 global_variable bool GlobalTransparent;
 
 struct win32_state {
-    uint64 TotalMemorySize;
-        void *GameMemoryBlock;
-    HANDLE RecordingHandle;
-    int InputRecordingIndex;
+  uint64 TotalMemorySize;
+  void *GameMemoryBlock;
+  HANDLE RecordingHandle;
+  int InputRecordingIndex;
 
-    HANDLE PlaybackHandle;
-    int InputPlayingIndex;
+  HANDLE PlaybackHandle;
+  int InputPlayingIndex;
 };
 
-
-struct win32_recorded_input
-{
-    int InputCount;
-    game_input *InputStream;
+struct win32_recorded_input {
+  int InputCount;
+  game_input *InputStream;
 };
-
-
 
 global_variable int64 GlobalPerfCounterFrequency;
 #if defined(_M_ARM64)

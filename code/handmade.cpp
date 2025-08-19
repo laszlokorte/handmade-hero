@@ -449,14 +449,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   real32 CenterY = ScreenBuffer->Height / 2.0f +
                    GameState->Camera.pos.Y * GameState->TileMap.TileHeight;
   int32 MinX = RoundRealToInt(GameState->Camera.pos.X -
-                ScreenBuffer->Width / 2.0f / GameState->TileMap.TileWidth) -1;
+                              ScreenBuffer->Width / 2.0f /
+                                  GameState->TileMap.TileWidth) -
+               1;
   int32 MinY = RoundRealToInt(GameState->Camera.pos.Y -
-                ScreenBuffer->Height / 2.0f / GameState->TileMap.TileHeight) -1;
+                              ScreenBuffer->Height / 2.0f /
+                                  GameState->TileMap.TileHeight) -
+               1;
 
   int32 MaxX = RoundRealToInt(GameState->Camera.pos.X +
-                ScreenBuffer->Width / 2.0f / GameState->TileMap.TileWidth) +1;
+                              ScreenBuffer->Width / 2.0f /
+                                  GameState->TileMap.TileWidth) +
+               1;
   int32 MaxY = RoundRealToInt(GameState->Camera.pos.Y +
-      ScreenBuffer->Height / 2.0f / GameState->TileMap.TileHeight)+1;
+                              ScreenBuffer->Height / 2.0f /
+                                  GameState->TileMap.TileHeight) +
+               1;
   for (int32 y = MinY; y <= MaxY; y++) {
     for (int32 x = MinX; x <= MaxX; x++) {
       FillRect(ScreenBuffer,
@@ -464,8 +472,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
                CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
                CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-               game_color_rgb{0.0f, y % 2 == 0 ? 0.5f : 0.3f,
-                              x % 2 == 0 ? 0.2f : 0.3f});
+               game_color_rgb{0.0f, y % 2 == 0 ? 0.5f : 0.7f,
+                              x % 2 == 0 ? 0.6f : 0.8f});
     }
   }
 

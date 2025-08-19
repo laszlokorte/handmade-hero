@@ -280,7 +280,6 @@ internal void Win32BeginRecordingInput(win32_state *State,
             &BytesWritten, 0);
 }
 
-
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory) {
   if (Memory) {
     VirtualFree(Memory, 0, MEM_RELEASE);
@@ -978,12 +977,15 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
 
   thread_context Context = {};
 
-  win32_state Win32State;
+  win32_state Win32State = {};
   Win32GetPathRelativeToExecutable(&ExePathLength, sizeof(ExePath), ExePath);
   char SourceGameCodeDLLFilename[] = "handmade.dll";
   char SourceGameCodeDLLFullPath[MAX_PATH];
   char TargetGameCodeDLLFilename[] = "handmade_temp.dll";
   char TargetGameCodeDLLFullPath[MAX_PATH];
+
+  char LockFileFilename[] = "hotreload.lock";
+  char LockFileFullPath[MAX_PATH];
 
   ConcatStrings(ExePathLength, ExePath, sizeof(SourceGameCodeDLLFilename),
                 SourceGameCodeDLLFilename, sizeof(SourceGameCodeDLLFullPath),
@@ -991,6 +993,9 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
   ConcatStrings(ExePathLength, ExePath, sizeof(TargetGameCodeDLLFilename),
                 TargetGameCodeDLLFilename, sizeof(TargetGameCodeDLLFullPath),
                 TargetGameCodeDLLFullPath);
+
+  ConcatStrings(ExePathLength, ExePath, sizeof(LockFileFilename),
+                LockFileFilename, sizeof(LockFileFullPath), LockFileFullPath);
 
   OutputDebugString(TargetGameCodeDLLFullPath);
 
@@ -1067,14 +1072,13 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
       Win32State.GameMemoryBlock =
           VirtualAlloc(0, Win32State.TotalMemorySize, MEM_RESERVE | MEM_COMMIT,
                        PAGE_READWRITE);
-      GameMemory.PermanentStorage = (uint8*) Win32State.GameMemoryBlock;
+      GameMemory.PermanentStorage = (uint8 *)Win32State.GameMemoryBlock;
       GameMemory.TransientStorage = (uint8 *)GameMemory.PermanentStorage +
                                     GameMemory.PermanentStorageSize;
 
       GameMemory.DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
       GameMemory.DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
       GameMemory.DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
-
 
       if (Samples && GameMemory.PermanentStorage &&
           GameMemory.TransientStorage) {
@@ -1090,9 +1094,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         while (GlobalRunning) {
           bool ShallReload = false;
 
+          FILETIME LockFileTime = Win32GetLastWriteTime(LockFileFullPath);
           FILETIME LatestWriteTime =
               Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
-          if (CompareFileTime(&LatestWriteTime, &Game.LastWriteTime) != 0) {
+          if (CompareFileTime(&LatestWriteTime, &Game.LastWriteTime) != 0 &&
+              (LockFileTime.dwHighDateTime != 0 ||
+               LockFileTime.dwLowDateTime != 0)) {
             ShallReload = true;
           }
 

@@ -33,7 +33,6 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
             void *Memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
-
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
 struct game_offscreen_buffer {
@@ -135,10 +134,10 @@ struct game_color_rgb {
 };
 
 enum game_direction {
-    GameDirectionNorth,
-    GameDirectionSouth,
-    GameDirectionEast,
-    GameDirectionWest,
+  GameDirectionNorth,
+  GameDirectionSouth,
+  GameDirectionEast,
+  GameDirectionWest,
 };
 
 struct game_entity {
@@ -153,7 +152,6 @@ struct game_controller_entity_map {
   game_entity *controllers[5];
 };
 
-
 struct loaded_bitmap {
   size_t Width;
   size_t Height;
@@ -161,28 +159,30 @@ struct loaded_bitmap {
 };
 
 struct memory_arena {
-    memory_index Size;
-    memory_index Used;
-    uint8 *Base;
+  memory_index Size;
+  memory_index Used;
+  uint8 *Base;
 };
 
-internal void InitializeArena(memory_arena *Arena, memory_index Size, uint8 *Base) {
-    Arena->Size = Size;
-    Arena->Used = 0;
-    Arena->Base = Base;
+internal void InitializeArena(memory_arena *Arena, memory_index Size,
+                              uint8 *Base) {
+  Arena->Size = Size;
+  Arena->Used = 0;
+  Arena->Base = Base;
 }
 
 #define ArenaPushStruct(Arena, Type) (Type *)ArenaPushSize(Arena, sizeof(Type))
-#define ArenaPushArray(Arena, Type, Count) (Type*)ArenaPushSize(Arena, sizeof(Type) * Count)
+#define ArenaPushArray(Arena, Type, Count)                                     \
+  (Type *)ArenaPushSize(Arena, sizeof(Type) * Count)
 internal void *ArenaPushSize(memory_arena *Arena, memory_index Size) {
-    void *Result = Arena->Base + Arena->Used;
-    Arena->Used += Size;
+  void *Result = Arena->Base + Arena->Used;
+  Arena->Used += Size;
 
-    return Result;
+  return Result;
 }
 
 struct game_camera {
-    tile_position pos;
+  tile_position pos;
 };
 
 #define ENTITY_MAX 30
