@@ -189,6 +189,7 @@ struct game_state {
   int XPlayer;
   int YPlayer;
   int Note;
+  int VolumeRange;
   int Volume;
   int JumpTime;
   int EntityCount;

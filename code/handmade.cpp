@@ -1,5 +1,6 @@
 #include "./handmade.h"
 #include "math.h"
+#include "entropy.h"
 
 global_variable game_state global_game_state = {};
 struct bit_scan_result {
@@ -88,12 +89,11 @@ DEBUGLoadBMP(thread_context *Context,
   return Result;
 }
 
-internal void GameOutputSound(bool muted, int32 Note, int32 Volume,
+internal void GameOutputSound(bool muted, int32 Note, real32 Volume,
                               game_sound_output_buffer *SoundBuffer) {
 
   local_persist real32 tSin = 0;
-  real32 ToneVolumne =
-      muted ? 0 : (3000.0f * powf(2.0f, (real32)Volume / 5.0f));
+  real32 ToneVolumne = muted ? 0 : (2.0f * powf(2.0f, 8+4*Volume));
   real32 toneHz = 440;
   real32 f = toneHz / (real32)SoundBuffer->SamplesPerSecond *
              powf(2.0f, NOTE_HALFTONE * (real32)Note);
@@ -171,11 +171,12 @@ internal uint32 lerpColor(real32 t, uint32 c1, uint32 c2) {
 }
 
 internal uint32 AlphaBlendARGB(uint32 Bg, uint32 Fg) {
-    real32 Alpha = (((Fg>>24) & 0xff) / 255.0f);
-    return lerpColor(Alpha, Bg, Fg);
+  real32 Alpha = (((Fg >> 24) & 0xff) / 255.0f);
+  return lerpColor(Alpha, Bg, Fg);
 }
 
-internal uint32 SampleBitmapBilinear(loaded_bitmap *Bitmap, real32 x, real32 y) {
+internal uint32 SampleBitmapBilinear(loaded_bitmap *Bitmap, real32 x,
+                                     real32 y) {
   real32 xr = x * Bitmap->Width;
   real32 yr = y * Bitmap->Height;
   int x0 = (int)xr;
@@ -282,7 +283,7 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
   game_state *GameState = (game_state *)Memory->PermanentStorage;
 
   if (Memory->Initialized) {
-    GameOutputSound(GameState->Muted, GameState->Note, GameState->Volume,
+    GameOutputSound(GameState->Muted, GameState->Note, ((real32)GameState->Volume)/GameState->VolumeRange,
                     SoundBuffer);
   }
 }
@@ -296,7 +297,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     *GameState = NewGameState;
     GameState->Time = 0;
     GameState->Note = 0;
-    GameState->Volume = 5;
+    GameState->VolumeRange = 5;
+    GameState->Volume = 0;
     GameState->XPlayer = 0;
     GameState->YPlayer = 0;
     GameState->XPos = 0;
@@ -330,10 +332,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         Controller->ActionUp.EndedDown) {
       GameState->Volume++;
       GameState->Muted = false;
+      if (GameState->Volume > GameState->VolumeRange) {
+        GameState->Volume = GameState->VolumeRange;
+      }
     }
     if (Controller->ActionDown.HalfTransitionCount > 0 &&
         Controller->ActionDown.EndedDown) {
       GameState->Volume--;
+      if (GameState->Volume <= -GameState->VolumeRange) {
+        GameState->Volume = -GameState->VolumeRange;
+      }
     }
     if (Controller->ActionLeft.HalfTransitionCount > 0 &&
         Controller->ActionLeft.EndedDown) {
@@ -346,7 +354,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         if (GameState->EntityCount < ENTITY_MAX) {
           game_entity NewEntity{};
           NewEntity.active = true;
-          NewEntity.p = {0.0f, 10.0f};
+          real32 RandomX = 256.0f * ((real32)RandomNumbers[GameState->EntityCount] / 64000);
+          real32 RandomY = 256.0f * ((real32)RandomNumbers[GameState->EntityCount + 42] / 64000);
+          NewEntity.p = {RandomX, RandomY};
           NewEntity.v = {0.0f, 0.0f};
           NewEntity.s = {50.0f, 50.0f};
           NewEntity.c = {0.2f, 0.1f * GameState->EntityCount, 0.3f};
@@ -356,7 +366,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
           GameState->EntityCount++;
         }
       } else {
-        //GameState->ControllerMap.controllers[c]->active = false;
+        game_velocity v0 = {};
+        GameState->ControllerMap.controllers[c]->v = v0;
         GameState->ControllerMap.controllers[c] = 0;
       }
     }
@@ -434,12 +445,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (!Entity->active) {
       continue;
     }
-////    FillRect(ScreenBuffer,
-////             Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
-////             Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,
-////             Entity->p.x + Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
-////             Entity->p.y + Entity->s.x / 2 + ScreenBuffer->Height / 2.0f,
-////             Entity->c);
+    ////    FillRect(ScreenBuffer,
+    ////             Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
+    ////             Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height
+    //// 2.0f, /             Entity->p.x + Entity->s.x / 2 + ScreenBuffer->Width
+    //// 2.0f, /             Entity->p.y + Entity->s.x / 2 +
+    ///ScreenBuffer->Height / 2.0f, /             Entity->c);
     FillRectTexture(ScreenBuffer,
                     Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
                     Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,
