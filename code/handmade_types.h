@@ -2,7 +2,11 @@
 
 #include <stdint.h>
 
+#ifndef GL_BGRA
+#define GL_BGRA 0x80E1
+#endif
 #if HANDMADE_SLOW
+
 #define Assert(Expression)                                                     \
   if (!(Expression)) {                                                         \
     *(int *)0 = 0;                                                             \

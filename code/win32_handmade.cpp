@@ -1,7 +1,6 @@
 #include "win32_handmade.h"
 #include "handmade.h"
-#include <Xinput.h>
-#include <winuser.h>
+#include <GL/gl.h>
 
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
                               int32 BufferSize,
@@ -203,13 +202,12 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   } break;
 
   case WM_DESTROY: {
-    GlobalRunning = false;
+    PostQuitMessage(0);
     OutputDebugStringA("WM_DETROY\n");
   } break;
 
   case WM_CLOSE: {
-    // PostQuitMessage(0);
-    GlobalRunning = false;
+    PostQuitMessage(0);
     OutputDebugStringA("WM_CLOSE\n");
   } break;
 
@@ -238,7 +236,9 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   case WM_KEYDOWN: {
     // not handled here
   } break;
-
+  case WM_ERASEBKGND: {
+    return 1;
+  } break;
   case WM_PAINT: {
     PAINTSTRUCT Paint;
     HDC DeviceContext = BeginPaint(Window, &Paint);
@@ -453,7 +453,7 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
 
   while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
     if (message.message == WM_QUIT) {
-      GlobalRunning = false;
+      Win32State->Running = false;
     }
     switch (message.message) {
     case WM_LBUTTONDOWN:
@@ -559,7 +559,7 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
       }
 
       if (VKCode == VK_F4 && AltIsDown) {
-        GlobalRunning = false;
+        Win32State->Running = false;
       }
       if (VKCode == VK_RETURN && AltIsDown && !WasDown && IsDown) {
         Win32ToggleFullScreen(Window);
@@ -1040,6 +1040,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
   windowClass.style = CS_HREDRAW | CS_VREDRAW;
   windowClass.lpfnWndProc = *Win32MainWindowCallback;
   windowClass.hInstance = Instance;
+  windowClass.hbrBackground = NULL;
   windowClass.hCursor = LoadCursorA(0, IDC_ARROW);
   // windowClass.hIcon = ;
   windowClass.lpszClassName = "HandmadeHeroWindowClass";
@@ -1058,7 +1059,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
       }
       real32 TargetSecondsPerFrame = 1.0f / TargetFrameHz;
       Win32LoadXInput();
-      GlobalRunning = true;
+      Win32State.Running = true;
       win32_sound_output SoundOutput;
       SoundOutput.SamplingRateInHz = 48000;
       SoundOutput.RunningSampleIndex = 0;
@@ -1099,7 +1100,34 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         game_input Inputs[2] = {};
         game_input *NewInput = &Inputs[0];
         game_input *OldInput = &Inputs[1];
-        while (GlobalRunning) {
+
+        // Choose pixel format
+        PIXELFORMATDESCRIPTOR pfd = {0};
+        pfd.nSize = sizeof(pfd);
+        pfd.nVersion = 1;
+        pfd.dwFlags =
+            PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+        pfd.iPixelType = PFD_TYPE_RGBA;
+        pfd.cColorBits = 24;
+        pfd.cDepthBits = 16;
+        pfd.iLayerType = PFD_MAIN_PLANE;
+
+        int pf = ChoosePixelFormat(DeviceContext, &pfd);
+        SetPixelFormat(DeviceContext, pf, &pfd);
+
+        // Create rendering context
+        HGLRC hglrc = wglCreateContext(DeviceContext);
+        wglMakeCurrent(DeviceContext, hglrc);
+        GLuint tex;
+        glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, tex);
+
+        // Simple texture parameters
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+        while (Win32State.Running) {
           bool ShallReload = false;
 
           FILETIME LockFileTime = Win32GetLastWriteTime(LockFileFullPath);
@@ -1236,7 +1264,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             Game.UpdateAndRender(&Context, &GameMemory, NewInput, &ScreenBuffer,
                                  &ShallExit);
 
-            GlobalRunning = GlobalRunning && !ShallExit;
+            Win32State.Running = Win32State.Running && !ShallExit;
 
 #ifdef HANDMADE_INTERNAL
             if (GlobalDebuggerState.AudioSync) {
@@ -1277,7 +1305,43 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             LARGE_INTEGER EndFrame = Win32GetWallClock();
             LastFrame = EndFrame;
             FlipWallClock = Win32GetWallClock();
-            InvalidateRect(Window, 0, FALSE);
+            // InvalidateRect(Window, 0, FALSE);
+
+            glViewport(0, 0, ScreenBuffer.Width, ScreenBuffer.Height);
+            glClearColor(0.1f, 0.1f, 0.3f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            #ifndef GL_BGRA
+            #define GL_BGRA 0x80E1
+            #endif
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ScreenBuffer.Width,
+                         ScreenBuffer.Height, 0, GL_BGRA, GL_UNSIGNED_BYTE,
+                         ScreenBuffer.Memory);
+            glEnable(GL_TEXTURE_2D);
+            glBindTexture(GL_TEXTURE_2D, tex);
+            glBegin(GL_TRIANGLES);
+            //glColor3f(1, 0, 0);
+            glTexCoord2f(0.0f, 1.0f);
+            glVertex2f(-1.0f, -1.0f);
+            //glColor3f(0, 1, 0);
+            glTexCoord2f(1.0f, 1.0f);
+            glVertex2f(1.0f, -1.0f);
+            //glColor3f(0, 0, 1);
+            glTexCoord2f(1.0f, 0.0f);
+            glVertex2f(1.0f, 1.0f);
+
+            //glColor3f(0, 0, 1);
+            glTexCoord2f(1.0f, 0.0f);
+            glVertex2f(1.0f, 1.0f);
+            //glColor3f(0, 1, 1);
+            glTexCoord2f(0.0f, 0.0f);
+            glVertex2f(-1.0f, 1.0f);
+            //glColor3f(1, 0, 0);
+            glTexCoord2f(0.0f, 1.0f);
+            glVertex2f(-1.0f, -1.0f);
+            glEnd();
+            glDisable(GL_TEXTURE_2D);
+            SwapBuffers(DeviceContext);
 
             int64 EndCycleCount = __rdtsc();
 

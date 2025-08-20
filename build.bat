@@ -11,6 +11,6 @@ del handmade_*.PDB > NUL 2> NUL
 cl %CompilerFlags% ../code/handmade.cpp -Fmhandmade.map /LD /Fdhandmade_%random%.PDB /link -subsystem:windows,6.0 /EXPORT:GameUpdateAndRender /EXPORT:GameGetSoundSamples
 if errorlevel 1 exit /b %errorlevel%
 del hotreload.lock
-if not '%1'=='gameonly' cl %CompilerFlags% ../code/win32_handmade.cpp -Fmwin32_handmade.map /link -subsystem:windows,6.0 %LinkerFlags%
+if not '%1'=='gameonly' cl %CompilerFlags% ../code/win32_handmade.cpp -Fmwin32_handmade.map /link -subsystem:windows,6.0 %LinkerFlags% opengl32.lib
 if errorlevel 1 exit /b %errorlevel%
 popd

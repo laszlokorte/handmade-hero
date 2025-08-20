@@ -9,10 +9,10 @@
 #include <math.h>
 #include <timeapi.h>
 
-global_variable bool GlobalRunning;
 global_variable bool GlobalTransparent;
 
 struct win32_state {
+  bool Running;
   uint64 TotalMemorySize;
   void *GameMemoryBlock;
   HANDLE RecordingHandle;
