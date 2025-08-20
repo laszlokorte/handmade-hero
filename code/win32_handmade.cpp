@@ -1,5 +1,6 @@
 #include "win32_handmade.h"
 #include "handmade.h"
+#include "debug_font.h"
 #include <GL/gl.h>
 
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
@@ -748,6 +749,57 @@ internal void Win32DebugDrawVertical(win32_offscreen_buffer *ScreenBuffer,
   }
 }
 
+internal void Win32DrawFontDigit(win32_offscreen_buffer *ScreenBuffer,
+                                 uint8 Digit, int32 Color, int Left, int Bottom,
+                                 int Scale) {
+  int Top = Bottom - 8 * Scale;
+  int Right = Left + 8 * Scale;
+  uint8 *Row = (uint8 *)ScreenBuffer->Memory +
+               Left * ScreenBuffer->BytesPerPixel +
+               Top * ScreenBuffer->Width * ScreenBuffer->BytesPerPixel;
+  int Pitch = ScreenBuffer->BytesPerPixel * ScreenBuffer->Width;
+  uint8 *Bits = GlobalDebugFont.Numbers[Digit].Bits;
+  for (int Y = Top; Y < Bottom && Y < ScreenBuffer->Height; Y++) {
+    uint8 *Pixel = (uint8 *)Row;
+    for (int X = Left; X < Right && X < ScreenBuffer->Width; X++) {
+      int xx = (X - Left) / Scale;
+      int yy = (Y - Top) / Scale;
+      if (Bits[xx + 8 * yy] != 0) {
+        *(uint32 *)Pixel = Color;
+      }
+      Pixel += ScreenBuffer->BytesPerPixel;
+    }
+    Row += Pitch;
+  }
+}
+
+internal void Win32OutputFramerate(win32_offscreen_buffer *ScreenBuffer,
+                                   win32_frame_measures *Measures) {
+  int PadX = 32;
+  int PadY = 32;
+  int Height = 16;
+  for (int i = 0; i < Measures->DeltaTimeMS; i += 1) {
+    Win32DebugDrawVertical(ScreenBuffer, PadX + i * 2, PadY,
+                           PadY + Height / (i % 10 == 0 ? 1 : 2), 0xff00ffff);
+  }
+  int64 Rem = Measures->DeltaTimeMS;
+  int Place = 1;
+  int DigitCount = 0;
+  int Scale = 2;
+  do {
+    Rem /= 10;
+    DigitCount++;
+  } while (Rem != 0);
+  Rem = Measures->DeltaTimeMS;
+  do {
+    uint8 Digit = Rem % 10;
+    Win32DrawFontDigit(ScreenBuffer, Digit, 0xff00ffff,
+                       PadX + (DigitCount - Place) * 8 * Scale, PadY, Scale);
+    Rem /= 10;
+    Place++;
+  } while (Rem != 0);
+}
+
 internal void Win32DrawSoundBufferMarker(win32_offscreen_buffer *ScreenBuffer,
                                          real32 Ratio, int PadX, int X, int Top,
                                          int Bottom, int Color, int thickness) {
@@ -1093,6 +1145,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           GameMemory.TransientStorage) {
 
         win32_debug_time_marker DebugTimeMarkers[30] = {};
+        win32_frame_measures FrameMeasures = {};
         size_t TimeMarkerCursor = 0;
         LARGE_INTEGER LastFrame = Win32GetWallClock();
 
@@ -1260,7 +1313,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
               Win32PlaybackInput(&Win32State, NewInput);
             }
 
-            NewInput->DeltaTime = TargetSecondsPerFrame;
+            NewInput->DeltaTime = FrameMeasures.DeltaTimeMS / 1000.0f;
             Game.UpdateAndRender(&Context, &GameMemory, NewInput, &ScreenBuffer,
                                  &ShallExit);
 
@@ -1297,11 +1350,13 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                     Win32GetSecondsElapsed(LastFrame, Win32GetWallClock());
               }
               Assert(SecondsElapsedForFrame <= 2 * TargetSecondsPerFrame);
-
+              FrameMeasures.SkippedFrames = 0;
             } else {
               // Assert(false);
-              OutputDebugString("SkippedFrame");
+              FrameMeasures.SkippedFrames += 1;
+              // OutputDebugString("SkippedFrame");
             }
+            Win32OutputFramerate(&GlobalScreenBuffer, &FrameMeasures);
             LARGE_INTEGER EndFrame = Win32GetWallClock();
             LastFrame = EndFrame;
             FlipWallClock = Win32GetWallClock();
@@ -1311,32 +1366,29 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             glClearColor(0.1f, 0.1f, 0.3f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT);
 
-            #ifndef GL_BGRA
-            #define GL_BGRA 0x80E1
-            #endif
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ScreenBuffer.Width,
                          ScreenBuffer.Height, 0, GL_BGRA, GL_UNSIGNED_BYTE,
                          ScreenBuffer.Memory);
             glEnable(GL_TEXTURE_2D);
             glBindTexture(GL_TEXTURE_2D, tex);
             glBegin(GL_TRIANGLES);
-            //glColor3f(1, 0, 0);
+            // glColor3f(1, 0, 0);
             glTexCoord2f(0.0f, 1.0f);
             glVertex2f(-1.0f, -1.0f);
-            //glColor3f(0, 1, 0);
+            // glColor3f(0, 1, 0);
             glTexCoord2f(1.0f, 1.0f);
             glVertex2f(1.0f, -1.0f);
-            //glColor3f(0, 0, 1);
+            // glColor3f(0, 0, 1);
             glTexCoord2f(1.0f, 0.0f);
             glVertex2f(1.0f, 1.0f);
 
-            //glColor3f(0, 0, 1);
+            // glColor3f(0, 0, 1);
             glTexCoord2f(1.0f, 0.0f);
             glVertex2f(1.0f, 1.0f);
-            //glColor3f(0, 1, 1);
+            // glColor3f(0, 1, 1);
             glTexCoord2f(0.0f, 0.0f);
             glVertex2f(-1.0f, 1.0f);
-            //glColor3f(1, 0, 0);
+            // glColor3f(1, 0, 0);
             glTexCoord2f(0.0f, 1.0f);
             glVertex2f(-1.0f, -1.0f);
             glEnd();
@@ -1352,6 +1404,9 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             LONGLONG DeltaTimeMS =
                 DeltaTime * 1000 / PerfCounterFrequency.QuadPart;
             LONGLONG fps = PerfCounterFrequency.QuadPart / DeltaTime;
+            FrameMeasures.DeltaTimeMS = DeltaTimeMS;
+            FrameMeasures.fps = fps;
+            FrameMeasures.DeltaCycles = DeltaCycles;
             char printBuffer[256];
             wsprintfA(printBuffer,
                       "Frame Duration %d ms/frame; %dfps; %d MC/frame\n",

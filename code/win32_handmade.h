@@ -52,6 +52,13 @@ struct win32_debug_time_marker {
   DWORD FlipWriteCursor;
 };
 
+struct win32_frame_measures {
+  int64 DeltaTimeMS;
+  LONGLONG fps;
+  LONGLONG DeltaCycles;
+  int32 SkippedFrames;
+};
+
 struct win32_offscreen_buffer {
   BITMAPINFO Info;
   void *Memory;
