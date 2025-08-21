@@ -10,7 +10,7 @@ internal render_command *RenderPushCommand(render_buffer *Buffer) {
 }
 
 internal void PushRect(render_buffer *Buffer, real32 MinX, real32 MinY,
-                       real32 MaxX, real32 MaxY) {
+                       real32 MaxX, real32 MaxY, render_color_rgba Color) {
   render_command *Cmd = RenderPushCommand(Buffer);
   Cmd->Type = RenderCommandRect;
   render_command_rect *Rect = &Cmd->Rect;
@@ -18,4 +18,5 @@ internal void PushRect(render_buffer *Buffer, real32 MinX, real32 MinY,
   Rect->MinY = MinY;
   Rect->MaxX = MaxX;
   Rect->MaxY = MaxY;
+  Rect->Color = Color;
 }

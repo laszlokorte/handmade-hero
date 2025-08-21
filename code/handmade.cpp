@@ -2,6 +2,7 @@
 #include "handmade_types.h"
 #include "math.h"
 #include "entropy.h"
+#include "renderer.h"
 #include "tilemap.h"
 #include "renderer.cpp"
 
@@ -636,6 +637,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       switch (Kind) {
       case TILE_WALL: {
 
+          PushRect(RenderBuffer,
+                           CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+                           CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+                           CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+                           CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+                           render_color_rgba{1.0f, 1.0f, 1.0f});
         FillRect(ScreenBuffer,
                  CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
@@ -644,6 +651,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                  game_color_rgb{1.0f, 1.0f, 1.0f});
       } break;
       case TILE_DOOR: {
+          PushRect(RenderBuffer,
+                           CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+                           CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+                           CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+                           CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+                           render_color_rgba{0.0f, 0.0f, 0.0f});
         FillRect(ScreenBuffer,
                  CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
@@ -653,6 +666,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       } break;
       case TILE_EMPTY: {
 
+          PushRect(RenderBuffer,
+                           CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+                           CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+                           CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+                           CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+                           render_color_rgba{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
+                                          x % 2 == 0 ? 0.6f : 0.8f});
         FillRect(ScreenBuffer,
                  CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
@@ -694,7 +714,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     real32 Y = CY * GameState->TileMap.TileHeight +
                CYR * GameState->TileMap.TileHeight;
 
-    FillRect(
+
+               PushRect(
+        RenderBuffer,
+        (CX - 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width / 2.0f,
+        (CY - 0.2f) * GameState->TileMap.TileHeight +
+            ScreenBuffer->Height / 2.0f,
+        (CX + 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width / 2.0f,
+        (CY + 0.2f) * GameState->TileMap.TileHeight +
+            ScreenBuffer->Height / 2.0f,
+            render_color_rgba{0.0f, 0.0f, 0.0f});
+               FillRect(
         ScreenBuffer,
         (CX - 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width / 2.0f,
         (CY - 0.2f) * GameState->TileMap.TileHeight +
@@ -713,7 +743,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
 
   int BX = 0;
   int BY = 0;
-  PushRect(RenderBuffer, -0.1f, -0.1f, 0.1f, 0.1f);
+  PushRect(RenderBuffer, -32.0f, -32.0f, 32.0f, 32.0f, {0.0f, 0.5f, 0.3f, 1.0});
   GameState->Time++;
   return true;
 }

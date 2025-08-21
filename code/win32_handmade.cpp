@@ -1379,6 +1379,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                          ScreenBuffer.Memory);
             glEnable(GL_TEXTURE_2D);
             glBindTexture(GL_TEXTURE_2D, tex);
+           glLoadIdentity();
             glBegin(GL_TRIANGLES);
             // glColor3f(1, 0, 0);
             glColor3f(1.0f, 1.0f, 1.0f);
@@ -1402,24 +1403,25 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             glVertex2f(-1.0f, -1.0f);
             glEnd();
             glDisable(GL_TEXTURE_2D);
+
+            glMatrixMode(GL_MODELVIEW);
+            glLoadIdentity();
+            glScalef(2.0f/Win32State.RenderBuffer.Viewport.Width, -2.0f/Win32State.RenderBuffer.Viewport.Height, 1.0f);
+            glTranslatef(Win32State.RenderBuffer.Viewport.Width/-2.0f, Win32State.RenderBuffer.Viewport.Height/-2.0f, 0.0f);
+
             for (uint8 ri = 0; ri < Win32State.RenderBuffer.Count; ri += 1) {
 
               render_command *RCmd = &Win32State.RenderBuffer.Base[ri];
               switch (RCmd->Type) {
               case RenderCommandRect: {
                 glBegin(GL_TRIANGLES);
-                glColor3f(0.0f, 0.0f, 0.0f);
+                //glColor4f(0.0f,0.0f,0.0f,0.0f);
+                glColor4f(RCmd->Rect.Color.Red,RCmd->Rect.Color.Green,RCmd->Rect.Color.Blue,RCmd->Rect.Color.Alpha);
                 glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
-                glColor3f(0.0f, 0.0f, 0.0f);
                 glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MinY);
-                glColor3f(0.0f, 0.0f, 0.0f);
                 glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
-
-                glColor3f(0.0f, 0.0f, 0.0f);
                 glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
-                glColor3f(0.0f, 0.0f, 0.0f);
                 glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MaxY);
-                glColor3f(0.0f, 0.0f, 0.0f);
                 glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
                 glEnd();
               } break;
