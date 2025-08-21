@@ -1,6 +1,8 @@
 #include "win32_handmade.h"
 #include "handmade.h"
 #include "debug_font.h"
+#include "handmade_types.h"
+#include "renderer.h"
 #include <GL/gl.h>
 
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
@@ -330,17 +332,22 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) {
 
 internal void Win32SetupGameMemory(win32_state *Win32State,
                                    game_memory *GameMemory) {
+  memory_index RenderBufferSize = 10000 * sizeof(render_command);
   GameMemory->Initialized = false;
   GameMemory->PermanentStorageSize = Megabytes(10);
   GameMemory->TransientStorageSize = Megabytes(100);
-  Win32State->TotalMemorySize =
-      GameMemory->TransientStorageSize + GameMemory->PermanentStorageSize;
+  Win32State->TotalMemorySize = GameMemory->TransientStorageSize +
+                                GameMemory->PermanentStorageSize +
+                                RenderBufferSize;
   Win32State->GameMemoryBlock = VirtualAlloc(
       0, Win32State->TotalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   GameMemory->PermanentStorage = (uint8 *)Win32State->GameMemoryBlock;
   GameMemory->TransientStorage =
       (uint8 *)GameMemory->PermanentStorage + GameMemory->PermanentStorageSize;
-
+  InitializeRenderBuffer(&Win32State->RenderBuffer, RenderBufferSize,
+                         (render_command *)(GameMemory->PermanentStorage +
+                                            GameMemory->PermanentStorageSize +
+                                            GameMemory->TransientStorageSize));
   GameMemory->DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
   GameMemory->DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
   GameMemory->DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
@@ -1304,8 +1311,6 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
               SoundIsValid = false;
             }
 
-            bool ShallExit = false;
-
             if (Win32State.InputRecordingIndex) {
               Win32RecordInput(&Win32State, NewInput);
             }
@@ -1314,8 +1319,11 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             }
 
             NewInput->DeltaTime = FrameMeasures.DeltaTimeMS / 1000.0f;
-            Game.UpdateAndRender(&Context, &GameMemory, NewInput, &ScreenBuffer,
-                                 &ShallExit);
+            ClearRenderBuffer(&Win32State.RenderBuffer, ScreenBuffer.Width,
+                              ScreenBuffer.Height);
+            bool ShallExit =
+                !Game.UpdateAndRender(&Context, &GameMemory, NewInput,
+                                      &ScreenBuffer, &Win32State.RenderBuffer);
 
             Win32State.Running = Win32State.Running && !ShallExit;
 
@@ -1373,6 +1381,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             glBindTexture(GL_TEXTURE_2D, tex);
             glBegin(GL_TRIANGLES);
             // glColor3f(1, 0, 0);
+            glColor3f(1.0f, 1.0f, 1.0f);
             glTexCoord2f(0.0f, 1.0f);
             glVertex2f(-1.0f, -1.0f);
             // glColor3f(0, 1, 0);
@@ -1393,6 +1402,33 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             glVertex2f(-1.0f, -1.0f);
             glEnd();
             glDisable(GL_TEXTURE_2D);
+            for (uint8 ri = 0; ri < Win32State.RenderBuffer.Count; ri += 1) {
+
+              render_command *RCmd = &Win32State.RenderBuffer.Base[ri];
+              switch (RCmd->Type) {
+              case RenderCommandRect: {
+                glBegin(GL_TRIANGLES);
+                glColor3f(0.0f, 0.0f, 0.0f);
+                glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
+                glColor3f(0.0f, 0.0f, 0.0f);
+                glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MinY);
+                glColor3f(0.0f, 0.0f, 0.0f);
+                glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
+
+                glColor3f(0.0f, 0.0f, 0.0f);
+                glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
+                glColor3f(0.0f, 0.0f, 0.0f);
+                glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MaxY);
+                glColor3f(0.0f, 0.0f, 0.0f);
+                glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
+                glEnd();
+              } break;
+              default: {
+                  break;
+              } break;
+              }
+            }
+
             SwapBuffers(DeviceContext);
 
             int64 EndCycleCount = __rdtsc();

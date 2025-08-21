@@ -1,3 +1,4 @@
+#include "renderer.h"
 #if !defined(WIN32_HANDMADE_H)
 
 #include "handmade.h"
@@ -15,6 +16,9 @@ struct win32_state {
   bool Running;
   uint64 TotalMemorySize;
   void *GameMemoryBlock;
+
+  render_buffer RenderBuffer;
+
   HANDLE RecordingHandle;
   int InputRecordingIndex;
 
@@ -112,7 +116,7 @@ struct win32_game {
   game_get_sound_samples *GetSoundSamples;
 };
 
-internal GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub) { return; }
+internal GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub) { return true; }
 
 internal GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub) { return; }
 

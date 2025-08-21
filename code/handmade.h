@@ -2,6 +2,7 @@
 
 #include "./handmade_types.h"
 #include "./tilemap.h"
+#include "./renderer.h"
 
 struct thread_context {
   int Dummy;
@@ -186,8 +187,8 @@ struct game_sound_synth {
 };
 
 #define GAME_UPDATE_AND_RENDER(name)                                           \
-  void name(thread_context *Context, game_memory *Memory, game_input *Input,   \
-            game_offscreen_buffer *ScreenBuffer, bool *ShallExit)
+  bool name(thread_context *Context, game_memory *Memory, game_input *Input,   \
+            game_offscreen_buffer *ScreenBuffer, render_buffer *RenderBuffer)
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender);
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render);

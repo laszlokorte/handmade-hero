@@ -3,6 +3,7 @@
 #include "math.h"
 #include "entropy.h"
 #include "tilemap.h"
+#include "renderer.cpp"
 
 global_variable game_state global_game_state = {};
 struct bit_scan_result {
@@ -540,7 +541,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       Entity->v = NewVelocity;
     }
     if (Controller->Menu.EndedDown) {
-      *ShallExit = true;
+      return false;
     }
     if (Controller->Back.EndedDown &&
         Controller->Back.HalfTransitionCount > 0 && GameState->JumpTime == 0) {
@@ -712,6 +713,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
 
   int BX = 0;
   int BY = 0;
-
+  PushRect(RenderBuffer, -0.1f, -0.1f, 0.1f, 0.1f);
   GameState->Time++;
+  return true;
 }
