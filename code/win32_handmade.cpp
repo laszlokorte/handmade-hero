@@ -1178,15 +1178,19 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         // Create rendering context
         HGLRC hglrc = wglCreateContext(DeviceContext);
         wglMakeCurrent(DeviceContext, hglrc);
-        GLuint tex;
-        glGenTextures(1, &tex);
-        glBindTexture(GL_TEXTURE_2D, tex);
+        GLuint tex[5];
+        glGenTextures(ArrayCount(tex), tex);
 
-        // Simple texture parameters
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+        for (int i = 0; i < ArrayCount(tex); i++) {
+
+          glBindTexture(GL_TEXTURE_2D, tex[i]);
+
+          // Simple texture parameters
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+        }
         while (Win32State.Running) {
           bool ShallReload = false;
 
@@ -1374,12 +1378,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             glClearColor(0.1f, 0.1f, 0.3f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT);
 
+            glBindTexture(GL_TEXTURE_2D, tex[0]);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ScreenBuffer.Width,
                          ScreenBuffer.Height, 0, GL_BGRA, GL_UNSIGNED_BYTE,
                          ScreenBuffer.Memory);
             glEnable(GL_TEXTURE_2D);
-            glBindTexture(GL_TEXTURE_2D, tex);
-           glLoadIdentity();
+            glLoadIdentity();
             glBegin(GL_TRIANGLES);
             // glColor3f(1, 0, 0);
             glColor3f(1.0f, 1.0f, 1.0f);
@@ -1406,27 +1410,55 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
 
             glMatrixMode(GL_MODELVIEW);
             glLoadIdentity();
-            glScalef(2.0f/Win32State.RenderBuffer.Viewport.Width, -2.0f/Win32State.RenderBuffer.Viewport.Height, 1.0f);
-            glTranslatef(Win32State.RenderBuffer.Viewport.Width/-2.0f, Win32State.RenderBuffer.Viewport.Height/-2.0f, 0.0f);
-
-            for (uint8 ri = 0; ri < Win32State.RenderBuffer.Count; ri += 1) {
+            glScalef(2.0f / Win32State.RenderBuffer.Viewport.Width,
+                     -2.0f / Win32State.RenderBuffer.Viewport.Height, 1.0f);
+            glTranslatef(Win32State.RenderBuffer.Viewport.Width / -2.0f,
+                         Win32State.RenderBuffer.Viewport.Height / -2.0f, 0.0f);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            for (uint32 ri = 0; ri < Win32State.RenderBuffer.Count; ri += 1) {
 
               render_command *RCmd = &Win32State.RenderBuffer.Base[ri];
               switch (RCmd->Type) {
               case RenderCommandRect: {
+                // glColor4f(0.0f,0.0f,0.0f,0.0f);
+                if (RCmd->Rect.Image) {
+                  glBindTexture(GL_TEXTURE_2D, tex[1]);
+                  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+                               (GLsizei)RCmd->Rect.Image->Width,
+                               (GLsizei)RCmd->Rect.Image->Height, 0, GL_BGRA,
+                               GL_UNSIGNED_BYTE, RCmd->Rect.Image->Memory);
+                  glEnable(GL_TEXTURE_2D);
+                  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+                } else {
+
+                  glColor4f(RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
+                            RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
+                }
+
                 glBegin(GL_TRIANGLES);
-                //glColor4f(0.0f,0.0f,0.0f,0.0f);
-                glColor4f(RCmd->Rect.Color.Red,RCmd->Rect.Color.Green,RCmd->Rect.Color.Blue,RCmd->Rect.Color.Alpha);
+                glTexCoord2f(0.0f, 1.0f);
                 glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
+
+                glTexCoord2f(1.0f, 1.0f);
                 glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MinY);
+
+                glTexCoord2f(1.0f, 0.0f);
                 glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
+
+                glTexCoord2f(1.0f, 0.0f);
                 glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
+
+                glTexCoord2f(0.0f, 0.0f);
                 glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MaxY);
+
+                glTexCoord2f(0.0f, 1.0f);
                 glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
                 glEnd();
+                glDisable(GL_TEXTURE_2D);
               } break;
               default: {
-                  break;
+                break;
               } break;
               }
             }

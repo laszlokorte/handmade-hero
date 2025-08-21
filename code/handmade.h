@@ -151,12 +151,6 @@ struct game_controller_entity_map {
   game_entity *controllers[5];
 };
 
-struct loaded_bitmap {
-  size_t Width;
-  size_t Height;
-  uint32 *Memory;
-};
-
 struct game_camera {
   tile_position pos;
 };

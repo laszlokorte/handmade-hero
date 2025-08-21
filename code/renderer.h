@@ -2,6 +2,12 @@
 
 #include "handmade_types.h"
 
+struct loaded_bitmap {
+  size_t Width;
+  size_t Height;
+  uint32 *Memory;
+};
+
 struct render_viewport {
   uint32 Width;
   uint32 Height;
@@ -24,6 +30,7 @@ struct render_command_rect {
   real32 MaxX;
   real32 MaxY;
   render_color_rgba Color;
+  loaded_bitmap *Image;
 };
 
 struct render_command {

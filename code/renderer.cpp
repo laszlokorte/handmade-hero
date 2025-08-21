@@ -20,3 +20,14 @@ internal void PushRect(render_buffer *Buffer, real32 MinX, real32 MinY,
   Rect->MaxY = MaxY;
   Rect->Color = Color;
 }
+internal void PushRectImage(render_buffer *Buffer, real32 MinX, real32 MinY,
+                       real32 MaxX, real32 MaxY, loaded_bitmap *Image) {
+  render_command *Cmd = RenderPushCommand(Buffer);
+  Cmd->Type = RenderCommandRect;
+  render_command_rect *Rect = &Cmd->Rect;
+  Rect->MinX = MinX;
+  Rect->MinY = MinY;
+  Rect->MaxX = MaxX;
+  Rect->MaxY = MaxY;
+  Rect->Image = Image;
+}

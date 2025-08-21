@@ -637,49 +637,49 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       switch (Kind) {
       case TILE_WALL: {
 
-          PushRect(RenderBuffer,
-                           CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
-                           CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
-                           CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
-                           CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-                           render_color_rgba{1.0f, 1.0f, 1.0f});
-        FillRect(ScreenBuffer,
+        PushRect(RenderBuffer,
                  CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
                  CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-                 game_color_rgb{1.0f, 1.0f, 1.0f});
+                 render_color_rgba{1.0f, 1.0f, 1.0f, 1.0f});
+        // FillRect(ScreenBuffer,
+        //          CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+        //          CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+        //          CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+        //          CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+        //          game_color_rgb{1.0f, 1.0f, 1.0f});
       } break;
       case TILE_DOOR: {
-          PushRect(RenderBuffer,
-                           CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
-                           CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
-                           CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
-                           CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-                           render_color_rgba{0.0f, 0.0f, 0.0f});
-        FillRect(ScreenBuffer,
+        PushRect(RenderBuffer,
                  CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
                  CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-                 game_color_rgb{0.0f, 0.0f, 0.0f});
+                 render_color_rgba{0.0f, 0.0f, 0.0f, 1.0f});
+        // FillRect(ScreenBuffer,
+        //          CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+        //          CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+        //          CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+        //          CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+        //          game_color_rgb{0.0f, 0.0f, 0.0f});
       } break;
       case TILE_EMPTY: {
 
-          PushRect(RenderBuffer,
-                           CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
-                           CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
-                           CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
-                           CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-                           render_color_rgba{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
-                                          x % 2 == 0 ? 0.6f : 0.8f});
-        FillRect(ScreenBuffer,
+        PushRect(RenderBuffer,
                  CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
                  CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-                 game_color_rgb{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
-                                x % 2 == 0 ? 0.6f : 0.8f});
+                 render_color_rgba{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
+                                   x % 2 == 0 ? 0.6f : 0.8f, 1.0f});
+        // FillRect(ScreenBuffer,
+        //          CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
+        //          CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
+        //          CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
+        //          CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
+        //          game_color_rgb{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
+        //                         x % 2 == 0 ? 0.6f : 0.8f});
       } break;
       }
     }
@@ -687,8 +687,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
 
   for (int m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
     game_button_state Button = Input->Mouse.Buttons[m];
-    RenderRect(ScreenBuffer, Input->Mouse.MouseX + 10 * m, Input->Mouse.MouseY,
-               10, 10, Button.EndedDown ? 0x00aaaa : 0xffffff);
+    PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
+             (real32)Input->Mouse.MouseY,
+             (real32)Input->Mouse.MouseX + 10.0f * m + 10.0f,
+             (real32)Input->Mouse.MouseY + 10.0f,
+             Button.EndedDown ? render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f}
+                              : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
   }
 
   for (int e = 0; e < GameState->EntityCount; e++) {
@@ -714,8 +718,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     real32 Y = CY * GameState->TileMap.TileHeight +
                CYR * GameState->TileMap.TileHeight;
 
-
-               PushRect(
+    PushRect(
         RenderBuffer,
         (CX - 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width / 2.0f,
         (CY - 0.2f) * GameState->TileMap.TileHeight +
@@ -723,27 +726,24 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         (CX + 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width / 2.0f,
         (CY + 0.2f) * GameState->TileMap.TileHeight +
             ScreenBuffer->Height / 2.0f,
-            render_color_rgba{0.0f, 0.0f, 0.0f});
-               FillRect(
-        ScreenBuffer,
-        (CX - 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width / 2.0f,
-        (CY - 0.2f) * GameState->TileMap.TileHeight +
-            ScreenBuffer->Height / 2.0f,
-        (CX + 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width / 2.0f,
-        (CY + 0.2f) * GameState->TileMap.TileHeight +
-            ScreenBuffer->Height / 2.0f,
-        game_color_rgb{0.0f, 0.0f, 0.0f});
+        render_color_rgba{0.0f, 0.0f, 0.0f, 1.0f});
+    // FillRect(
+    //     ScreenBuffer,
+    //     (CX - 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width
+    //     / 2.0f, (CY - 0.2f) * GameState->TileMap.TileHeight +
+    //         ScreenBuffer->Height / 2.0f,
+    //     (CX + 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width
+    //     / 2.0f, (CY + 0.2f) * GameState->TileMap.TileHeight +
+    //         ScreenBuffer->Height / 2.0f,
+    //     game_color_rgb{0.0f, 0.0f, 0.0f});
 
-    FillRectTexture(
-        ScreenBuffer, X - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
+    PushRectImage(
+        RenderBuffer, X - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
         Y - Entity->s.y / 2 + ScreenBuffer->Height / 2.0f,
         X + Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
         Y + Entity->s.x / 2 + ScreenBuffer->Height / 2.0f, &GameState->Logo);
   }
 
-  int BX = 0;
-  int BY = 0;
-  PushRect(RenderBuffer, -32.0f, -32.0f, 32.0f, 32.0f, {0.0f, 0.5f, 0.3f, 1.0});
   GameState->Time++;
   return true;
 }
