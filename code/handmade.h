@@ -182,7 +182,7 @@ struct game_sound_synth {
 
 #define GAME_UPDATE_AND_RENDER(name)                                           \
   bool name(thread_context *Context, game_memory *Memory, game_input *Input,   \
-            game_offscreen_buffer *ScreenBuffer, render_buffer *RenderBuffer)
+            render_buffer *RenderBuffer)
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender);
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render);

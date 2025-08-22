@@ -201,7 +201,6 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   switch (Message) {
   case WM_SIZE: {
     win32_window_dimensions WinSize = Win32GetWindowSize(Window);
-    ResizeDIBSection(&GlobalScreenBuffer, WinSize.width, WinSize.height);
     OutputDebugStringA("WM_SIZE\n");
   } break;
 
@@ -249,8 +248,8 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
     RECT ClientRect;
     win32_window_dimensions WinSize = Win32GetWindowSize(Window);
     GetClientRect(Window, &ClientRect);
-    Win32DisplayBufferWindow(DeviceContext, WinSize.width, WinSize.height,
-                             &GlobalScreenBuffer);
+    // Win32DisplayBufferWindow(DeviceContext, WinSize.width, WinSize.height,
+    //                         &GlobalScreenBuffer);
     EndPaint(Window, &Paint);
     OutputDebugStringA("WM_PAINT\n");
   } break;
@@ -1254,11 +1253,6 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
 #ifdef HANDMADE_INTERNAL
           if (!GlobalDebuggerState.RenderPause) {
 #endif
-            game_offscreen_buffer ScreenBuffer = {};
-            ScreenBuffer.Memory = GlobalScreenBuffer.Memory;
-            ScreenBuffer.Width = GlobalScreenBuffer.Width;
-            ScreenBuffer.Height = GlobalScreenBuffer.Height;
-            ScreenBuffer.BytesPerPixel = GlobalScreenBuffer.BytesPerPixel;
 
             DWORD PlayCursor = 0;
             DWORD WriteCursor = 0;
@@ -1359,13 +1353,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             if (Win32State.InputPlayingIndex) {
               Win32PlaybackInput(&Win32State, NewInput);
             }
-
+            win32_window_dimensions WinSize = Win32GetWindowSize(Window);
             NewInput->DeltaTime = FrameMeasures.DeltaTimeMS / 1000.0f;
-            ClearRenderBuffer(&Win32State.RenderBuffer, ScreenBuffer.Width,
-                              ScreenBuffer.Height);
-            bool ShallExit =
-                !Game.UpdateAndRender(&Context, &GameMemory, NewInput,
-                                      &ScreenBuffer, &Win32State.RenderBuffer);
+            ClearRenderBuffer(&Win32State.RenderBuffer, WinSize.width,
+                              WinSize.height);
+            bool ShallExit = !Game.UpdateAndRender(
+                &Context, &GameMemory, NewInput, &Win32State.RenderBuffer);
 
             Win32State.Running = Win32State.Running && !ShallExit;
 
@@ -1412,39 +1405,40 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             FlipWallClock = Win32GetWallClock();
             // InvalidateRect(Window, 0, FALSE);
 
-            glViewport(0, 0, ScreenBuffer.Width, ScreenBuffer.Height);
+            glViewport(0, 0, Win32State.RenderBuffer.Viewport.Width,
+                       Win32State.RenderBuffer.Viewport.Height);
             glClearColor(0.1f, 0.1f, 0.3f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT);
 
-            glBindTexture(GL_TEXTURE_2D, tex[0]);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ScreenBuffer.Width,
-                         ScreenBuffer.Height, 0, GL_BGRA, GL_UNSIGNED_BYTE,
-                         ScreenBuffer.Memory);
-            glEnable(GL_TEXTURE_2D);
-            glLoadIdentity();
-            glBegin(GL_TRIANGLES);
-            // glColor3f(1, 0, 0);
-            glColor3f(1.0f, 1.0f, 1.0f);
-            glTexCoord2f(0.0f, 1.0f);
-            glVertex2f(-1.0f, -1.0f);
-            // glColor3f(0, 1, 0);
-            glTexCoord2f(1.0f, 1.0f);
-            glVertex2f(1.0f, -1.0f);
-            // glColor3f(0, 0, 1);
-            glTexCoord2f(1.0f, 0.0f);
-            glVertex2f(1.0f, 1.0f);
+            // glBindTexture(GL_TEXTURE_2D, tex[0]);
+            // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ScreenBuffer.Width,
+            //              ScreenBuffer.Height, 0, GL_BGRA, GL_UNSIGNED_BYTE,
+            //              ScreenBuffer.Memory);
+            // glEnable(GL_TEXTURE_2D);
+            // glLoadIdentity();
+            // glBegin(GL_TRIANGLES);
+            //// glColor3f(1, 0, 0);
+            // glColor3f(1.0f, 1.0f, 1.0f);
+            // glTexCoord2f(0.0f, 1.0f);
+            // glVertex2f(-1.0f, -1.0f);
+            //// glColor3f(0, 1, 0);
+            // glTexCoord2f(1.0f, 1.0f);
+            // glVertex2f(1.0f, -1.0f);
+            //// glColor3f(0, 0, 1);
+            // glTexCoord2f(1.0f, 0.0f);
+            // glVertex2f(1.0f, 1.0f);
 
-            // glColor3f(0, 0, 1);
-            glTexCoord2f(1.0f, 0.0f);
-            glVertex2f(1.0f, 1.0f);
-            // glColor3f(0, 1, 1);
-            glTexCoord2f(0.0f, 0.0f);
-            glVertex2f(-1.0f, 1.0f);
-            // glColor3f(1, 0, 0);
-            glTexCoord2f(0.0f, 1.0f);
-            glVertex2f(-1.0f, -1.0f);
-            glEnd();
-            glDisable(GL_TEXTURE_2D);
+            //// glColor3f(0, 0, 1);
+            // glTexCoord2f(1.0f, 0.0f);
+            // glVertex2f(1.0f, 1.0f);
+            //// glColor3f(0, 1, 1);
+            // glTexCoord2f(0.0f, 0.0f);
+            // glVertex2f(-1.0f, 1.0f);
+            //// glColor3f(1, 0, 0);
+            // glTexCoord2f(0.0f, 1.0f);
+            // glVertex2f(-1.0f, -1.0f);
+            // glEnd();
+            // glDisable(GL_TEXTURE_2D);
 
             glMatrixMode(GL_MODELVIEW);
             glLoadIdentity();
