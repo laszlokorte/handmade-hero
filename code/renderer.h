@@ -15,6 +15,7 @@ struct render_viewport {
 
 enum render_command_type {
   RenderCommandRect,
+  RenderCommandTriangle,
 };
 
 struct render_color_rgba {
@@ -33,10 +34,21 @@ struct render_command_rect {
   loaded_bitmap *Image;
 };
 
+struct render_command_triangle {
+  real32 AX;
+  real32 AY;
+  real32 BX;
+  real32 BY;
+  real32 CX;
+  real32 CY;
+  render_color_rgba Color;
+};
+
 struct render_command {
   render_command_type Type;
   union {
     render_command_rect Rect;
+    render_command_triangle Triangle;
   };
 };
 
@@ -63,8 +75,11 @@ internal inline void ClearRenderBuffer(render_buffer *Buffer,
   Buffer->Viewport.Width = ViewportWidth;
   Buffer->Viewport.Height = ViewportHeight;
 }
+internal void PushTriangle(render_buffer *Buffer, real32 AX, real32 AY,
+                           real32 BX, real32 BY, real32 CX, real32 CY,
+                           render_color_rgba Color);
 internal void PushRect(render_buffer *Buffer, real32 MinX, real32 MinY,
-                       real32 MaxX, real32 MaxY);
+                       real32 MaxX, real32 MaxY, render_color_rgba Color);
 
 #define RENDERER_H
 #endif

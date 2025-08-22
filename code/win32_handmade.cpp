@@ -2,6 +2,7 @@
 #include "handmade.h"
 #include "debug_font.h"
 #include "handmade_types.h"
+#include "renderer.cpp"
 #include "renderer.h"
 #include <GL/gl.h>
 
@@ -780,14 +781,19 @@ internal void Win32DrawFontDigit(win32_offscreen_buffer *ScreenBuffer,
   }
 }
 
-internal void Win32OutputFramerate(win32_offscreen_buffer *ScreenBuffer,
+internal void Win32OutputFramerate(render_buffer *RenderBuffer,
                                    win32_frame_measures *Measures) {
   int PadX = 32;
   int PadY = 32;
   int Height = 16;
   for (int i = 0; i < Measures->DeltaTimeMS; i += 1) {
-    Win32DebugDrawVertical(ScreenBuffer, PadX + i * 2, PadY,
-                           PadY + Height / (i % 10 == 0 ? 1 : 2), 0xff00ffff);
+
+    PushRect(RenderBuffer, (real32)PadX + i * 2, (real32)PadY,
+             (real32)PadX + i * 2 + 1,
+             PadY + (real32)Height / (i % 10 == 0 ? 1 : 2),
+             render_color_rgba{1.0f, 0.0f, 1.0f, 1.0f});
+    // Win32DebugDrawVertical(ScreenBuffer, PadX + i * 2, PadY,
+    //                     PadY + Height / (i % 10 == 0 ? 1 : 2), 0xff00ffff);
   }
   int64 Rem = Measures->DeltaTimeMS;
   int Place = 1;
@@ -800,23 +806,32 @@ internal void Win32OutputFramerate(win32_offscreen_buffer *ScreenBuffer,
   Rem = Measures->DeltaTimeMS;
   do {
     uint8 Digit = Rem % 10;
-    Win32DrawFontDigit(ScreenBuffer, Digit, 0xff00ffff,
-                       PadX + (DigitCount - Place) * 8 * Scale, PadY, Scale);
+    // Win32DrawFontDigit(ScreenBuffer, Digit, 0xff00ffff,
+    //                   PadX + (DigitCount - Place) * 8 * Scale, PadY, Scale);
     Rem /= 10;
     Place++;
   } while (Rem != 0);
 }
 
-internal void Win32DrawSoundBufferMarker(win32_offscreen_buffer *ScreenBuffer,
+internal void Win32DrawSoundBufferMarker(render_buffer *RenderBuffer,
                                          real32 Ratio, int PadX, int X, int Top,
-                                         int Bottom, int Color, int thickness) {
-  Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X), Top,
-                         Bottom, Color);
+                                         int Bottom, render_color_rgba Color,
+                                         int thickness) {
+  // Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X), Top,
+  //                        Bottom, Color);
+  PushRect(RenderBuffer, PadX + (real32)(Ratio * (real32)X), (real32)Top,
+           PadX + (real32)(Ratio * (real32)X) + 1, (real32)Bottom, Color);
   for (int t = 1; t < thickness; t += 1) {
-    Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X) + t,
-                           Top, Bottom, Color);
-    Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X) - t,
-                           Top, Bottom, Color);
+
+    PushRect(RenderBuffer, PadX + (real32)(Ratio * (real32)X), (real32)Top,
+             PadX + (real32)(Ratio * (real32)X) + t, (real32)Bottom, Color);
+
+    PushRect(RenderBuffer, PadX + (real32)(Ratio * (real32)X), (real32)Top,
+             PadX + (real32)(Ratio * (real32)X) - t, (real32)Bottom, Color);
+    // Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X) + t,
+    //                        Top, Bottom, Color);
+    // Win32DebugDrawVertical(ScreenBuffer, PadX + (int)(Ratio * (real32)X) - t,
+    //                        Top, Bottom, Color);
   }
 }
 
@@ -900,23 +915,44 @@ internal void Win32DebugDrawTriangle(win32_offscreen_buffer *Buffer, int X,
   }
 }
 
-internal void Win32DisplayRecordingState(win32_offscreen_buffer *ScreenBuffer,
+internal void Win32DisplayRecordingState(render_buffer *RenderBuffer,
                                          int RecordingIndex, int PlayingIndex) {
   int Padding = 16;
   int Radius = 16;
-  int32 Color = 0xff0000;
+  render_color_rgba Color = render_color_rgba{1.0f, 0.f, 0.f, 1.f};
   if (RecordingIndex) {
-    Win32DebugDrawCircle(ScreenBuffer, Padding + Radius, Padding + Radius,
-                         Radius, Color);
+    float vx[10] = {1.0000f,  0.8090f,  0.3090f,  -0.3090f, -0.8090f,
+                    -1.0000f, -0.8090f, -0.3090f, 0.3090f,  0.8090f};
+
+    float vy[10] = {0.0000f, 0.5878f,  0.9511f,  0.9511f,  0.5878f,
+                    0.0000f, -0.5878f, -0.9511f, -0.9511f, -0.5878f};
+    int center = Padding + Radius;
+
+    for (int c = 0; c < ArrayCount(vx); c++) {
+      int d = (c + 1) % ArrayCount(vx);
+      PushTriangle(
+          RenderBuffer, //
+          (real32)center, (real32)center, (real32)center + Radius * vx[c],
+          (real32)center + Radius * vy[c], (real32)center + Radius * vx[d],
+          (real32)center + Radius * vy[d], Color);
+    }
+    // Win32DebugDrawCircle(RenderBuffer, Padding + Radius, Padding + Radius,
+    //                    Radius, Color);
   } else if (PlayingIndex) {
-    Win32DebugDrawTriangle(ScreenBuffer, Padding, Padding, Radius * 2, Radius,
-                           true, true, Color);
-    Win32DebugDrawTriangle(ScreenBuffer, Padding, Padding + Radius, Radius * 2,
-                           Radius, true, false, Color);
+
+    PushTriangle(RenderBuffer, (real32)Padding, (real32)Padding,
+                 (real32)Padding, (real32)Padding + 2 * Radius,
+                 (real32)Padding + 2 * Radius, (real32)Padding + Radius, Color);
+    // Win32DebugDrawTriangle(RenderBuffer, Padding, Padding, Radius * 2,
+    // Radius,
+    //                        true, true, Color);
+    // Win32DebugDrawTriangle(RenderBuffer, Padding, Padding + Radius, Radius *
+    // 2,
+    //                        Radius, true, false, Color);
   }
 }
 
-internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
+internal void Win32DebugSyncDisplay(render_buffer *RenderBuffer,
                                     win32_sound_buffer *SoundBuffer,
                                     int DebugTimeMarkerCount,
                                     size_t CurrentCursorPos,
@@ -926,8 +962,8 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
   int PadY = 16;
   int LineHeight = 64;
 
-  real32 Ratio =
-      (ScreenBuffer->Width - 2 * PadX) / ((real32)SoundBuffer->SoundBufferSize);
+  real32 Ratio = (RenderBuffer->Viewport.Width - 2 * PadX) /
+                 ((real32)SoundBuffer->SoundBufferSize);
   for (int CursorIndex = 0; CursorIndex < DebugTimeMarkerCount; CursorIndex++) {
     win32_debug_time_marker *Marker = &DebugTimeMarker[CursorIndex];
 
@@ -944,37 +980,39 @@ internal void Win32DebugSyncDisplay(win32_offscreen_buffer *ScreenBuffer,
       Top += LineHeight;
       Bottom += LineHeight;
 
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+      Win32DrawSoundBufferMarker(RenderBuffer, Ratio, PadX,
                                  Marker->OutputPlayCursor, Top, Bottom,
-                                 0x00ff00, 2);
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+                                 render_color_rgba{0.0f, 1.0f, 0.0f, 1.0f}, 2);
+      Win32DrawSoundBufferMarker(RenderBuffer, Ratio, PadX,
                                  Marker->OutputWriteCursor, Top, Bottom,
-                                 0xff0000, 2);
+                                 render_color_rgba{1.0f, 0.0f, 0.0f, 1.0f}, 2);
       int XOutputStart = Marker->OutputLocation;
       int XOutputEnd = XOutputStart + Marker->OutputByteCount;
 
       Top += LineHeight;
       Bottom += LineHeight;
 
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XOutputStart, Top,
-                                 Bottom, 0x00ff00, 2);
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX, XOutputEnd, Top,
-                                 Bottom, 0xff0000, 2);
+      Win32DrawSoundBufferMarker(RenderBuffer, Ratio, PadX, XOutputStart, Top,
+                                 Bottom,
+                                 render_color_rgba{0.0f, 1.0f, 0.0f, 1.0f}, 2);
+      Win32DrawSoundBufferMarker(RenderBuffer, Ratio, PadX, XOutputEnd, Top,
+                                 Bottom,
+                                 render_color_rgba{1.0f, 0.0f, 0.0f, 1.0f}, 2);
 
       Top += LineHeight;
       Bottom += LineHeight;
 
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+      Win32DrawSoundBufferMarker(RenderBuffer, Ratio, PadX,
                                  Marker->ExpectedFlipPlayCursor, PadY, Bottom,
-                                 0xffff00, 2);
+                                 render_color_rgba{1.0f, 1.0f, 0.0f, 1.0f}, 2);
     } else {
 
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+      Win32DrawSoundBufferMarker(RenderBuffer, Ratio, PadX,
                                  Marker->OutputPlayCursor, Top, Bottom,
-                                 0xff00ff, 1);
-      Win32DrawSoundBufferMarker(ScreenBuffer, Ratio, PadX,
+                                 render_color_rgba{1.0f, 0.0f, 1.0f, 1.0f}, 1);
+      Win32DrawSoundBufferMarker(RenderBuffer, Ratio, PadX,
                                  Marker->OutputWriteCursor, Top, Bottom,
-                                 0x00ffff, 1);
+                                 render_color_rgba{0.0f, 1.0f, 1.0f, 1.0f}, 1);
     }
   }
 }
@@ -1334,13 +1372,13 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
 #ifdef HANDMADE_INTERNAL
             if (GlobalDebuggerState.AudioSync) {
 
-              Win32DebugSyncDisplay(&GlobalScreenBuffer, &SoundBuffer,
+              Win32DebugSyncDisplay(&Win32State.RenderBuffer, &SoundBuffer,
                                     ArrayCount(DebugTimeMarkers),
                                     TimeMarkerCursor, DebugTimeMarkers,
                                     TargetSecondsPerFrame);
             }
 #endif
-            Win32DisplayRecordingState(&GlobalScreenBuffer,
+            Win32DisplayRecordingState(&Win32State.RenderBuffer,
                                        Win32State.InputRecordingIndex,
                                        Win32State.InputPlayingIndex);
 
@@ -1368,7 +1406,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
               FrameMeasures.SkippedFrames += 1;
               // OutputDebugString("SkippedFrame");
             }
-            Win32OutputFramerate(&GlobalScreenBuffer, &FrameMeasures);
+            Win32OutputFramerate(&Win32State.RenderBuffer, &FrameMeasures);
             LARGE_INTEGER EndFrame = Win32GetWallClock();
             LastFrame = EndFrame;
             FlipWallClock = Win32GetWallClock();
@@ -1454,6 +1492,20 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
 
                 glTexCoord2f(0.0f, 1.0f);
                 glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
+                glEnd();
+                glDisable(GL_TEXTURE_2D);
+              } break;
+              case RenderCommandTriangle: {
+                glColor4f(RCmd->Triangle.Color.Red, RCmd->Triangle.Color.Green,
+                          RCmd->Triangle.Color.Blue,
+                          RCmd->Triangle.Color.Alpha);
+
+                glBegin(GL_TRIANGLES);
+                glVertex2f(RCmd->Triangle.AX, RCmd->Triangle.AY);
+
+                glVertex2f(RCmd->Triangle.BX, RCmd->Triangle.BY);
+
+                glVertex2f(RCmd->Triangle.CX, RCmd->Triangle.CY);
                 glEnd();
                 glDisable(GL_TEXTURE_2D);
               } break;
