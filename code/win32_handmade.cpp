@@ -6,6 +6,9 @@
 #include "renderer.h"
 #include <GL/gl.h>
 
+typedef BOOL(WINAPI *PFNWGLSWAPINTERVALEXTPROC)(int interval);
+PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
+
 internal void Win32InitDSound(HWND Window, int32 SamplingRateInHz,
                               int32 BufferSize,
                               win32_sound_buffer *SoundBuffer) {
@@ -1143,8 +1146,8 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
   if (RegisterClass(&windowClass)) {
     HWND Window = CreateWindowEx(
         WS_EX_LAYERED | WS_EX_TOPMOST, windowClass.lpszClassName,
-        "Handmade Window", WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT,
-        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, Instance, 0);
+        "Handmade Window", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
+        CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, Instance, 0);
     if (Window) {
 
       HDC DeviceContext = GetDC(Window);
@@ -1228,6 +1231,21 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
           glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
         }
+
+        wglSwapIntervalEXT =
+            (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+
+        if (wglSwapIntervalEXT) {
+          wglSwapIntervalEXT(1); // 1 = enable vsync, 0 = disable
+        }
+
+        glClearColor(0.1f, 0.1f, 0.3f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        SwapBuffers(DeviceContext);
+
+        ShowWindow(Window, SW_SHOW);
+        UpdateWindow(Window);
         while (Win32State.Running) {
           bool ShallReload = false;
 
@@ -1353,8 +1371,8 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
             if (Win32State.InputPlayingIndex) {
               Win32PlaybackInput(&Win32State, NewInput);
             }
-            win32_window_dimensions WinSize = Win32GetWindowSize(Window);
             NewInput->DeltaTime = FrameMeasures.DeltaTimeMS / 1000.0f;
+            win32_window_dimensions WinSize = Win32GetWindowSize(Window);
             ClearRenderBuffer(&Win32State.RenderBuffer, WinSize.width,
                               WinSize.height);
             bool ShallExit = !Game.UpdateAndRender(
