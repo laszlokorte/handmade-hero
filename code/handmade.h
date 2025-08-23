@@ -132,11 +132,22 @@ struct game_color_rgb {
   real32 b;
 };
 
-enum game_direction {
+enum game_direction4 {
   GameDirectionNorth,
   GameDirectionSouth,
   GameDirectionEast,
   GameDirectionWest,
+};
+
+enum game_direction8 {
+  GameDirectionJustNorth,
+  GameDirectionJustSouth,
+  GameDirectionJustEast,
+  GameDirectionJustWest,
+  GameDirectionNorthWest,
+  GameDirectionSouthWest,
+  GameDirectionNorthEast,
+  GameDirectionSouthEast,
 };
 
 struct game_entity {
@@ -145,6 +156,7 @@ struct game_entity {
   game_velocity v;
   game_size s;
   game_color_rgb c;
+  game_direction8 o;
 };
 
 struct game_controller_entity_map {

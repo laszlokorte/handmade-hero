@@ -575,6 +575,30 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         Entity->p = NewPos;
       }
     }
+    if (Entity->v.x > 0 && Entity->v.y > 0) {
+      Entity->o = GameDirectionSouthEast;
+    }
+    if (Entity->v.x < 0 && Entity->v.y > 0) {
+      Entity->o = GameDirectionSouthWest;
+    }
+    if (Entity->v.x > 0 && Entity->v.y < 0) {
+      Entity->o = GameDirectionNorthEast;
+    }
+    if (Entity->v.x < 0 && Entity->v.y < 0) {
+      Entity->o = GameDirectionNorthWest;
+    }
+    if (Entity->v.x == 0 && Entity->v.y > 0) {
+      Entity->o = GameDirectionJustSouth;
+    }
+    if (Entity->v.x == 0 && Entity->v.y < 0) {
+      Entity->o = GameDirectionJustNorth;
+    }
+    if (Entity->v.x > 0 && Entity->v.y == 0) {
+      Entity->o = GameDirectionJustEast;
+    }
+    if (Entity->v.x < 0 && Entity->v.y == 0) {
+      Entity->o = GameDirectionJustWest;
+    }
   }
   if (GameState->CameraTrack) {
     game_entity *Entity = GameState->CameraTrack;
@@ -737,7 +761,86 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     //     / 2.0f, (CY + 0.2f) * GameState->TileMap.TileHeight +
     //         ScreenBuffer->Height / 2.0f,
     //     game_color_rgb{0.0f, 0.0f, 0.0f});
+    float arrow[6] = {};
+    switch (Entity->o) {
 
+    case GameDirectionJustNorth: {
+      arrow[0] = 0.0f;
+      arrow[1] = -1.5f;
+      arrow[2] = -1.0f;
+      arrow[3] = -1.0f;
+      arrow[4] = 1.0f;
+      arrow[5] = -1.0f;
+    } break;
+    case GameDirectionJustSouth: {
+      arrow[0] = 0.0f;
+      arrow[1] = 1.5f;
+      arrow[2] = -1.0f;
+      arrow[3] = 1.0f;
+      arrow[4] = 1.0f;
+      arrow[5] = 1.0f;
+    } break;
+    case GameDirectionJustEast: {
+      arrow[0] = 1.5f;
+      arrow[1] = 0.0f;
+      arrow[2] = 1.0f;
+      arrow[3] = -1.0f;
+      arrow[4] = 1.0f;
+      arrow[5] = 1.0f;
+    } break;
+    case GameDirectionJustWest: {
+      arrow[0] = -1.5f;
+      arrow[1] = 0.0f;
+      arrow[2] = -1.0f;
+      arrow[3] = -1.0f;
+      arrow[4] = -1.0f;
+      arrow[5] = 1.0f;
+    } break;
+    case GameDirectionNorthWest: {
+      arrow[0] = -1.0f;
+      arrow[1] = 0.0f;
+      arrow[2] = 0.0f;
+      arrow[3] = -1.0f;
+      arrow[4] = -1.0f;
+      arrow[5] = -1.0f;
+    } break;
+    case GameDirectionSouthWest: {
+      arrow[0] = -1.0f;
+      arrow[1] = 0.0f;
+      arrow[2] = 0.0f;
+      arrow[3] = 1.0f;
+      arrow[4] = -1.0f;
+      arrow[5] = 1.0f;
+    } break;
+    case GameDirectionNorthEast: {
+      arrow[0] = 1.0f;
+      arrow[1] = 0.0f;
+      arrow[2] = 0.0f;
+      arrow[3] = -1.0f;
+      arrow[4] = 1.0f;
+      arrow[5] = -1.0f;
+    } break;
+    case GameDirectionSouthEast: {
+      arrow[0] = 1.0f;
+      arrow[1] = 0.0f;
+      arrow[2] = 0.0f;
+      arrow[3] = 1.0f;
+      arrow[4] = 1.0f;
+      arrow[5] = 1.0f;
+    } break;
+    }
+    PushTriangle(
+        RenderBuffer,
+        X + arrow[0] * Entity->s.x / 2.0f + RenderBuffer->Viewport.Width / 2.0f,
+        Y + arrow[1] * Entity->s.y / 2.0f +
+            RenderBuffer->Viewport.Height / 2.0f,
+        X + arrow[2] * Entity->s.x / 2.0f + RenderBuffer->Viewport.Width / 2.0f,
+        Y + arrow[3] * Entity->s.y / 2.0f +
+            RenderBuffer->Viewport.Height / 2.0f,
+        X + arrow[4] * Entity->s.x / 2.0f + RenderBuffer->Viewport.Width / 2.0f,
+        Y + arrow[5] * Entity->s.y / 2.0f +
+            RenderBuffer->Viewport.Height / 2.0f,
+        render_color_rgba{0.6f, 0.0f, 0.8f, 1.0f});
     PushRectImage(RenderBuffer,
                   X - Entity->s.x / 2 + RenderBuffer->Viewport.Width / 2.0f,
                   Y - Entity->s.y / 2 + RenderBuffer->Viewport.Height / 2.0f,
