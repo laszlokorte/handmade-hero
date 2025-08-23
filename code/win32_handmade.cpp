@@ -4,6 +4,7 @@
 #include "handmade_types.h"
 #include "renderer.cpp"
 #include "renderer.h"
+#include "win32_work_queue.cpp"
 #include <GL/gl.h>
 
 typedef BOOL(WINAPI *PFNWGLSWAPINTERVALEXTPROC)(int interval);
@@ -336,12 +337,14 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) {
 internal void Win32SetupGameMemory(win32_state *Win32State,
                                    game_memory *GameMemory) {
   memory_index RenderBufferSize = 10000 * sizeof(render_command);
+  uint32 WorkQueueLength = 128;
+  size_t WorkQueueSize = WorkQueueLength * sizeof(win32_work_queue_task);
   GameMemory->Initialized = false;
   GameMemory->PermanentStorageSize = Megabytes(10);
   GameMemory->TransientStorageSize = Megabytes(100);
   Win32State->TotalMemorySize = GameMemory->TransientStorageSize +
                                 GameMemory->PermanentStorageSize +
-                                RenderBufferSize;
+                                RenderBufferSize + WorkQueueSize;
   Win32State->GameMemoryBlock = VirtualAlloc(
       0, Win32State->TotalMemorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   GameMemory->PermanentStorage = (uint8 *)Win32State->GameMemoryBlock;
@@ -351,6 +354,13 @@ internal void Win32SetupGameMemory(win32_state *Win32State,
                          (render_command *)(GameMemory->PermanentStorage +
                                             GameMemory->PermanentStorageSize +
                                             GameMemory->TransientStorageSize));
+  InitializeWorkQueue(
+      &Win32State->WorkQueue, WorkQueueLength,
+      (win32_work_queue_task *)(GameMemory->PermanentStorage +
+                                GameMemory->PermanentStorageSize +
+                                GameMemory->TransientStorageSize +
+                                RenderBufferSize));
+
   GameMemory->DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
   GameMemory->DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
   GameMemory->DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
@@ -1244,6 +1254,16 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
 
         SwapBuffers(DeviceContext);
 
+        win32_thread_info Threads[8] = {};
+        win32_thread_pool ThreadPool = {};
+        ThreadPool.Threads = Threads;
+        ThreadPool.Count = ArrayCount(Threads);
+
+        for (int t = 0; t < ThreadPool.Count; t++) {
+          DWORD ThreadId;
+          CreateThread(NULL, 0, WorkQueueThreadProc, &Win32State.WorkQueue, 0,
+                       &ThreadId);
+        }
         ShowWindow(Window, SW_SHOW);
         UpdateWindow(Window);
         while (Win32State.Running) {

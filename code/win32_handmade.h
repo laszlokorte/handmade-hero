@@ -10,14 +10,45 @@
 #include <math.h>
 #include <timeapi.h>
 
+#include "work_queue.h"
+
 global_variable bool GlobalTransparent;
 
+struct win32_work_queue_task {
+  work_queue_callback *Callback;
+  void *Data;
+};
+
+struct work_queue {
+  size_t Size;
+  win32_work_queue_task *Base;
+
+  uint32 volatile NextWrite;
+  uint32 volatile NextRead;
+
+  size_t volatile CompletionGoal;
+  size_t volatile CompletionCount;
+
+  HANDLE SemaphoreHandle;
+};
+
+struct win32_thread_info {
+  int32 LogicalThreadIndex;
+  work_queue *Queue;
+};
+
+struct win32_thread_pool {
+  size_t Count;
+  win32_thread_info *Threads;
+};
 struct win32_state {
   bool Running;
   uint64 TotalMemorySize;
   void *GameMemoryBlock;
 
   render_buffer RenderBuffer;
+  work_queue WorkQueue;
+  win32_thread_pool ThreadPool;
 
   HANDLE RecordingHandle;
   int InputRecordingIndex;
