@@ -10,14 +10,15 @@ internal void InitializeWorkQueue(work_queue *Queue, size_t Size,
   Queue->CompletionGoal = 0;
   Queue->CompletionCount = 0;
   //  TODO create semaphore correctly
-  Queue->SemaphoreHandle = CreateSemaphoreA(0, 0, 0, NULL);
+  Queue->SemaphoreHandle = CreateSemaphoreA(0, 8, 8, NULL);
 }
 
 void PushTaskToQueue(work_queue *Queue, work_queue_callback *Callback,
                      void *Data) {
+  uint32 NextWrite = Queue->NextWrite;
   uint32 NewNextWrite = (Queue->NextWrite + 1) % Queue->Size;
   Assert(NewNextWrite != Queue->NextRead);
-  win32_work_queue_task *NewEntry = &Queue->Base[NewNextWrite];
+  win32_work_queue_task *NewEntry = &Queue->Base[NextWrite];
   NewEntry->Callback = Callback;
   NewEntry->Data = Data;
   ++Queue->CompletionGoal;

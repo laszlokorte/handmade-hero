@@ -6,6 +6,7 @@
 #include "renderer.h"
 #include "win32_work_queue.cpp"
 #include <GL/gl.h>
+#include <debugapi.h>
 
 typedef BOOL(WINAPI *PFNWGLSWAPINTERVALEXTPROC)(int interval);
 PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
@@ -1102,6 +1103,9 @@ internal void UnloadGame(win32_game *Game) {
     Game->IsValid = false;
   }
 }
+
+void TestTask(void *Data) { OutputDebugStringA((char *)Data); }
+
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
   char ExePath[MAX_PATH];
@@ -1253,19 +1257,32 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         glClear(GL_COLOR_BUFFER_BIT);
 
         SwapBuffers(DeviceContext);
+        SYSTEM_INFO SystemInfo = {};
+        GetNativeSystemInfo(&SystemInfo);
+        DWORD CoreCount = SystemInfo.dwNumberOfProcessors;
+#define MAX_THREAD_COUNT 32
+        DWORD ThreadCount = CoreCount;
+        if (ThreadCount > MAX_THREAD_COUNT) {
+          ThreadCount = MAX_THREAD_COUNT;
+        }
+        win32_thread_info Threads[MAX_THREAD_COUNT] = {};
+        Win32State.ThreadPool.Threads = Threads;
+        Win32State.ThreadPool.Count = ThreadCount;
 
-        win32_thread_info Threads[8] = {};
-        win32_thread_pool ThreadPool = {};
-        ThreadPool.Threads = Threads;
-        ThreadPool.Count = ArrayCount(Threads);
-
-        for (int t = 0; t < ThreadPool.Count; t++) {
-          DWORD ThreadId;
-          CreateThread(NULL, 0, WorkQueueThreadProc, &Win32State.WorkQueue, 0,
-                       &ThreadId);
+        for (uint32 t = 0; t < ThreadCount; t++) {
+          Threads[t].Queue = &Win32State.WorkQueue;
+          Threads[t].LogicalThreadIndex = t;
+          CreateThread(NULL, 0, WorkQueueThreadProc, &Threads[t], 0,
+                       &Threads[t].ThreadId);
         }
         ShowWindow(Window, SW_SHOW);
         UpdateWindow(Window);
+
+        char hello[] = "Hello Word";
+        PushTaskToQueue(&Win32State.WorkQueue, TestTask, &hello);
+
+        WaitForQueueToFinish(&Win32State.WorkQueue);
+
         while (Win32State.Running) {
           bool ShallReload = false;
 

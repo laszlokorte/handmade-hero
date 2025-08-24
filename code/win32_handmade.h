@@ -34,6 +34,7 @@ struct work_queue {
 
 struct win32_thread_info {
   int32 LogicalThreadIndex;
+  DWORD ThreadId;
   work_queue *Queue;
 };
 
