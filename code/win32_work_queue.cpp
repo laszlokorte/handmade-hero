@@ -10,21 +10,19 @@ internal void InitializeWorkQueue(work_queue *Queue, size_t Size,
   Queue->CompletionGoal = 0;
   Queue->CompletionCount = 0;
   //  TODO create semaphore correctly
-  Queue->SemaphoreHandle = CreateSemaphoreA(0, 8, 8, NULL);
+  Queue->SemaphoreHandle = CreateSemaphoreA(0, 20, 20, NULL);
 }
 
 void PushTaskToQueue(work_queue *Queue, work_queue_callback *Callback,
                      void *Data) {
-  uint32 NextWrite = Queue->NextWrite;
-  uint32 NewNextWrite = (Queue->NextWrite + 1) % Queue->Size;
-  Assert(NewNextWrite != Queue->NextRead);
-  win32_work_queue_task *NewEntry = &Queue->Base[NextWrite];
+  uint32 NextWrite = InterlockedExchangeAdd(&Queue->NextWrite, 1) ;
+  Assert(((NextWrite + 1) % Queue->Size) != Queue->NextRead % Queue->Size);
+  win32_work_queue_task *NewEntry = &Queue->Base[NextWrite% Queue->Size];
   NewEntry->Callback = Callback;
   NewEntry->Data = Data;
-  ++Queue->CompletionGoal;
   _WriteBarrier();
   _mm_sfence();
-  Queue->NextWrite = NewNextWrite;
+  InterlockedIncrement64((LONG64 volatile *)&Queue->CompletionGoal);
   ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
 }
 
@@ -32,16 +30,16 @@ internal bool DoNextWorkQueueEntry(work_queue *Queue) {
   bool ShouldSleep = false;
 
   uint32 OriginalNextRead = Queue->NextRead;
-  uint32 NewNextRead = (OriginalNextRead + 1) % Queue->Size;
+  uint32 NewNextRead = (OriginalNextRead + 1);
   if (OriginalNextRead != Queue->NextWrite) {
     uint32 Index = InterlockedCompareExchange((LONG volatile *)&Queue->NextRead,
                                               NewNextRead, OriginalNextRead);
 
     if (Index == OriginalNextRead) {
-      win32_work_queue_task Task = Queue->Base[Index];
+      win32_work_queue_task Task = Queue->Base[Index % Queue->Size];
       work_queue_callback *Callback = Task.Callback;
       Callback(Task.Data);
-      InterlockedIncrement((LONG volatile *)&Queue->CompletionCount);
+      InterlockedIncrement64((LONG64 volatile *)&Queue->CompletionCount);
     }
   } else {
     ShouldSleep = true;
@@ -55,8 +53,6 @@ void WaitForQueueToFinish(work_queue *Queue) {
     DoNextWorkQueueEntry(Queue);
   }
 
-  Queue->CompletionCount = 0;
-  Queue->CompletionGoal = 0;
 }
 
 DWORD WINAPI WorkQueueThreadProc(LPVOID lpParameter) {
