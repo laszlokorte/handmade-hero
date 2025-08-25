@@ -4,10 +4,16 @@ typedef void work_queue_callback(void *Data);
 
 struct work_queue;
 
-void PushTaskToQueue(struct work_queue *Queue, work_queue_callback *Callback,
-                     void *Data);
+#define PUSH_TASK_TO_QUEUE(Name)                                               \
+  void(Name)(struct work_queue * Queue, work_queue_callback * Callback,        \
+             void *Data)
 
-void WaitForQueueToFinish(struct work_queue *Queue);
+typedef PUSH_TASK_TO_QUEUE(platform_push_task_to_queue);
+PUSH_TASK_TO_QUEUE(PushTaskToQueue);
+
+#define WAIT_FOR_QUEUE_TO_FINISH(Name) void Name(struct work_queue *Queue)
+WAIT_FOR_QUEUE_TO_FINISH(WaitForQueueToFinish);
+typedef WAIT_FOR_QUEUE_TO_FINISH(platform_wait_for_queue_to_finish);
 
 #define WORK_QUEUE_H
 #endif

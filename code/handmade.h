@@ -3,6 +3,7 @@
 #include "./handmade_types.h"
 #include "./tilemap.h"
 #include "./renderer.h"
+#include "work_queue.h"
 
 struct thread_context {
   int Dummy;
@@ -109,6 +110,10 @@ struct game_memory {
   debug_platform_free_file_memory *DebugPlatformFreeFileMemory;
   debug_platform_read_entire_file *DebugPlatformReadEntireFile;
   debug_platform_write_entire_file *DebugPlatformWriteEntireFile;
+
+  work_queue *TaskQueue;
+  platform_push_task_to_queue *PlatformPushTaskToQueue;
+  platform_wait_for_queue_to_finish *PlatformWaitForQueueToFinish;
 };
 
 struct game_position {

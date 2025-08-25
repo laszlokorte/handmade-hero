@@ -5,6 +5,7 @@
 #include "renderer.cpp"
 #include "renderer.h"
 #include "win32_work_queue.cpp"
+#include "work_queue.h"
 #include <GL/gl.h>
 #include <debugapi.h>
 
@@ -337,7 +338,8 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) {
 
 internal void Win32SetupGameMemory(win32_state *Win32State,
                                    game_memory *GameMemory) {
-  memory_index RenderBufferSize = 10000 * sizeof(render_command);
+  uint32 RenderBufferLength = 10000;
+  memory_index RenderBufferSize = RenderBufferLength * sizeof(render_command);
   uint32 WorkQueueLength = 128;
   size_t WorkQueueSize = WorkQueueLength * sizeof(win32_work_queue_task);
   GameMemory->Initialized = false;
@@ -351,7 +353,7 @@ internal void Win32SetupGameMemory(win32_state *Win32State,
   GameMemory->PermanentStorage = (uint8 *)Win32State->GameMemoryBlock;
   GameMemory->TransientStorage =
       (uint8 *)GameMemory->PermanentStorage + GameMemory->PermanentStorageSize;
-  InitializeRenderBuffer(&Win32State->RenderBuffer, RenderBufferSize,
+  InitializeRenderBuffer(&Win32State->RenderBuffer, RenderBufferLength,
                          (render_command *)(GameMemory->PermanentStorage +
                                             GameMemory->PermanentStorageSize +
                                             GameMemory->TransientStorageSize));
@@ -362,6 +364,9 @@ internal void Win32SetupGameMemory(win32_state *Win32State,
                                 GameMemory->TransientStorageSize +
                                 RenderBufferSize));
 
+  GameMemory->TaskQueue = &Win32State->WorkQueue;
+  GameMemory->PlatformPushTaskToQueue = &PushTaskToQueue;
+  GameMemory->PlatformWaitForQueueToFinish = &WaitForQueueToFinish;
   GameMemory->DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
   GameMemory->DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
   GameMemory->DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
@@ -1104,8 +1109,6 @@ internal void UnloadGame(win32_game *Game) {
   }
 }
 
-void TestTask(void *Data) { OutputDebugStringA((char *)Data); }
-
 int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                      LPSTR lpCmdLine, int nCmdShow) {
   char ExePath[MAX_PATH];
@@ -1277,11 +1280,6 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
         }
         ShowWindow(Window, SW_SHOW);
         UpdateWindow(Window);
-
-        char hello[] = "Hello Word";
-        PushTaskToQueue(&Win32State.WorkQueue, TestTask, &hello);
-
-        WaitForQueueToFinish(&Win32State.WorkQueue);
 
         while (Win32State.Running) {
           bool ShallReload = false;

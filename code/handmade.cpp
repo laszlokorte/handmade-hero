@@ -6,6 +6,11 @@
 #include "tilemap.h"
 #include "renderer.cpp"
 
+void TestTask(void *Data) {
+  game_state *State = (game_state *)Data;
+  State->Muted = false;
+}
+
 global_variable game_state global_game_state = {};
 struct bit_scan_result {
   bool Found;
@@ -849,6 +854,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                   &GameState->Logo);
   }
 
+  Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask, GameState);
+
+  Memory->PlatformWaitForQueueToFinish(Memory->TaskQueue);
   GameState->Time++;
   return true;
 }
