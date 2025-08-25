@@ -15,9 +15,9 @@ internal void InitializeWorkQueue(work_queue *Queue, size_t Size,
 
 void PushTaskToQueue(work_queue *Queue, work_queue_callback *Callback,
                      void *Data) {
-  uint32 NextWrite = InterlockedExchangeAdd(&Queue->NextWrite, 1) ;
+  uint32 NextWrite = InterlockedExchangeAdd(&Queue->NextWrite, 1);
   Assert(((NextWrite + 1) % Queue->Size) != Queue->NextRead % Queue->Size);
-  win32_work_queue_task *NewEntry = &Queue->Base[NextWrite% Queue->Size];
+  win32_work_queue_task *NewEntry = &Queue->Base[NextWrite % Queue->Size];
   NewEntry->Callback = Callback;
   NewEntry->Data = Data;
   _WriteBarrier();
@@ -52,7 +52,6 @@ void WaitForQueueToFinish(work_queue *Queue) {
   while (Queue->CompletionCount != Queue->CompletionGoal) {
     DoNextWorkQueueEntry(Queue);
   }
-
 }
 
 DWORD WINAPI WorkQueueThreadProc(LPVOID lpParameter) {

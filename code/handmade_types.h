@@ -1,6 +1,7 @@
 #if !defined(HANDMADE_TYPES_H)
 
 #include <stdint.h>
+#include <stddef.h>
 
 #ifndef GL_BGRA
 #define GL_BGRA 0x80E1
@@ -37,7 +38,6 @@ typedef double real64;
 #define Megabytes(m) (1024 * 1024 * ((uint64)m))
 #define Gigabytes(m) (1024 * Megabytes(m))
 #define Terabytes(m) (1024 * Gigabytes(m))
-
 
 typedef size_t memory_index;
 

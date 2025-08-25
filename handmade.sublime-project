@@ -14,18 +14,18 @@
         },
         {
             "name": "Build All",
-            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/build.bat"],
+            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/win32_build.bat"],
             "working_dir" : "$project_path"
         },
         {
             "name": "Build All And Run",
-            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/buildrun.bat"],
+            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/win32_buildrun.bat"],
             "working_dir" : "$project_path"
         },
 
         {
             "name": "Build Game",
-            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/build.bat", "gameonly"],
+            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/win32_build.bat", "gameonly"],
             "working_dir" : "$project_path"
         }
     ]

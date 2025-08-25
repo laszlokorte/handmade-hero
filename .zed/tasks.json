@@ -49,7 +49,7 @@
   },
   {
     "label": "Recompile all",
-    "command": "& {  ./run_in_env.ps1 ./build.bat ; exit $LASTEXITCODE }",
+    "command": "& {  ./run_in_env.ps1 ./win32_build.bat ; exit $LASTEXITCODE }",
     //"args": ["build.bat gameonly"],
     // Env overrides for the command, will be appended to the terminal's environment from the settings.
     "env": {},
@@ -94,7 +94,7 @@
   },
   {
     "label": "Recompile Game",
-    "command": "& {  ./run_in_env.ps1 ./build.bat gameonly ; exit $LASTEXITCODE }",
+    "command": "& {  ./run_in_env.ps1 ./win32_build.bat gameonly ; exit $LASTEXITCODE }",
     //"args": ["build.bat gameonly"],
     // Env overrides for the command, will be appended to the terminal's environment from the settings.
     "env": {},
