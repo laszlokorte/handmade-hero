@@ -6,8 +6,9 @@
 #include "handmade.h"
 #include <Metal/Metal.h>
 #include <QuartzCore/QuartzCore.h>
+#include <mach-o/dyld.h>
 
-//#define USE_METAL
+#define USE_METAL
 
 static id<MTLDevice> gDevice;
 static id<MTLCommandQueue> gQueue;
@@ -17,15 +18,6 @@ static CAMetalLayer *gLayer;
 static id<MTLBuffer> gVtx;
 
 // Tiny shaders as source string (no .metal file needed)
-static NSString *kShaderSrc =
-    @"using namespace metal;\n"
-     "struct VSOut { float4 pos [[position]]; float3 col; };\n"
-     "vertex VSOut v_main(uint vid [[vertex_id]], const device float2* pos "
-     "[[buffer(0)]]){\n"
-     "  float3 cols[3] = {float3(1,0,0), float3(0,1,0), float3(0,0,1)};\n"
-     "  VSOut o; o.pos=float4(pos[vid],0,1); o.col=cols[vid]; return o; }\n"
-     "fragment float4 f_main(VSOut in [[stage_in]]) { return float4(in.col,1); "
-     "}\n";
 
 static void CreateMetal(NSView *view, CGSize size) {
   gDevice = MTLCreateSystemDefaultDevice();
@@ -40,8 +32,16 @@ static void CreateMetal(NSView *view, CGSize size) {
   [view setWantsLayer:YES];
   view.layer = gLayer;
 
+  char exePath[PATH_MAX];
+  uint32_t exeSize = sizeof(exePath);
+  _NSGetExecutablePath(exePath, &exeSize); // gives path inside .app or binary
+  NSString *exeDir = [[NSString stringWithUTF8String:exePath]
+      stringByDeletingLastPathComponent];
+  NSURL *libURL = [NSURL
+      fileURLWithPath:
+          [exeDir stringByAppendingPathComponent:@"./macos_shader.metallib"]];
   NSError *err = nil;
-  gLib = [gDevice newLibraryWithSource:kShaderSrc options:nil error:&err];
+  gLib = [gDevice newLibraryWithURL:libURL error:&err];
   if (!gLib) {
     NSLog(@"Shader compile failed: %@", err);
     exit(1);
@@ -292,8 +292,7 @@ int main(void) {
       initWithContentRect:initialFrame
                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                           NSWindowStyleMaskMiniaturizable |
-                          NSWindowStyleMaskResizable |
-                          NSWindowStyleMaskFullSizeContentView
+                          NSWindowStyleMaskResizable
                   backing:NSBackingStoreBuffered
                     defer:YES];
 
@@ -308,7 +307,7 @@ int main(void) {
   [MacOsState.Window makeKeyAndOrderFront:nil];
   MacOsState.Window.contentView.wantsLayer = YES;
 
-MacInitAudio();
+  MacInitAudio();
 #ifdef USE_METAL
   CreateMetal(MacOsState.Window.contentView, initialFrame.size);
 #endif
