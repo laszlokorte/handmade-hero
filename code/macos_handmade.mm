@@ -62,7 +62,8 @@ static void CreateMetal(NSView *view, CGSize size) {
   }
 
   // Triangle in clip space (x,y)
-  float verts[6] = {0.0f, 0.8f, -0.8f, -0.8f, 0.8f, -0.8f};
+  float verts[12] = {1.0f, 1.0f, -1.0f, -1.0f, 1.0f,  -1.0f,
+                    1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 1.0f};
   gVtx = [gDevice newBufferWithBytes:verts
                               length:sizeof(verts)
                              options:MTLResourceStorageModeManaged];
@@ -88,7 +89,7 @@ static void DrawFrame() {
         [cb renderCommandEncoderWithDescriptor:rp];
     [enc setRenderPipelineState:gPSO];
     [enc setVertexBuffer:gVtx offset:0 atIndex:0];
-    [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+    [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
     [enc endEncoding];
     [cb presentDrawable:drawable];
     [cb commit];
