@@ -1,6 +1,8 @@
 
 #include <AppKit/AppKit.h>
 #include <stdio.h>
+#include <dlfcn.h>
+#include "handmade.h"
 
 struct macos_screen_buffer {
   uint32_t Width;
@@ -10,6 +12,13 @@ struct macos_screen_buffer {
   void *Memory;
 };
 
+struct macos_game {
+  bool IsValid;
+  void *GameDLL;
+  game_update_and_render *GameUpdateAndRender;
+  game_get_sound_samples *GameGetSoundSamples;
+};
+
 struct macos_state {
   bool Running;
   float WindowWidth;
@@ -17,7 +26,19 @@ struct macos_state {
 
   NSWindow *Window;
   macos_screen_buffer ScreenBuffer;
+  macos_game Game;
 };
+
+void MacOsLoadGame(macos_game *Game) {
+  Game->GameDLL = dlopen("handmade_game", RTLD_NOW);
+  if (Game->GameDLL) {
+    Game->GameUpdateAndRender =
+        (game_update_and_render *)dlsym(Game->GameDLL, "GameUpdateAndRender");
+    Game->GameGetSoundSamples =
+        (game_get_sound_samples *)dlsym(Game->GameDLL, "GameGetSoundSamples");
+    Game->IsValid = true;
+  }
+}
 
 void MacOsPaint(macos_screen_buffer *ScreenBuffer) {
   uint8_t *Row = (uint8_t *)ScreenBuffer->Memory;
@@ -113,7 +134,7 @@ int main(void) {
   MacOsState.WindowWidth = 1200;
   MacOsState.WindowHeight = 800;
   MacOsState.ScreenBuffer.BytesPerPixel = 4;
-
+  MacOsLoadGame(&MacOsState.Game);
   HandmadeMainWindowDelegate *mainWindowDelegate =
       [[HandmadeMainWindowDelegate alloc] initWithState:&MacOsState];
 
@@ -127,7 +148,7 @@ int main(void) {
       initWithContentRect:initialFrame
                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                           NSWindowStyleMaskMiniaturizable |
-                          NSWindowStyleMaskResizable
+                          NSWindowStyleMaskResizable |NSWindowStyleMaskFullSizeContentView
                   backing:NSBackingStoreBuffered
                     defer:YES];
 

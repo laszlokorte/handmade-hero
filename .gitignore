@@ -3,3 +3,4 @@ build
 msvc-env.txt
 *.sublime-workspace
 hotreload.lock
+.DS_Store
