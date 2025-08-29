@@ -9,6 +9,7 @@
 #include <mach-o/dyld.h>
 
 #define USE_METAL
+#define PI23 3.14159265359
 
 static id<MTLDevice> gDevice;
 static id<MTLCommandQueue> gQueue;
@@ -18,6 +19,10 @@ static CAMetalLayer *gLayer;
 static id<MTLBuffer> gVtx;
 
 // Tiny shaders as source string (no .metal file needed)
+typedef struct {
+  float pos[2];
+  float col[3];
+} Vertex;
 
 static void CreateMetal(NSView *view, CGSize size) {
   gDevice = MTLCreateSystemDefaultDevice();
@@ -61,12 +66,8 @@ static void CreateMetal(NSView *view, CGSize size) {
     exit(1);
   }
 
-  // Triangle in clip space (x,y)
-  float verts[12] = {1.0f, 1.0f, -1.0f, -1.0f, 1.0f,  -1.0f,
-                    1.0f, 1.0f, -1.0f, -1.0f, -1.0f, 1.0f};
-  gVtx = [gDevice newBufferWithBytes:verts
-                              length:sizeof(verts)
-                             options:MTLResourceStorageModeManaged];
+  gVtx = [gDevice newBufferWithLength:sizeof(Vertex) * 1000
+                              options:MTLResourceStorageModeManaged];
 }
 
 static void DrawFrame() {
@@ -84,12 +85,28 @@ static void DrawFrame() {
     rp.colorAttachments[0].clearColor =
         MTLClearColorMake(0.10, 0.12, 0.14, 1.0);
 
+    // Triangle in clip space (x,y)
+    Vertex quadData[6] = {
+        {{-1.0f, -1.0f}, {1, 0, 1}}, //
+        {{1.0f, -1.0f}, {1, 0, 1}},  //
+        {{-1.0f, 1.0f}, {1, 0, 1}},  //
+
+        {{1.0f, -1.0f}, {0, 1, 1}}, //
+        {{1.0f, 1.0f}, {0, 1, 1}},  //
+        {{-1.0f, 1.0f}, {0, 1, 1}}, //
+    };
+    int32_t quadCount = 1;
+    memcpy(gVtx.contents, quadData, quadCount * 6 * sizeof(Vertex));
+
+    [gVtx didModifyRange:NSMakeRange(0, quadCount * 6 * sizeof(Vertex))];
     id<MTLCommandBuffer> cb = [gQueue commandBuffer];
     id<MTLRenderCommandEncoder> enc =
         [cb renderCommandEncoderWithDescriptor:rp];
     [enc setRenderPipelineState:gPSO];
     [enc setVertexBuffer:gVtx offset:0 atIndex:0];
-    [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    [enc drawPrimitives:MTLPrimitiveTypeTriangle
+            vertexStart:0
+            vertexCount:quadCount * 6];
     [enc endEncoding];
     [cb presentDrawable:drawable];
     [cb commit];
@@ -224,21 +241,35 @@ void MacOsSwapWindowBuffer(NSWindow *Window,
 }
 @end
 
+struct mac_audio_buffer {
+  size_t Size;
+  int16_t *Memory;
+
+  uint32 ReadHead;
+  uint32 WriteHead;
+};
+
 OSStatus MacAudioCallback(void *inRefCon,
                           AudioUnitRenderActionFlags *ioActionFlags,
                           const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber,
                           UInt32 inNumberFrames, AudioBufferList *ioData) {
-  // AudioData *data = (AudioData*)inRefCon;
+  mac_audio_buffer *data = (mac_audio_buffer *)inRefCon;
 
+  data->WriteHead += inNumberFrames;
   Float32 *out = (Float32 *)ioData->mBuffers[0].mData;
+  uint16 *source = (uint16_t *)data->Memory;
   for (UInt32 i = 0; i < inNumberFrames; i++) {
-    out[i * 2 + 0] = 0.2 * sinf(0.02 * 3.141 * (inTimeStamp->mSampleTime + i));
-    out[i * 2 + 1] = 0.2 * sinf(0.02 * 3.141 * (inTimeStamp->mSampleTime + i));
+    // printf("%f\n", source[2 * i]/ 655360.0f);
+    out[i * 2 + 0] =
+        source[(2 * (data->ReadHead + i)) % data->Size] / (float)(1 << 24);
+    out[i * 2 + 1] =
+        source[(2 * (data->ReadHead + i) + 1) % data->Size] / (float)(1 << 24);
   }
+  data->ReadHead += inNumberFrames;
   return noErr;
 }
 
-void MacInitAudio() {
+void MacInitAudio(mac_audio_buffer *AudioBuffer) {
   AudioComponentDescription desc = {0};
   desc.componentType = kAudioUnitType_Output;
   desc.componentSubType = kAudioUnitSubType_DefaultOutput;
@@ -265,7 +296,7 @@ void MacInitAudio() {
   // Set callback
   AURenderCallbackStruct cb;
   cb.inputProc = MacAudioCallback;
-  cb.inputProcRefCon = NULL;
+  cb.inputProcRefCon = AudioBuffer;
   AudioUnitSetProperty(audioUnit, kAudioUnitProperty_SetRenderCallback,
                        kAudioUnitScope_Input, 0, &cb, sizeof(cb));
 
@@ -308,7 +339,20 @@ int main(void) {
   [MacOsState.Window makeKeyAndOrderFront:nil];
   MacOsState.Window.contentView.wantsLayer = YES;
 
-  MacInitAudio();
+  mac_audio_buffer AudioBuffer = {};
+  uint32 f = 44100;
+  AudioBuffer.Size = f * 2;
+  AudioBuffer.Memory =
+      (int16_t *)mmap(NULL, AudioBuffer.Size * sizeof(int16_t),
+                      PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+  int note = 5;
+  for (int i = 0; i < f; i++) { // i = frame index
+    float sample =
+        6000 * sinf(440 * powf(2, note * 1 / 12.0f) * Pi32 * i / (float)f);
+    AudioBuffer.Memory[2 * i + 0] = (int16_t)sample; // left
+    AudioBuffer.Memory[2 * i + 1] = (int16_t)sample; // right
+  }
+  MacInitAudio(&AudioBuffer);
 #ifdef USE_METAL
   CreateMetal(MacOsState.Window.contentView, initialFrame.size);
 #endif
