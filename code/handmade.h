@@ -33,6 +33,19 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
             void *Memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
+
+DEBUG_PLATFORM_FREE_FILE_MEMORY(PlatformFreeFileNoop) {
+
+}
+DEBUG_PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFileNoop) {
+    debug_read_file_result Result = {};
+
+    return Result;
+}
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(PlatformWriteEntireFileNoop) {
+    return false;
+}
+
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
 struct game_offscreen_buffer {

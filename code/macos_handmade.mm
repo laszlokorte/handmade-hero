@@ -9,7 +9,7 @@
 #include <mach-o/dyld.h>
 
 #define USE_METAL
-#define PI23 3.14159265359
+// #define USE_AUDIO
 
 static id<MTLDevice> gDevice;
 static id<MTLCommandQueue> gQueue;
@@ -70,7 +70,26 @@ static void CreateMetal(NSView *view, CGSize size) {
                               options:MTLResourceStorageModeManaged];
 }
 
-static void DrawFrame() {
+static void MetalPushRect(Vertex *vertices, uint32_t *VertexCount, float x0,
+                          float y0, float x1, float y1, float r, float g,
+                          float b) {
+  vertices[(*VertexCount)++] = {{x0, y0}, {r, g, b}};
+  vertices[(*VertexCount)++] = {{x1, y0}, {r, g, b}};
+  vertices[(*VertexCount)++] = {{x0, y1}, {r, g, b}};
+  vertices[(*VertexCount)++] = {{x1, y0}, {r, g, b}};
+  vertices[(*VertexCount)++] = {{x1, y1}, {r, g, b}};
+  vertices[(*VertexCount)++] = {{x0, y1}, {r, g, b}};
+}
+
+typedef struct {
+  float scaleX;
+  float scaleY;
+  float transX;
+  float transY;
+} MetalUniforms;
+
+static void MetalDraw(Vertex *vertices, uint32 VertexCount, float scaleX,
+                      float scaleY, float transX, float transY) {
   @autoreleasepool {
     id<CAMetalDrawable> drawable = [gLayer nextDrawable];
     // if (!drawable)
@@ -86,27 +105,24 @@ static void DrawFrame() {
         MTLClearColorMake(0.10, 0.12, 0.14, 1.0);
 
     // Triangle in clip space (x,y)
-    Vertex quadData[6] = {
-        {{-1.0f, -1.0f}, {1, 0, 1}}, //
-        {{1.0f, -1.0f}, {1, 0, 1}},  //
-        {{-1.0f, 1.0f}, {1, 0, 1}},  //
-
-        {{1.0f, -1.0f}, {0, 1, 1}}, //
-        {{1.0f, 1.0f}, {0, 1, 1}},  //
-        {{-1.0f, 1.0f}, {0, 1, 1}}, //
+    MetalUniforms uni = {
+        scaleX,
+        scaleY,
+        transX,
+        transY,
     };
-    int32_t quadCount = 1;
-    memcpy(gVtx.contents, quadData, quadCount * 6 * sizeof(Vertex));
+    memcpy(gVtx.contents, vertices, VertexCount * sizeof(Vertex));
 
-    [gVtx didModifyRange:NSMakeRange(0, quadCount * 6 * sizeof(Vertex))];
+    [gVtx didModifyRange:NSMakeRange(0, VertexCount * sizeof(Vertex))];
     id<MTLCommandBuffer> cb = [gQueue commandBuffer];
     id<MTLRenderCommandEncoder> enc =
         [cb renderCommandEncoderWithDescriptor:rp];
     [enc setRenderPipelineState:gPSO];
     [enc setVertexBuffer:gVtx offset:0 atIndex:0];
+    [enc setVertexBytes:&uni length:sizeof(uni) atIndex:1];
     [enc drawPrimitives:MTLPrimitiveTypeTriangle
             vertexStart:0
-            vertexCount:quadCount * 6];
+            vertexCount:VertexCount];
     [enc endEncoding];
     [cb presentDrawable:drawable];
     [cb commit];
@@ -128,6 +144,35 @@ struct macos_game {
   game_get_sound_samples *GameGetSoundSamples;
 };
 
+struct macos_work_queue_task {
+  work_queue_callback *Callback;
+  void *Data;
+};
+
+struct work_queue {
+  size_t Size;
+  macos_work_queue_task *Base;
+
+  uint32 volatile NextWrite;
+  uint32 volatile NextRead;
+
+  size_t volatile CompletionGoal;
+  size_t volatile CompletionCount;
+
+  void *SemaphoreHandle;
+};
+
+struct macos_thread_info {
+  int32 LogicalThreadIndex;
+  uint32 ThreadId;
+  work_queue *Queue;
+};
+
+struct macos_thread_pool {
+  size_t Count;
+  macos_thread_info *Threads;
+};
+
 struct macos_state {
   bool Running;
   float WindowWidth;
@@ -136,10 +181,23 @@ struct macos_state {
   NSWindow *Window;
   macos_screen_buffer ScreenBuffer;
   macos_game Game;
+
+  size_t TotalMemorySize;
+  void *GameMemoryBlock;
+  render_buffer RenderBuffer;
+  work_queue WorkQueue;
+  macos_thread_pool ThreadPool;
 };
 
 void MacOsLoadGame(macos_game *Game) {
-  Game->GameDLL = dlopen("handmade_game", RTLD_NOW);
+  char exePath[PATH_MAX];
+  uint32_t exeSize = sizeof(exePath);
+  _NSGetExecutablePath(exePath, &exeSize); // gives path inside .app or binary
+  NSString *exeDir = [[NSString stringWithUTF8String:exePath]
+      stringByDeletingLastPathComponent];
+  NSString *dllPath =
+      [exeDir stringByAppendingPathComponent:@"./handmade_game"];
+  Game->GameDLL = dlopen([dllPath UTF8String], RTLD_NOW);
   if (Game->GameDLL) {
     Game->GameUpdateAndRender =
         (game_update_and_render *)dlsym(Game->GameDLL, "GameUpdateAndRender");
@@ -147,6 +205,46 @@ void MacOsLoadGame(macos_game *Game) {
         (game_get_sound_samples *)dlsym(Game->GameDLL, "GameGetSoundSamples");
     Game->IsValid = true;
   }
+}
+
+void MacOsSetupGameMemory(macos_state *MacState, game_memory *GameMemory) {
+  uint32 RenderBufferLength = 10000;
+  memory_index RenderBufferSize = RenderBufferLength * sizeof(render_command);
+  uint32 WorkQueueLength = 128;
+  size_t WorkQueueSize = WorkQueueLength * sizeof(macos_work_queue_task);
+  GameMemory->Initialized = false;
+  GameMemory->PermanentStorageSize = Megabytes(10);
+  GameMemory->TransientStorageSize = Megabytes(100);
+  MacState->TotalMemorySize = GameMemory->TransientStorageSize +
+                              GameMemory->PermanentStorageSize +
+                              RenderBufferSize + WorkQueueSize;
+  MacState->GameMemoryBlock =
+      mmap(NULL, MacState->TotalMemorySize, PROT_READ | PROT_WRITE,
+           MAP_ANON | MAP_PRIVATE, -1, 0);
+  GameMemory->PermanentStorage = (uint8 *)MacState->GameMemoryBlock;
+  GameMemory->TransientStorage =
+      (uint8 *)GameMemory->PermanentStorage + GameMemory->PermanentStorageSize;
+  InitializeRenderBuffer(&MacState->RenderBuffer, RenderBufferLength,
+                         (render_command *)(GameMemory->PermanentStorage +
+                                            GameMemory->PermanentStorageSize +
+                                            GameMemory->TransientStorageSize));
+  // InitializeWorkQueue(
+  //     &MacState->WorkQueue, WorkQueueLength,
+  //     (win32_work_queue_task *)(GameMemory->PermanentStorage +
+  //                               GameMemory->PermanentStorageSize +
+  //                               GameMemory->TransientStorageSize +
+  //                               RenderBufferSize));
+
+  GameMemory->TaskQueue = &MacState->WorkQueue;
+  GameMemory->PlatformPushTaskToQueue = PushTaskToQueueNoop; //&PushTaskToQueue;
+  GameMemory->PlatformWaitForQueueToFinish =
+      WaitForQueueToFinishNoop; //&WaitForQueueToFinish;
+  GameMemory->DebugPlatformReadEntireFile =
+      PlatformReadEntireFileNoop; //&DEBUGPlatformReadEntireFile;
+  GameMemory->DebugPlatformFreeFileMemory =
+      PlatformFreeFileNoop; //&DEBUGPlatformFreeFileMemory;
+  GameMemory->DebugPlatformWriteEntireFile =
+      PlatformWriteEntireFileNoop; //&DEBUGPlatformWriteEntireFile;
 }
 
 void MacOsPaint(macos_screen_buffer *ScreenBuffer) {
@@ -232,6 +330,8 @@ void MacOsSwapWindowBuffer(NSWindow *Window,
   MacOsPaint(&_State->ScreenBuffer);
   MacOsSwapWindowBuffer(_State->Window, &_State->ScreenBuffer);
 #endif
+  _State->WindowWidth = Window.contentView.frame.size.width;
+  _State->WindowHeight = Window.contentView.frame.size.height;
 }
 
 - (void)windowWillStartLiveResize:(NSNotification *)notification {
@@ -255,7 +355,7 @@ OSStatus MacAudioCallback(void *inRefCon,
                           UInt32 inNumberFrames, AudioBufferList *ioData) {
   mac_audio_buffer *data = (mac_audio_buffer *)inRefCon;
 
-  data->WriteHead += inNumberFrames;
+  data->WriteHead = (data->WriteHead + inNumberFrames) % data->Size;
   Float32 *out = (Float32 *)ioData->mBuffers[0].mData;
   uint16 *source = (uint16_t *)data->Memory;
   for (UInt32 i = 0; i < inNumberFrames; i++) {
@@ -265,7 +365,7 @@ OSStatus MacAudioCallback(void *inRefCon,
     out[i * 2 + 1] =
         source[(2 * (data->ReadHead + i) + 1) % data->Size] / (float)(1 << 24);
   }
-  data->ReadHead += inNumberFrames;
+  data->ReadHead = (data->ReadHead + inNumberFrames) % data->Size;
   return noErr;
 }
 
@@ -311,6 +411,9 @@ int main(void) {
   MacOsState.WindowHeight = 800;
   MacOsState.ScreenBuffer.BytesPerPixel = 4;
   MacOsLoadGame(&MacOsState.Game);
+  // printf("%p\n%p\n", MacOsState.Game.GameGetSoundSamples,
+  //        MacOsState.Game.GameUpdateAndRender);
+  // printf("%p\n%d\n", MacOsState.Game.GameDLL, MacOsState.Game.IsValid);
   HandmadeMainWindowDelegate *mainWindowDelegate =
       [[HandmadeMainWindowDelegate alloc] initWithState:&MacOsState];
 
@@ -345,18 +448,21 @@ int main(void) {
   AudioBuffer.Memory =
       (int16_t *)mmap(NULL, AudioBuffer.Size * sizeof(int16_t),
                       PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-  int note = 5;
+  int note = 1;
   for (int i = 0; i < f; i++) { // i = frame index
     float sample =
-        6000 * sinf(440 * powf(2, note * 1 / 12.0f) * Pi32 * i / (float)f);
+        6000 * sinf(440 * pow(2, note * 1.0 / 12.0) * Pi32 * i / (float)f);
     AudioBuffer.Memory[2 * i + 0] = (int16_t)sample; // left
     AudioBuffer.Memory[2 * i + 1] = (int16_t)sample; // right
   }
+#ifdef USE_AUDIO
   MacInitAudio(&AudioBuffer);
+#endif
 #ifdef USE_METAL
   CreateMetal(MacOsState.Window.contentView, initialFrame.size);
 #endif
-
+  game_memory GameMemory = {};
+  MacOsSetupGameMemory(&MacOsState, &GameMemory);
   while (MacOsState.Running) {
     @autoreleasepool {
       NSEvent *Event;
@@ -389,9 +495,85 @@ int main(void) {
         default:
           [NSApp sendEvent:Event];
         }
-#ifdef USE_METAL
 
-        DrawFrame();
+        // [MacOsState.Window layoutIfNeeded];
+        // [MacOsState.Window displayIfNeeded];
+        // NSRect frame = [MacOsState.Window frame];
+        // NSRect contentRect = [MacOsState.Window
+        // contentRectForFrameRect:frame];
+        // MacOsState.WindowWidth = contentRect.size.width;
+        // MacOsState.WindowHeight = contentRect.size.height;
+        thread_context Context = {};
+        game_sound_output_buffer SoundBuffer = {};
+        game_input GameInput = {};
+        MacOsState.Game.GameGetSoundSamples(&Context, &GameMemory,
+                                            &SoundBuffer);
+        ClearRenderBuffer(&MacOsState.RenderBuffer, MacOsState.WindowWidth,
+                          MacOsState.WindowHeight);
+        MacOsState.Game.GameUpdateAndRender(&Context, &GameMemory, &GameInput,
+                                            &MacOsState.RenderBuffer);
+#ifdef USE_METAL
+        Vertex vertices[1000];
+        uint32_t VertexCount = 0;
+        MetalPushRect(vertices, &VertexCount, -1, -1, 1, 1, 0.5, 0, 0.7);
+        for (uint32 ri = 0; ri < MacOsState.RenderBuffer.Count; ri += 1) {
+
+          render_command *RCmd = &MacOsState.RenderBuffer.Base[ri];
+          switch (RCmd->Type) {
+          case RenderCommandRect: {
+            // glColor4f(0.0f,0.0f,0.0f,0.0f);
+            if (RCmd->Rect.Image) {
+
+            } else {
+
+              // glColor4f(RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
+              //           RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
+            }
+            MetalPushRect(vertices, &VertexCount, RCmd->Rect.MinX,
+                          RCmd->Rect.MinY, RCmd->Rect.MaxX, RCmd->Rect.MaxY,
+                          RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
+                          RCmd->Rect.Color.Blue);
+            // glBegin(GL_TRIANGLES);
+            // glTexCoord2f(0.0f, 1.0f);
+            // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
+
+            // glTexCoord2f(1.0f, 1.0f);
+            // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MinY);
+
+            // glTexCoord2f(1.0f, 0.0f);
+            // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
+
+            // glTexCoord2f(1.0f, 0.0f);
+            // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
+
+            // glTexCoord2f(0.0f, 0.0f);
+            // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MaxY);
+
+            // glTexCoord2f(0.0f, 1.0f);
+            // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
+            // glEnd();
+            // glDisable(GL_TEXTURE_2D);
+          } break;
+          case RenderCommandTriangle: {
+            // glColor4f(RCmd->Triangle.Color.Red, RCmd->Triangle.Color.Green,
+            //           RCmd->Triangle.Color.Blue, RCmd->Triangle.Color.Alpha);
+
+            // glBegin(GL_TRIANGLES);
+            // glVertex2f(RCmd->Triangle.AX, RCmd->Triangle.AY);
+
+            // glVertex2f(RCmd->Triangle.BX, RCmd->Triangle.BY);
+
+            // glVertex2f(RCmd->Triangle.CX, RCmd->Triangle.CY);
+            // glEnd();
+            // glDisable(GL_TEXTURE_2D);
+          } break;
+          default: {
+            break;
+          } break;
+          }
+        }
+        MetalDraw(vertices, VertexCount, 2.0f / MacOsState.WindowWidth,
+                  -2.0f / MacOsState.WindowHeight, -1.f, 1.f);
 #else
         MacOsPaint(&MacOsState.ScreenBuffer);
         MacOsSwapWindowBuffer(MacOsState.Window, &MacOsState.ScreenBuffer);
@@ -404,7 +586,6 @@ int main(void) {
                                            v.bounds.size.height * scale);
         }
 #endif
-
       } while (Event != nil);
     }
   }
