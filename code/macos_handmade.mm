@@ -27,6 +27,15 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFileNoop) {
 }
 DEBUG_PLATFORM_WRITE_ENTIRE_FILE(PlatformWriteEntireFileNoop) { return false; }
 
+
+PUSH_TASK_TO_QUEUE(PushTaskToQueueNoop) {
+
+}
+
+WAIT_FOR_QUEUE_TO_FINISH(WaitForQueueToFinishNoop) {
+
+}
+
 // Tiny shaders as source string (no .metal file needed)
 typedef struct {
   float pos[2];
@@ -527,8 +536,8 @@ int main(void) {
       do {
 
         Event = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                   untilDate:nil
-                                      inMode:NSDefaultRunLoopMode
+                                   untilDate:[NSDate distantPast]
+                                      inMode:NSEventTrackingRunLoopMode
                                      dequeue:YES];
 
         if (!Event) {

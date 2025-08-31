@@ -9,6 +9,7 @@
 #include <GL/gl.h>
 #include <debugapi.h>
 
+
 typedef BOOL(WINAPI *PFNWGLSWAPINTERVALEXTPROC)(int interval);
 PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
