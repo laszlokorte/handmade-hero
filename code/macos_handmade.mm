@@ -1,4 +1,3 @@
-
 #include <AppKit/AppKit.h>
 #include <AudioToolbox/AudioToolbox.h>
 #include <stdio.h>
@@ -8,6 +7,8 @@
 #include <QuartzCore/QuartzCore.h>
 #include <mach-o/dyld.h>
 #include <Carbon/Carbon.h>
+#include <sys/stat.h>
+#include <time.h>
 
 #define USE_METAL
 // #define USE_AUDIO
@@ -33,6 +34,14 @@ PUSH_TASK_TO_QUEUE(PushTaskToQueueNoop) {
 }
 
 WAIT_FOR_QUEUE_TO_FINISH(WaitForQueueToFinishNoop) {
+
+}
+
+GAME_UPDATE_AND_RENDER(GameUpdateAndRenderNoop) {
+  return false;
+}
+
+GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesNoop) {
 
 }
 
@@ -176,6 +185,8 @@ struct macos_screen_buffer {
 struct macos_game {
   bool IsValid;
   void *GameDLL;
+  timespec LatestWriteTime;
+  char *FullDllPath;
   game_update_and_render *GameUpdateAndRender;
   game_get_sound_samples *GameGetSoundSamples;
 };
@@ -225,6 +236,28 @@ struct macos_state {
   macos_thread_pool ThreadPool;
 };
 
+timespec MacOsGetLastWriteTime(const char *filename) {
+    timespec lastWrite = {0,0};
+
+    struct stat st;
+    if (stat(filename, &st) == 0) {
+        lastWrite = st.st_mtimespec; // macOS has st_mtimespec
+    }
+
+    return lastWrite;
+}
+
+void MacOsUnloadGame(macos_game *Game) {
+  if(Game->GameDLL) {
+    dlclose(Game->GameDLL);
+    free(Game->FullDllPath);
+    Game->GameDLL = NULL;
+  }
+    Game->GameUpdateAndRender = GameUpdateAndRenderNoop;
+    Game->GameGetSoundSamples  = GameGetSoundSamplesNoop;
+    Game->IsValid = false;
+}
+
 void MacOsLoadGame(macos_game *Game) {
   char exePath[PATH_MAX];
   uint32_t exeSize = sizeof(exePath);
@@ -234,12 +267,16 @@ void MacOsLoadGame(macos_game *Game) {
   NSString *dllPath =
       [exeDir stringByAppendingPathComponent:@"./handmade_game"];
   Game->GameDLL = dlopen([dllPath UTF8String], RTLD_NOW);
+
+  timespec LatestWriteTime = MacOsGetLastWriteTime([dllPath UTF8String]);
   if (Game->GameDLL) {
     Game->GameUpdateAndRender =
         (game_update_and_render *)dlsym(Game->GameDLL, "GameUpdateAndRender");
     Game->GameGetSoundSamples =
         (game_get_sound_samples *)dlsym(Game->GameDLL, "GameGetSoundSamples");
     Game->IsValid = true;
+    Game->FullDllPath = strdup([dllPath UTF8String]);
+    Game->LatestWriteTime = LatestWriteTime;
   }
 }
 
@@ -516,6 +553,14 @@ int main(void) {
   game_memory GameMemory = {};
   MacOsSetupGameMemory(&MacOsState, &GameMemory);
   while (MacOsState.Running) {
+
+          timespec LatestWriteTime =
+              MacOsGetLastWriteTime(MacOsState.Game.FullDllPath);
+          if (LatestWriteTime.tv_nsec != MacOsState.Game.LatestWriteTime.tv_nsec || LatestWriteTime.tv_sec != MacOsState.Game.LatestWriteTime.tv_sec) {
+            MacOsUnloadGame(&MacOsState.Game);
+            MacOsLoadGame(&MacOsState.Game);
+          }
+
     game_input *SwapInput = CurrentInput;
     CurrentInput = LastInput;
     LastInput = SwapInput;
@@ -582,8 +627,13 @@ int main(void) {
           if (IsDown) {
             if ((IsCmd) &&
                 [[Event charactersIgnoringModifiers] isEqualToString:@"q"]) {
-              [NSApp terminate:nil]; // or custom handling
               MacOsState.Running = false;
+              [NSApp terminate:nil]; // or custom handling
+            }
+            if ((IsCmd) &&
+                [[Event charactersIgnoringModifiers] isEqualToString:@"r"]) {
+              MacOsUnloadGame(&MacOsState.Game);
+              MacOsLoadGame(&MacOsState.Game);
             }
             NSString *chars = [Event charactersIgnoringModifiers];
             if (chars.length > 0 &&

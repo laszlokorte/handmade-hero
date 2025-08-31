@@ -756,7 +756,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                  RenderBuffer->Viewport.Width / 2.0f,
              (CY + 0.2f) * GameState->TileMap.TileHeight +
                  RenderBuffer->Viewport.Height / 2.0f,
-             render_color_rgba{0.0f, 0.0f, 0.0f, 1.0f});
+             render_color_rgba{0.5f, 0.1f, 0.5f, 1.0f});
     // FillRect(
     //     ScreenBuffer,
     //     (CX - 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width

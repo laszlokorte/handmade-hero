@@ -9,23 +9,44 @@
     [
         {
             "name": "Run Game",
-            "shell_cmd": "start /B $project_path/build/win32_handmade.exe &",
+            "windows": {
+                "shell_cmd": "start /B $project_path/build/win32_handmade.exe &",
+            },
+            "osx": {
+                "shell_cmd": "open ./build/Handmade.app"
+            },
             "working_dir" : "$project_path"
         },
         {
             "name": "Build All",
-            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/win32_build.bat"],
+            "windows": {
+                "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/win32_build.bat"],
+            },
+            "osx": {
+                "cmd": ["sh", "$project_path/macos_bundle.sh"]
+            },
             "working_dir" : "$project_path"
         },
         {
             "name": "Build All And Run",
-            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/win32_buildrun.bat"],
+            "windows": {
+                "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/win32_buildrun.bat"],
+            },
+            "osx": {
+                "cmd": ["sh", "$project_path/macos_bundlerun.sh"]
+            },
             "working_dir" : "$project_path"
         },
 
         {
             "name": "Build Game",
-            "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/win32_build.bat", "gameonly"],
+            "windows": {
+                "cmd": ["pwsh", "$project_path/run_in_env.ps1", "$project_path/win32_build.bat", "gameonly"],
+            },
+            "osx": {
+                "cmd": ["sh", "$project_path/macos_bundle.sh", "gameonly"]
+
+            },
             "working_dir" : "$project_path"
         }
     ]
