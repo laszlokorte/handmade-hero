@@ -9,12 +9,12 @@ struct Uniforms {
 
 struct Vertex {
     packed_float2 pos;
-    packed_float3 col;
+    packed_float4 col;
 };
 
 struct VSOut {
   float4 pos [[position]];
-  float3 col;
+  float4 col;
 };
 
 vertex VSOut v_main(uint vid [[vertex_id]],
@@ -26,4 +26,4 @@ vertex VSOut v_main(uint vid [[vertex_id]],
   return o;
 }
 
-fragment float4 f_main(VSOut in [[stage_in]]) { return float4(in.col, 1); };
+fragment float4 f_main(VSOut in [[stage_in]]) { return float4(in.col); };

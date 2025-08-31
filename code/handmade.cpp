@@ -547,7 +547,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       Entity->v = NewVelocity;
     }
     if (Controller->Menu.EndedDown) {
-      return false;
+      //return false;
     }
     if (Controller->Back.EndedDown &&
         Controller->Back.HalfTransitionCount > 0 && GameState->JumpTime == 0) {

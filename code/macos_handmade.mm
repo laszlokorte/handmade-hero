@@ -7,6 +7,7 @@
 #include <Metal/Metal.h>
 #include <QuartzCore/QuartzCore.h>
 #include <mach-o/dyld.h>
+#include <Carbon/Carbon.h>
 
 #define USE_METAL
 // #define USE_AUDIO
@@ -18,11 +19,25 @@ static id<MTLRenderPipelineState> gPSO;
 static CAMetalLayer *gLayer;
 static id<MTLBuffer> gVtx;
 
+DEBUG_PLATFORM_FREE_FILE_MEMORY(PlatformFreeFileNoop) {}
+DEBUG_PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFileNoop) {
+  debug_read_file_result Result = {};
+
+  return Result;
+}
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(PlatformWriteEntireFileNoop) { return false; }
+
 // Tiny shaders as source string (no .metal file needed)
 typedef struct {
   float pos[2];
-  float col[3];
-} Vertex;
+  float col[4];
+} MetalVertex;
+
+struct MetalVertices {
+  size_t Capacity;
+  size_t Count;
+  MetalVertex *Buffer;
+};
 
 static void CreateMetal(NSView *view, CGSize size) {
   gDevice = MTLCreateSystemDefaultDevice();
@@ -60,25 +75,36 @@ static void CreateMetal(NSView *view, CGSize size) {
   p.fragmentFunction = fs;
   p.colorAttachments[0].pixelFormat = gLayer.pixelFormat;
 
+  MTLRenderPipelineColorAttachmentDescriptor *cAtt = p.colorAttachments[0];
+  cAtt.blendingEnabled = YES;
+  cAtt.rgbBlendOperation = MTLBlendOperationAdd;
+  cAtt.alphaBlendOperation = MTLBlendOperationAdd;
+  cAtt.sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+  cAtt.sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
+  cAtt.destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+  cAtt.destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+
   gPSO = [gDevice newRenderPipelineStateWithDescriptor:p error:&err];
   if (!gPSO) {
     NSLog(@"PSO failed: %@", err);
     exit(1);
   }
 
-  gVtx = [gDevice newBufferWithLength:sizeof(Vertex) * 1000
+  gVtx = [gDevice newBufferWithLength:sizeof(MetalVertex) * 1000
                               options:MTLResourceStorageModeManaged];
 }
 
-static void MetalPushRect(Vertex *vertices, uint32_t *VertexCount, float x0,
-                          float y0, float x1, float y1, float r, float g,
-                          float b) {
-  vertices[(*VertexCount)++] = {{x0, y0}, {r, g, b}};
-  vertices[(*VertexCount)++] = {{x1, y0}, {r, g, b}};
-  vertices[(*VertexCount)++] = {{x0, y1}, {r, g, b}};
-  vertices[(*VertexCount)++] = {{x1, y0}, {r, g, b}};
-  vertices[(*VertexCount)++] = {{x1, y1}, {r, g, b}};
-  vertices[(*VertexCount)++] = {{x0, y1}, {r, g, b}};
+static void MetalPushQuad(MetalVertices *Vertices, float x0, float y0, float x1,
+                          float y1, float r, float g, float b, float a) {
+  if (Vertices->Capacity < Vertices->Count + 6) {
+    return;
+  }
+  Vertices->Buffer[(Vertices->Count)++] = {{x0, y0}, {r, g, b, a}};
+  Vertices->Buffer[(Vertices->Count)++] = {{x1, y0}, {r, g, b, a}};
+  Vertices->Buffer[(Vertices->Count)++] = {{x0, y1}, {r, g, b, a}};
+  Vertices->Buffer[(Vertices->Count)++] = {{x1, y0}, {r, g, b, a}};
+  Vertices->Buffer[(Vertices->Count)++] = {{x1, y1}, {r, g, b, a}};
+  Vertices->Buffer[(Vertices->Count)++] = {{x0, y1}, {r, g, b, a}};
 }
 
 typedef struct {
@@ -88,8 +114,8 @@ typedef struct {
   float transY;
 } MetalUniforms;
 
-static void MetalDraw(Vertex *vertices, uint32 VertexCount, float scaleX,
-                      float scaleY, float transX, float transY) {
+static void MetalDraw(MetalVertices *Vertices, float scaleX, float scaleY,
+                      float transX, float transY) {
   @autoreleasepool {
     id<CAMetalDrawable> drawable = [gLayer nextDrawable];
     // if (!drawable)
@@ -111,9 +137,10 @@ static void MetalDraw(Vertex *vertices, uint32 VertexCount, float scaleX,
         transX,
         transY,
     };
-    memcpy(gVtx.contents, vertices, VertexCount * sizeof(Vertex));
+    memcpy(gVtx.contents, Vertices->Buffer,
+           Vertices->Count * sizeof(MetalVertex));
 
-    [gVtx didModifyRange:NSMakeRange(0, VertexCount * sizeof(Vertex))];
+    [gVtx didModifyRange:NSMakeRange(0, Vertices->Count * sizeof(MetalVertex))];
     id<MTLCommandBuffer> cb = [gQueue commandBuffer];
     id<MTLRenderCommandEncoder> enc =
         [cb renderCommandEncoderWithDescriptor:rp];
@@ -122,7 +149,7 @@ static void MetalDraw(Vertex *vertices, uint32 VertexCount, float scaleX,
     [enc setVertexBytes:&uni length:sizeof(uni) atIndex:1];
     [enc drawPrimitives:MTLPrimitiveTypeTriangle
             vertexStart:0
-            vertexCount:VertexCount];
+            vertexCount:Vertices->Count];
     [enc endEncoding];
     [cb presentDrawable:drawable];
     [cb commit];
@@ -404,6 +431,17 @@ void MacInitAudio(mac_audio_buffer *AudioBuffer) {
   AudioOutputUnitStart(audioUnit);
 }
 
+void MacOsHandKeyInput(game_button_state *Button, uint32 keyCode,
+                       uint32 virtualKey, bool NewDown) {
+  bool isKey = keyCode == virtualKey;
+  if (isKey) {
+    if (Button->EndedDown != NewDown) {
+      Button->HalfTransitionCount += 1;
+    }
+    Button->EndedDown = NewDown;
+  }
+}
+
 int main(void) {
   macos_state MacOsState = {};
   MacOsState.Running = true;
@@ -430,9 +468,11 @@ int main(void) {
                           NSWindowStyleMaskResizable
                   backing:NSBackingStoreBuffered
                     defer:YES];
-
+#ifdef USE_METAL
+#else
   MacOsResizeScreenBuffer(&MacOsState.ScreenBuffer, MacOsState.WindowWidth,
                           MacOsState.WindowHeight);
+#endif
 
   [MacOsState.Window setBackgroundColor:NSColor.darkGrayColor];
   [MacOsState.Window setTitle:@"Handmade hero"];
@@ -475,6 +515,12 @@ int main(void) {
     CurrentInput->Mouse.MouseX = LastInput->Mouse.MouseX;
     CurrentInput->Mouse.MouseY = LastInput->Mouse.MouseY;
 
+    CurrentInput->Controllers[0].isAnalog = false;
+    for (int b = 0; b < ArrayCount(CurrentInput->Controllers[0].Buttons); b++) {
+      CurrentInput->Controllers[0].Buttons[b].EndedDown =
+          LastInput->Controllers[0].Buttons[b].EndedDown;
+    }
+
     @autoreleasepool {
       NSEvent *Event;
 
@@ -490,17 +536,51 @@ int main(void) {
         };
 
         switch ([Event type]) {
-        case NSEventTypeKeyDown: {
+        case NSEventTypeKeyDown:
+        case NSEventTypeKeyUp: {
+          // printf("0x%04x\n", Event.keyCode);
+          bool IsDown = Event.type == NSEventTypeKeyDown;
+          bool IsShift = Event.modifierFlags & NSEventModifierFlagShift;
+          bool IsAlt = Event.modifierFlags & NSEventModifierFlagOption;
+          bool IsCmd = Event.modifierFlags & NSEventModifierFlagCommand;
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].LeftShoulder,
+                            Event.keyCode, kVK_ANSI_Q, IsDown);
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].LeftShoulder,
+                            Event.keyCode, kVK_ANSI_E, IsDown);
 
-          if ((Event.modifierFlags & NSEventModifierFlagCommand) &&
-              [[Event charactersIgnoringModifiers] isEqualToString:@"q"]) {
-            [NSApp terminate:nil]; // or custom handling
-            MacOsState.Running = false;
-          }
-          NSString *chars = [Event charactersIgnoringModifiers];
-          if (chars.length > 0 &&
-              [chars characterAtIndex:0] == 0x1B) { // 0x1B = ESC
-            MacOsState.Running = false;
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].MoveUp, Event.keyCode,
+                            kVK_ANSI_W, IsDown);
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].MoveDown,
+                            Event.keyCode, kVK_ANSI_S, IsDown);
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].MoveLeft,
+                            Event.keyCode, kVK_ANSI_A, IsDown);
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].MoveRight,
+                            Event.keyCode, kVK_ANSI_D, IsDown);
+
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].ActionUp,
+                            Event.keyCode, kVK_UpArrow, IsDown);
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].ActionDown,
+                            Event.keyCode, kVK_DownArrow, IsDown);
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].ActionLeft,
+                            Event.keyCode, kVK_LeftArrow, IsDown);
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].ActionRight,
+                            Event.keyCode, kVK_RightArrow, IsDown);
+
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].Menu, Event.keyCode,
+                            kVK_Space, IsDown);
+          MacOsHandKeyInput(&CurrentInput->Controllers[0].Back, Event.keyCode,
+                            kVK_Delete, IsDown);
+          if (IsDown) {
+            if ((IsCmd) &&
+                [[Event charactersIgnoringModifiers] isEqualToString:@"q"]) {
+              [NSApp terminate:nil]; // or custom handling
+              MacOsState.Running = false;
+            }
+            NSString *chars = [Event charactersIgnoringModifiers];
+            if (chars.length > 0 &&
+                [chars characterAtIndex:0] == 0x1B) { // 0x1B = ESC
+              MacOsState.Running = false;
+            }
           }
         } break;
         default: {
@@ -520,12 +600,15 @@ int main(void) {
             (int)(MacOsState.WindowHeight - posInWindow.y);
       }
       for (int m = 0; m < ArrayCount(CurrentInput->Mouse.Buttons); m++) {
-        CurrentInput->Mouse.Buttons[m].EndedDown =
-            NSEvent.pressedMouseButtons & (1 << m);
+        bool NewDown = NSEvent.pressedMouseButtons & (1 << m);
+        bool toggled = CurrentInput->Mouse.Buttons[m].EndedDown != NewDown;
+        CurrentInput->Mouse.Buttons[m].HalfTransitionCount += (NewDown ? 1 : 0);
+        CurrentInput->Mouse.Buttons[m].EndedDown = NewDown;
       }
       thread_context Context = {};
       game_sound_output_buffer SoundBuffer = {};
 
+      CurrentInput->DeltaTime = 0.016;
       MacOsState.Game.GameGetSoundSamples(&Context, &GameMemory, &SoundBuffer);
       ClearRenderBuffer(&MacOsState.RenderBuffer, MacOsState.WindowWidth,
                         MacOsState.WindowHeight);
@@ -533,9 +616,12 @@ int main(void) {
                                           &MacOsState.RenderBuffer);
 
 #ifdef USE_METAL
-      Vertex vertices[1000];
-      uint32_t VertexCount = 0;
-      MetalPushRect(vertices, &VertexCount, -1, -1, 1, 1, 0.5, 0, 0.7);
+      MetalVertices Vertices = {};
+      Vertices.Capacity = 6000;
+      Vertices.Buffer = (MetalVertex *)mmap(
+          NULL, Vertices.Capacity * sizeof(*Vertices.Buffer),
+          PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+      MetalPushQuad(&Vertices, -1, -1, 1, 1, 0.5, 0, 0.7, 1);
       for (uint32 ri = 0; ri < MacOsState.RenderBuffer.Count; ri += 1) {
 
         render_command *RCmd = &MacOsState.RenderBuffer.Base[ri];
@@ -543,16 +629,19 @@ int main(void) {
         case RenderCommandRect: {
           // glColor4f(0.0f,0.0f,0.0f,0.0f);
           if (RCmd->Rect.Image) {
-
+            MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
+                          RCmd->Rect.MaxX, RCmd->Rect.MaxY,
+                          RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
+                          RCmd->Rect.Color.Blue, 0.3f);
           } else {
-
+            MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
+                          RCmd->Rect.MaxX, RCmd->Rect.MaxY,
+                          RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
+                          RCmd->Rect.Color.Blue, 1.0f);
             // glColor4f(RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
             //           RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
           }
-          MetalPushRect(vertices, &VertexCount, RCmd->Rect.MinX,
-                        RCmd->Rect.MinY, RCmd->Rect.MaxX, RCmd->Rect.MaxY,
-                        RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
-                        RCmd->Rect.Color.Blue);
+
           // glBegin(GL_TRIANGLES);
           // glTexCoord2f(0.0f, 1.0f);
           // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
@@ -592,7 +681,7 @@ int main(void) {
         } break;
         }
       }
-      MetalDraw(vertices, VertexCount, 2.0f / MacOsState.WindowWidth,
+      MetalDraw(&Vertices, 2.0f / MacOsState.WindowWidth,
                 -2.0f / MacOsState.WindowHeight, -1.f, 1.f);
 #else
       MacOsPaint(&MacOsState.ScreenBuffer);
