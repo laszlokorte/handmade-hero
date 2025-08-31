@@ -461,9 +461,20 @@ int main(void) {
 #ifdef USE_METAL
   CreateMetal(MacOsState.Window.contentView, initialFrame.size);
 #endif
+  game_input GameInputs[2] = {};
+  game_input *LastInput = &GameInputs[0];
+  game_input *CurrentInput = &GameInputs[1];
   game_memory GameMemory = {};
   MacOsSetupGameMemory(&MacOsState, &GameMemory);
   while (MacOsState.Running) {
+    game_input *SwapInput = CurrentInput;
+    CurrentInput = LastInput;
+    LastInput = SwapInput;
+    game_input InputReset = {};
+    *CurrentInput = InputReset;
+    CurrentInput->Mouse.MouseX = LastInput->Mouse.MouseX;
+    CurrentInput->Mouse.MouseY = LastInput->Mouse.MouseY;
+
     @autoreleasepool {
       NSEvent *Event;
 
@@ -492,101 +503,109 @@ int main(void) {
             MacOsState.Running = false;
           }
         } break;
-        default:
+        default: {
           [NSApp sendEvent:Event];
+        } break;
         }
 
-        // [MacOsState.Window layoutIfNeeded];
-        // [MacOsState.Window displayIfNeeded];
-        // NSRect frame = [MacOsState.Window frame];
-        // NSRect contentRect = [MacOsState.Window
-        // contentRectForFrameRect:frame];
-        // MacOsState.WindowWidth = contentRect.size.width;
-        // MacOsState.WindowHeight = contentRect.size.height;
-        thread_context Context = {};
-        game_sound_output_buffer SoundBuffer = {};
-        game_input GameInput = {};
-        MacOsState.Game.GameGetSoundSamples(&Context, &GameMemory,
-                                            &SoundBuffer);
-        ClearRenderBuffer(&MacOsState.RenderBuffer, MacOsState.WindowWidth,
-                          MacOsState.WindowHeight);
-        MacOsState.Game.GameUpdateAndRender(&Context, &GameMemory, &GameInput,
-                                            &MacOsState.RenderBuffer);
-#ifdef USE_METAL
-        Vertex vertices[1000];
-        uint32_t VertexCount = 0;
-        MetalPushRect(vertices, &VertexCount, -1, -1, 1, 1, 0.5, 0, 0.7);
-        for (uint32 ri = 0; ri < MacOsState.RenderBuffer.Count; ri += 1) {
-
-          render_command *RCmd = &MacOsState.RenderBuffer.Base[ri];
-          switch (RCmd->Type) {
-          case RenderCommandRect: {
-            // glColor4f(0.0f,0.0f,0.0f,0.0f);
-            if (RCmd->Rect.Image) {
-
-            } else {
-
-              // glColor4f(RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
-              //           RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
-            }
-            MetalPushRect(vertices, &VertexCount, RCmd->Rect.MinX,
-                          RCmd->Rect.MinY, RCmd->Rect.MaxX, RCmd->Rect.MaxY,
-                          RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
-                          RCmd->Rect.Color.Blue);
-            // glBegin(GL_TRIANGLES);
-            // glTexCoord2f(0.0f, 1.0f);
-            // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
-
-            // glTexCoord2f(1.0f, 1.0f);
-            // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MinY);
-
-            // glTexCoord2f(1.0f, 0.0f);
-            // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
-
-            // glTexCoord2f(1.0f, 0.0f);
-            // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
-
-            // glTexCoord2f(0.0f, 0.0f);
-            // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MaxY);
-
-            // glTexCoord2f(0.0f, 1.0f);
-            // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
-            // glEnd();
-            // glDisable(GL_TEXTURE_2D);
-          } break;
-          case RenderCommandTriangle: {
-            // glColor4f(RCmd->Triangle.Color.Red, RCmd->Triangle.Color.Green,
-            //           RCmd->Triangle.Color.Blue, RCmd->Triangle.Color.Alpha);
-
-            // glBegin(GL_TRIANGLES);
-            // glVertex2f(RCmd->Triangle.AX, RCmd->Triangle.AY);
-
-            // glVertex2f(RCmd->Triangle.BX, RCmd->Triangle.BY);
-
-            // glVertex2f(RCmd->Triangle.CX, RCmd->Triangle.CY);
-            // glEnd();
-            // glDisable(GL_TEXTURE_2D);
-          } break;
-          default: {
-            break;
-          } break;
-          }
-        }
-        MetalDraw(vertices, VertexCount, 2.0f / MacOsState.WindowWidth,
-                  -2.0f / MacOsState.WindowHeight, -1.f, 1.f);
-#else
-        MacOsPaint(&MacOsState.ScreenBuffer);
-        MacOsSwapWindowBuffer(MacOsState.Window, &MacOsState.ScreenBuffer);
-        if (gLayer) {
-          NSView *v = MacOsState.Window.contentView;
-          gLayer.frame = v.bounds;
-          CGFloat scale = MacOsState.Window.screen.backingScaleFactor ?: 1.0;
-          gLayer.contentsScale = scale;
-          gLayer.drawableSize = CGSizeMake(v.bounds.size.width * scale,
-                                           v.bounds.size.height * scale);
-        }
-#endif
       } while (Event != nil);
+      NSPoint mousePos = [NSEvent mouseLocation];
+      NSPoint posInWindow =
+          NSMakePoint(mousePos.x - MacOsState.Window.frame.origin.x,
+                      mousePos.y - MacOsState.Window.frame.origin.y);
+      NSRect content = MacOsState.Window.frame;
+      if (NSPointInRect([NSEvent mouseLocation], content)) {
+        CurrentInput->Mouse.MouseX = (int)posInWindow.x;
+        CurrentInput->Mouse.MouseY =
+            (int)(MacOsState.WindowHeight - posInWindow.y);
+      }
+      for (int m = 0; m < ArrayCount(CurrentInput->Mouse.Buttons); m++) {
+        CurrentInput->Mouse.Buttons[m].EndedDown =
+            NSEvent.pressedMouseButtons & (1 << m);
+      }
+      thread_context Context = {};
+      game_sound_output_buffer SoundBuffer = {};
+
+      MacOsState.Game.GameGetSoundSamples(&Context, &GameMemory, &SoundBuffer);
+      ClearRenderBuffer(&MacOsState.RenderBuffer, MacOsState.WindowWidth,
+                        MacOsState.WindowHeight);
+      MacOsState.Game.GameUpdateAndRender(&Context, &GameMemory, CurrentInput,
+                                          &MacOsState.RenderBuffer);
+
+#ifdef USE_METAL
+      Vertex vertices[1000];
+      uint32_t VertexCount = 0;
+      MetalPushRect(vertices, &VertexCount, -1, -1, 1, 1, 0.5, 0, 0.7);
+      for (uint32 ri = 0; ri < MacOsState.RenderBuffer.Count; ri += 1) {
+
+        render_command *RCmd = &MacOsState.RenderBuffer.Base[ri];
+        switch (RCmd->Type) {
+        case RenderCommandRect: {
+          // glColor4f(0.0f,0.0f,0.0f,0.0f);
+          if (RCmd->Rect.Image) {
+
+          } else {
+
+            // glColor4f(RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
+            //           RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
+          }
+          MetalPushRect(vertices, &VertexCount, RCmd->Rect.MinX,
+                        RCmd->Rect.MinY, RCmd->Rect.MaxX, RCmd->Rect.MaxY,
+                        RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
+                        RCmd->Rect.Color.Blue);
+          // glBegin(GL_TRIANGLES);
+          // glTexCoord2f(0.0f, 1.0f);
+          // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
+
+          // glTexCoord2f(1.0f, 1.0f);
+          // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MinY);
+
+          // glTexCoord2f(1.0f, 0.0f);
+          // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
+
+          // glTexCoord2f(1.0f, 0.0f);
+          // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
+
+          // glTexCoord2f(0.0f, 0.0f);
+          // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MaxY);
+
+          // glTexCoord2f(0.0f, 1.0f);
+          // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
+          // glEnd();
+          // glDisable(GL_TEXTURE_2D);
+        } break;
+        case RenderCommandTriangle: {
+          // glColor4f(RCmd->Triangle.Color.Red, RCmd->Triangle.Color.Green,
+          //           RCmd->Triangle.Color.Blue, RCmd->Triangle.Color.Alpha);
+
+          // glBegin(GL_TRIANGLES);
+          // glVertex2f(RCmd->Triangle.AX, RCmd->Triangle.AY);
+
+          // glVertex2f(RCmd->Triangle.BX, RCmd->Triangle.BY);
+
+          // glVertex2f(RCmd->Triangle.CX, RCmd->Triangle.CY);
+          // glEnd();
+          // glDisable(GL_TEXTURE_2D);
+        } break;
+        default: {
+          break;
+        } break;
+        }
+      }
+      MetalDraw(vertices, VertexCount, 2.0f / MacOsState.WindowWidth,
+                -2.0f / MacOsState.WindowHeight, -1.f, 1.f);
+#else
+      MacOsPaint(&MacOsState.ScreenBuffer);
+      MacOsSwapWindowBuffer(MacOsState.Window, &MacOsState.ScreenBuffer);
+      if (gLayer) {
+        NSView *v = MacOsState.Window.contentView;
+        gLayer.frame = v.bounds;
+        CGFloat scale = MacOsState.Window.screen.backingScaleFactor ?: 1.0;
+        gLayer.contentsScale = scale;
+        gLayer.drawableSize = CGSizeMake(v.bounds.size.width * scale,
+                                         v.bounds.size.height * scale);
+      }
+#endif
     }
   }
   printf("Finished!\n");
