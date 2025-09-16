@@ -444,7 +444,7 @@ internal void Win32ProcessMouseButton(game_button_state *ButtonState,
                                       WPARAM ActualButton,
                                       WPARAM ExpectedButton) {
   bool NewDown = ActualButton & ExpectedButton;
-  ButtonState->HalfTransitionCount += ButtonState->EndedDown != NewDown ? 0 : 1;
+  ButtonState->HalfTransitionCount += ButtonState->EndedDown != NewDown ? 1 : 0;
   ButtonState->EndedDown = NewDown;
 }
 

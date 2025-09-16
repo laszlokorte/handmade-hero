@@ -33,7 +33,6 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
             void *Memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
-
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
 struct game_offscreen_buffer {
@@ -174,11 +173,18 @@ struct game_camera {
 };
 
 struct game_sound_synth {
-  int ToneBaseVolume;
+  real32 ToneBaseVolume;
   int32 Note;
   int32 Duration;
+  int32 Progress;
   real32 GeneratorTimeInRadians;
   game_sound_synth *NextSound;
+};
+
+struct game_sound_state {
+  memory_arena SoundArena;
+  game_sound_synth *PlayingSound;
+  game_sound_synth *FreeSound;
 };
 
 #define ENTITY_MAX 30
@@ -193,12 +199,10 @@ struct game_state {
   game_controller_entity_map ControllerMap;
   game_entity Entities[ENTITY_MAX];
   memory_arena WorldArena;
-  memory_arena SoundArena;
   game_camera Camera;
   game_entity *CameraTrack;
   tile_map TileMap;
-  game_sound_synth *PlayingSound;
-  game_sound_synth *FreeSound;
+  game_sound_state SoundState;
 };
 
 #define GAME_UPDATE_AND_RENDER(name)                                           \
