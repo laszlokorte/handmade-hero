@@ -813,6 +813,10 @@ internal void Win32OutputFramerate(render_buffer *RenderBuffer,
              render_color_rgba{1.0f, 0.0f, 1.0f, 1.0f});
     // Win32DebugDrawVertical(ScreenBuffer, PadX + i * 2, PadY,
     //                     PadY + Height / (i % 10 == 0 ? 1 : 2), 0xff00ffff);
+
+    if(RenderBuffer->Viewport.Width < (real32)PadX + i * 2) {
+        break;
+    }
   }
   int64 Rem = Measures->DeltaTimeMS;
   int Place = 1;

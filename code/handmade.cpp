@@ -6,6 +6,14 @@
 #include "tilemap.h"
 #include "renderer.cpp"
 
+int32 min(int32 a, int32 b) {
+    if (a<b) {
+        return a;
+    } else {
+        return b;
+    }
+}
+
 void TestTask(void *Data) {
   game_state *State = (game_state *)Data;
   // State->Muted = false;
@@ -439,7 +447,7 @@ internal void SetTileKind(memory_arena *Arena, tile_map *Map, int TileX,
 }
 
 
-void GamePlaySound(game_sound_state *SoundState, int32 Note, int32 Duration, real32 Volume) {
+void GamePlaySound(game_sound_state *SoundState, int32 Note, int32 Duration, real32 Volume, int32 Delay) {
     if(!SoundState->FreeSound) {
         game_sound_synth *FreeSound = ArenaPushStruct(&SoundState->SoundArena, game_sound_synth);
         FreeSound->NextSound = SoundState->FreeSound;
@@ -448,7 +456,7 @@ void GamePlaySound(game_sound_state *SoundState, int32 Note, int32 Duration, rea
     game_sound_synth *PlayingSound = SoundState->FreeSound;
     SoundState->FreeSound = PlayingSound->NextSound;
     PlayingSound->Duration = Duration;
-    PlayingSound->Progress = 0;
+    PlayingSound->Progress = -Delay;
     PlayingSound->ToneBaseVolume = Volume;
     PlayingSound->Note = Note;
     PlayingSound->GeneratorTimeInRadians = 0;
@@ -466,8 +474,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     GameState->Time = 0;
     GameState->SoundState = {};
     GameState->VolumeRange = 5;
-    GameState->Volume = 0;
-    GameState->Muted = true;
+    GameState->Volume = 4;
+    GameState->Muted = false;
     GameState->JumpTime = 0;
     GameState->Camera.pos.X = 0;
     GameState->Camera.pos.Y = 0;
@@ -534,7 +542,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         SetTileKind(&GameState->WorldArena, &GameState->TileMap, Entity->p.X,
                     Entity->p.Y, TILE_WALL);
 
-        GamePlaySound(&GameState->SoundState, -15, 7000, 1.5);
+        GamePlaySound(&GameState->SoundState, -15, 7000, 1.5, 0);
+        GamePlaySound(&GameState->SoundState, -13, 7000, 1.5, 6000);
       }
     }
 
@@ -635,17 +644,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     }
 
     if(OldPos.X < Entity->p.X) {
-        GamePlaySound(&GameState->SoundState, -1, 7000, 1);
+        GamePlaySound(&GameState->SoundState, -1, 7000, 1, 0);
     }
     if(OldPos.Y < Entity->p.Y) {
-        GamePlaySound(&GameState->SoundState, -2, 7000, 1);
+        GamePlaySound(&GameState->SoundState, -2, 7000, 1, 0);
     }
 
     if(OldPos.X > Entity->p.X) {
-        GamePlaySound(&GameState->SoundState, 1, 7000, 1);
+        GamePlaySound(&GameState->SoundState, 1, 7000, 1, 0);
     }
     if(OldPos.Y > Entity->p.Y) {
-        GamePlaySound(&GameState->SoundState, 2, 7000, 1);
+        GamePlaySound(&GameState->SoundState, 2, 7000, 1, 0);
     }
 
     if (Entity->v.x > 0 && Entity->v.y > 0) {
@@ -782,22 +791,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     }
   }
 
-  for (int m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
-    game_button_state Button = Input->Mouse.Buttons[m];
-    PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
-             (real32)Input->Mouse.MouseY+ 10.0f * Button.HalfTransitionCount,
-             (real32)Input->Mouse.MouseX + 10.0f * m + 10.0f,
-             (real32)Input->Mouse.MouseY + 10.0f,
-             Button.EndedDown ? (Button.HalfTransitionCount > 0 ?
-                               render_color_rgba{1.0f, 0.8f, 0.2f, 1.0f}
-                              : render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f})
-                              : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
-
-    if(Button.HalfTransitionCount > 0 && Button.EndedDown) {
-        GamePlaySound(&GameState->SoundState, m - 10, 7000, 1);
-    }
-  }
-
 
   for (int e = 0; e < GameState->EntityCount; e++) {
     game_entity *Entity = &GameState->Entities[e];
@@ -928,7 +921,31 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                   Y + Entity->s.x / 2 + RenderBuffer->Viewport.Height / 2.0f,
                   &GameState->Logo);
   }
+  real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
+  real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height/ 2);
+  PushRect(RenderBuffer,
+                   PaddingH,
+                   PaddingV,
+                   (real32)RenderBuffer->Viewport.Width - PaddingV * 2,
+                   (real32)min(100, (int32)RenderBuffer->Viewport.Height),
+                   render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
 
+
+    for (int m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
+      game_button_state Button = Input->Mouse.Buttons[m];
+      PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
+               (real32)Input->Mouse.MouseY+ 10.0f * Button.HalfTransitionCount,
+               (real32)Input->Mouse.MouseX + 10.0f * m + 10.0f,
+               (real32)Input->Mouse.MouseY + 10.0f,
+               Button.EndedDown ? (Button.HalfTransitionCount > 0 ?
+                                 render_color_rgba{1.0f, 0.8f, 0.2f, 1.0f}
+                                : render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f})
+                                : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
+
+      if(Button.HalfTransitionCount > 0 && Button.EndedDown) {
+          GamePlaySound(&GameState->SoundState, m - 10, 7000, 1, 0);
+      }
+    }
   Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask, GameState);
 
   Memory->PlatformWaitForQueueToFinish(Memory->TaskQueue);
