@@ -339,7 +339,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) {
 
 internal void Win32SetupGameMemory(win32_state *Win32State,
                                    game_memory *GameMemory) {
-  uint32 RenderBufferLength = 10000;
+  uint32 RenderBufferLength = 50000;
   memory_index RenderBufferSize = RenderBufferLength * sizeof(render_command);
   uint32 WorkQueueLength = 128;
   size_t WorkQueueSize = WorkQueueLength * sizeof(win32_work_queue_task);

@@ -173,11 +173,18 @@ struct game_camera {
   tile_position pos;
 };
 
+struct game_sound_synth {
+  int ToneBaseVolume;
+  int32 Note;
+  int32 Duration;
+  real32 GeneratorTimeInRadians;
+  game_sound_synth *NextSound;
+};
+
 #define ENTITY_MAX 30
 struct game_state {
   bool Muted;
   uint64 Time;
-  int Note;
   int VolumeRange;
   int Volume;
   int JumpTime;
@@ -186,16 +193,12 @@ struct game_state {
   game_controller_entity_map ControllerMap;
   game_entity Entities[ENTITY_MAX];
   memory_arena WorldArena;
+  memory_arena SoundArena;
   game_camera Camera;
   game_entity *CameraTrack;
   tile_map TileMap;
-};
-
-struct game_sound_synth {
-  int ToneBaseVolume;
-  real32 ToneBaseFreqInHz;
-  real32 ToneStepFactor;
-  real32 GeneratorTimeInRadians;
+  game_sound_synth *PlayingSound;
+  game_sound_synth *FreeSound;
 };
 
 #define GAME_UPDATE_AND_RENDER(name)                                           \

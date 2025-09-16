@@ -8,7 +8,7 @@
 
 void TestTask(void *Data) {
   game_state *State = (game_state *)Data;
-  State->Muted = false;
+  // State->Muted = false;
 }
 
 global_variable game_state global_game_state = {};
@@ -98,22 +98,32 @@ DEBUGLoadBMP(thread_context *Context,
   return Result;
 }
 
-internal void GameOutputSound(bool muted, int32 Note, real32 Volume,
+internal void GameOutputSound(bool muted, game_sound_synth *Sound, real32 BaseVolume,
                               game_sound_output_buffer *SoundBuffer) {
 
-  local_persist real32 tSin = 0;
-  real32 ToneVolumne = muted ? 0 : (2.0f * powf(2.0f, 8 + 4 * Volume));
-  real32 toneHz = 440;
-  real32 f = toneHz / (real32)SoundBuffer->SamplesPerSecond *
-             powf(2.0f, NOTE_HALFTONE * (real32)Note);
+  
   int16 *SampleOut = SoundBuffer->Samples;
   for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount;
        ++SampleIndex) {
-    int16 SampleValue = (int16)(sinf(2.0f * Pi32 * tSin) * ToneVolumne);
+    game_sound_synth *CurrentSound = Sound;
+    int16 SampleValue = 0;
+    real32 toneHz = 440;
+    real32 ToneVolume = muted ? 0 : (2.0f * powf(2.0f, 8 + 4 * BaseVolume));
+    while(CurrentSound) {
+      if(CurrentSound->Duration >= 0) {
+        real32 f = toneHz / (real32)SoundBuffer->SamplesPerSecond *
+             powf(2.0f, NOTE_HALFTONE * (real32)CurrentSound->Note);
+        real32 ThisSampleValue = (sinf(2.0f * Pi32 * CurrentSound->GeneratorTimeInRadians) * ToneVolume * Sound->ToneBaseVolume);
+        SampleValue += (int16)ThisSampleValue;
+
+        CurrentSound->GeneratorTimeInRadians= fmodf(CurrentSound->GeneratorTimeInRadians + f, 1.0);
+        CurrentSound->Duration -=1;
+      }
+      CurrentSound= CurrentSound->NextSound;
+    }
     *SampleOut++ = SampleValue;
     *SampleOut++ = SampleValue;
 
-    tSin = fmodf(tSin + f, 1.0);
   }
 }
 
@@ -303,7 +313,7 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
   game_state *GameState = (game_state *)Memory->PermanentStorage;
 
   if (Memory->Initialized) {
-    GameOutputSound(GameState->Muted, GameState->Note,
+    GameOutputSound(GameState->Muted, GameState->PlayingSound,
                     ((real32)GameState->Volume) / GameState->VolumeRange,
                     SoundBuffer);
   }
@@ -411,7 +421,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     game_state NewGameState = {};
     *GameState = NewGameState;
     GameState->Time = 0;
-    GameState->Note = 0;
+    GameState->PlayingSound = 0;
+    GameState->FreeSound = 0;
     GameState->VolumeRange = 5;
     GameState->Volume = 0;
     GameState->Muted = true;
@@ -429,7 +440,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
     InitializeArena(&GameState->WorldArena,
-                    Memory->PermanentStorageSize - sizeof(*GameState),
+                    Memory->PermanentStorageSize - sizeof(*GameState) - sizeof(game_sound_synth) * 100,
+                    Memory->PermanentStorage + sizeof(*GameState) + sizeof(game_sound_synth) * 100);
+    InitializeArena(&GameState->SoundArena,
+                    sizeof(game_sound_synth) * 100,
                     Memory->PermanentStorage + sizeof(*GameState));
     GameState->TileMap.Chunks = ArenaPushArray(
         &GameState->WorldArena, tile_hash_entry, GameState->TileMap.MaxChunks);
@@ -438,6 +452,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 2, TILE_WALL);
     SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 1, TILE_WALL);
     SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 3, TILE_WALL);
+
+    GameState->PlayingSound = ArenaPushStruct(&GameState->SoundArena, game_sound_synth);
+    GameState->PlayingSound->NextSound = 0;
+    GameState->PlayingSound->Duration = 100000;
+    GameState->PlayingSound->ToneBaseVolume = 1;
+    GameState->PlayingSound->Note = 0;
+    GameState->PlayingSound->GeneratorTimeInRadians = 0;
 
     Memory->Initialized = true;
   }
@@ -448,14 +469,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
 
   for (size_t c = 0; c < ArrayCount(Input->Controllers); c++) {
     game_controller_input *Controller = &Input->Controllers[c];
-    if (Controller->LeftShoulder.HalfTransitionCount > 0 &&
-        Controller->LeftShoulder.EndedDown) {
-      GameState->Note--;
-    }
-    if (Controller->RightShoulder.HalfTransitionCount > 0 &&
-        Controller->RightShoulder.EndedDown) {
-      GameState->Note++;
-    }
+    
     if (Controller->ActionUp.HalfTransitionCount > 0 &&
         Controller->ActionUp.EndedDown) {
       GameState->Volume++;
@@ -483,6 +497,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         game_entity *Entity = GameState->ControllerMap.controllers[c];
         SetTileKind(&GameState->WorldArena, &GameState->TileMap, Entity->p.X,
                     Entity->p.Y, TILE_WALL);
+        game_sound_synth *PrevSound = GameState->PlayingSound;
+        GameState->PlayingSound = ArenaPushStruct(&GameState->SoundArena, game_sound_synth);
+        GameState->PlayingSound->NextSound = PrevSound;
+        GameState->PlayingSound->Duration = 10000;
+        GameState->PlayingSound->ToneBaseVolume = 1;
+        GameState->PlayingSound->Note = 0;
+        GameState->PlayingSound->GeneratorTimeInRadians = 0;
       }
     }
 
@@ -547,7 +568,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       Entity->v = NewVelocity;
     }
     if (Controller->Menu.EndedDown) {
-      //return false;
+      return false;
     }
     if (Controller->Back.EndedDown &&
         Controller->Back.HalfTransitionCount > 0 && GameState->JumpTime == 0) {
