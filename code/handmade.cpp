@@ -7,11 +7,11 @@
 #include "renderer.cpp"
 
 int32 min(int32 a, int32 b) {
-    if (a<b) {
-        return a;
-    } else {
-        return b;
-    }
+  if (a < b) {
+    return a;
+  } else {
+    return b;
+  }
 }
 
 void TestTask(void *Data) {
@@ -110,21 +110,22 @@ real32 SoundEnvelope(int32 Progress, int32 Duration) {
   int Attack = Duration / 4;
   int Decay = 2 * Duration / 4;
   int Sustain = 3 * Duration / 4;
-  if(Progress < Attack) {
+  if (Progress < Attack) {
     return (real32)Progress / (real32)Attack;
   }
-  if(Progress < Decay) {
-    return 1.0f - 0.5f * (real32)(Progress-Attack) / (real32)(Decay-Attack);
+  if (Progress < Decay) {
+    return 1.0f - 0.5f * (real32)(Progress - Attack) / (real32)(Decay - Attack);
   }
-  if(Progress < Sustain) {
+  if (Progress < Sustain) {
     return 0.5f;
   }
-  return 0.5f - 0.5f * (real32)(Progress-Sustain) / (real32)(Duration-Sustain);
+  return 0.5f -
+         0.5f * (real32)(Progress - Sustain) / (real32)(Duration - Sustain);
 }
 
-internal void GameOutputSound(bool muted, game_sound_state *SoundState, real32 BaseVolume,
+internal void GameOutputSound(bool muted, game_sound_state *SoundState,
+                              real32 BaseVolume,
                               game_sound_output_buffer *SoundBuffer) {
-
 
   int16 *SampleOut = SoundBuffer->Samples;
   for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount;
@@ -133,30 +134,34 @@ internal void GameOutputSound(bool muted, game_sound_state *SoundState, real32 B
     int16 SampleValue = 0;
     real32 toneHz = 440;
     real32 ToneVolume = muted ? 0 : (2.0f * powf(2.0f, 8 + 4 * BaseVolume));
-    while(*CurrentSoundPointer) {
-      game_sound_synth *CurrentSound = *CurrentSoundPointer ;
-      if(CurrentSound->Duration >= CurrentSound->Progress) {
-        if(CurrentSound->Progress >= 0) {
+    while (*CurrentSoundPointer) {
+      game_sound_synth *CurrentSound = *CurrentSoundPointer;
+      if (CurrentSound->Duration >= CurrentSound->Progress) {
+        if (CurrentSound->Progress >= 0) {
           real32 f = toneHz / (real32)SoundBuffer->SamplesPerSecond *
-             powf(2.0f, NOTE_HALFTONE * (real32)CurrentSound->Note);
-          real32 ThisSampleValue = (sinf(2.0f * Pi32 * CurrentSound->GeneratorTimeInRadians) * ToneVolume * CurrentSound->ToneBaseVolume * SoundEnvelope(CurrentSound->Progress, CurrentSound->Duration));
+                     powf(2.0f, NOTE_HALFTONE * (real32)CurrentSound->Note);
+          real32 ThisSampleValue =
+              (sinf(2.0f * Pi32 * CurrentSound->GeneratorTimeInRadians) *
+               ToneVolume * CurrentSound->ToneBaseVolume *
+               SoundEnvelope(CurrentSound->Progress, CurrentSound->Duration));
           SampleValue += (int16)ThisSampleValue;
 
-          CurrentSound->GeneratorTimeInRadians= fmodf(CurrentSound->GeneratorTimeInRadians + f, 1.0);
+          CurrentSound->GeneratorTimeInRadians =
+              fmodf(CurrentSound->GeneratorTimeInRadians + f, 1.0);
         }
 
         CurrentSound->Progress += 1;
         CurrentSoundPointer = &CurrentSound->NextSound;
       } else {
-          game_sound_synth *Next = CurrentSound->NextSound;
-          *CurrentSoundPointer = Next;
-          CurrentSound->NextSound = SoundState->FreeSound;
-          SoundState->FreeSound = CurrentSound;
+        game_sound_synth *Next = CurrentSound->NextSound;
+        *CurrentSoundPointer = Next;
+        CurrentSound->NextSound = SoundState->FreeSound;
+        SoundState->FreeSound = CurrentSound;
       }
     }
-    *SampleOut++ = SampleValue;
-    *SampleOut++ = SampleValue;
 
+    *SampleOut++ = SampleValue;
+    *SampleOut++ = SampleValue;
   }
 }
 
@@ -359,10 +364,11 @@ internal tile_chunk *GetOrCreateTileChunk(memory_arena *Arena, tile_map *Map,
 
     tile_hash_entry *Entry = &Map->Chunks[Hash];
     if (Entry->Removed || Entry->Chunk == 0) {
-      Entry->Chunk = ArenaPushStruct(Arena, tile_chunk);
-      if (!Entry->Chunk) {
+      tile_chunk *NewChunk = ArenaPushStruct(Arena, tile_chunk);
+      if (!NewChunk) {
         break;
       }
+      Entry->Chunk = NewChunk;
       Entry->Chunk->tiles =
           ArenaPushArray(Arena, tile, Map->ChunkHeight * Map->ChunkWidth);
       if (!Entry->Chunk->tiles) {
@@ -446,22 +452,26 @@ internal void SetTileKind(memory_arena *Arena, tile_map *Map, int TileX,
   }
 }
 
-
-void GamePlaySound(game_sound_state *SoundState, int32 Note, int32 Duration, real32 Volume, int32 Delay) {
-    if(!SoundState->FreeSound) {
-        game_sound_synth *FreeSound = ArenaPushStruct(&SoundState->SoundArena, game_sound_synth);
-        FreeSound->NextSound = SoundState->FreeSound;
-        SoundState->FreeSound = FreeSound;
+void GamePlaySound(game_sound_state *SoundState, int32 Note, int32 Duration,
+                   real32 Volume, int32 Delay) {
+  if (!SoundState->FreeSound) {
+    game_sound_synth *FreeSound =
+        ArenaPushStruct(&SoundState->SoundArena, game_sound_synth);
+    if (!FreeSound) {
+      return;
     }
-    game_sound_synth *PlayingSound = SoundState->FreeSound;
-    SoundState->FreeSound = PlayingSound->NextSound;
-    PlayingSound->Duration = Duration;
-    PlayingSound->Progress = -Delay;
-    PlayingSound->ToneBaseVolume = Volume;
-    PlayingSound->Note = Note;
-    PlayingSound->GeneratorTimeInRadians = 0;
-    PlayingSound->NextSound = SoundState->PlayingSound;
-    SoundState->PlayingSound = PlayingSound;
+    FreeSound->NextSound = SoundState->FreeSound;
+    SoundState->FreeSound = FreeSound;
+  }
+  game_sound_synth *PlayingSound = SoundState->FreeSound;
+  SoundState->FreeSound = PlayingSound->NextSound;
+  PlayingSound->Duration = Duration;
+  PlayingSound->Progress = -Delay;
+  PlayingSound->ToneBaseVolume = Volume;
+  PlayingSound->Note = Note;
+  PlayingSound->GeneratorTimeInRadians = 0;
+  PlayingSound->NextSound = SoundState->PlayingSound;
+  SoundState->PlayingSound = PlayingSound;
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
@@ -490,8 +500,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
     InitializeArena(&GameState->WorldArena,
-                    Memory->PermanentStorageSize - sizeof(*GameState) - sizeof(game_sound_synth) * 100,
-                    Memory->PermanentStorage + sizeof(*GameState) + sizeof(game_sound_synth) * 100);
+                    Memory->PermanentStorageSize - sizeof(*GameState) -
+                        sizeof(game_sound_synth) * 100,
+                    Memory->PermanentStorage + sizeof(*GameState) +
+                        sizeof(game_sound_synth) * 100);
     InitializeArena(&GameState->SoundState.SoundArena,
                     sizeof(game_sound_synth) * 100,
                     Memory->PermanentStorage + sizeof(*GameState));
@@ -502,7 +514,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 2, TILE_WALL);
     SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 1, TILE_WALL);
     SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 3, TILE_WALL);
-
 
     Memory->Initialized = true;
   }
@@ -608,7 +619,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       Entity->v = NewVelocity;
     }
     if (Controller->Menu.EndedDown) {
-      return false;
+      // return false;
     }
     if (Controller->Back.EndedDown &&
         Controller->Back.HalfTransitionCount > 0 && GameState->JumpTime == 0) {
@@ -643,18 +654,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       }
     }
 
-    if(OldPos.X < Entity->p.X) {
-        GamePlaySound(&GameState->SoundState, -1, 7000, 1, 0);
+    if (OldPos.X < Entity->p.X) {
+      GamePlaySound(&GameState->SoundState, -1, 7000, 1, 0);
     }
-    if(OldPos.Y < Entity->p.Y) {
-        GamePlaySound(&GameState->SoundState, -2, 7000, 1, 0);
+    if (OldPos.Y < Entity->p.Y) {
+      GamePlaySound(&GameState->SoundState, -2, 7000, 1, 0);
     }
 
-    if(OldPos.X > Entity->p.X) {
-        GamePlaySound(&GameState->SoundState, 1, 7000, 1, 0);
+    if (OldPos.X > Entity->p.X) {
+      GamePlaySound(&GameState->SoundState, 1, 7000, 1, 0);
     }
-    if(OldPos.Y > Entity->p.Y) {
-        GamePlaySound(&GameState->SoundState, 2, 7000, 1, 0);
+    if (OldPos.Y > Entity->p.Y) {
+      GamePlaySound(&GameState->SoundState, 2, 7000, 1, 0);
     }
 
     if (Entity->v.x > 0 && Entity->v.y > 0) {
@@ -791,7 +802,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     }
   }
 
-
   for (int e = 0; e < GameState->EntityCount; e++) {
     game_entity *Entity = &GameState->Entities[e];
     if (!Entity->active) {
@@ -922,30 +932,28 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                   &GameState->Logo);
   }
   real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
-  real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height/ 2);
-  PushRect(RenderBuffer,
-                   PaddingH,
-                   PaddingV,
-                   (real32)RenderBuffer->Viewport.Width - PaddingV * 2,
-                   (real32)min(100, (int32)RenderBuffer->Viewport.Height),
-                   render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
+  real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height / 2);
+  PushRect(RenderBuffer, PaddingH, PaddingV,
+           (real32)RenderBuffer->Viewport.Width - PaddingV * 2,
+           (real32)min(100, (int32)RenderBuffer->Viewport.Height),
+           render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
 
+  for (int m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
+    game_button_state Button = Input->Mouse.Buttons[m];
+    PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
+             (real32)Input->Mouse.MouseY + 10.0f * Button.HalfTransitionCount,
+             (real32)Input->Mouse.MouseX + 10.0f * m + 10.0f,
+             (real32)Input->Mouse.MouseY + 10.0f,
+             Button.EndedDown
+                 ? (Button.HalfTransitionCount > 0
+                        ? render_color_rgba{1.0f, 0.8f, 0.2f, 1.0f}
+                        : render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f})
+                 : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
 
-    for (int m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
-      game_button_state Button = Input->Mouse.Buttons[m];
-      PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
-               (real32)Input->Mouse.MouseY+ 10.0f * Button.HalfTransitionCount,
-               (real32)Input->Mouse.MouseX + 10.0f * m + 10.0f,
-               (real32)Input->Mouse.MouseY + 10.0f,
-               Button.EndedDown ? (Button.HalfTransitionCount > 0 ?
-                                 render_color_rgba{1.0f, 0.8f, 0.2f, 1.0f}
-                                : render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f})
-                                : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
-
-      if(Button.HalfTransitionCount > 0 && Button.EndedDown) {
-          GamePlaySound(&GameState->SoundState, m - 10, 7000, 1, 0);
-      }
+    if (Button.HalfTransitionCount > 0 && Button.EndedDown) {
+      GamePlaySound(&GameState->SoundState, m - 10, 7000, 1, 0);
     }
+  }
   Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask, GameState);
 
   Memory->PlatformWaitForQueueToFinish(Memory->TaskQueue);

@@ -11,7 +11,7 @@
 #include <time.h>
 
 #define USE_METAL
-// #define USE_AUDIO
+#define USE_AUDIO
 
 static id<MTLDevice> gDevice;
 static id<MTLCommandQueue> gQueue;
@@ -28,22 +28,13 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFileNoop) {
 }
 DEBUG_PLATFORM_WRITE_ENTIRE_FILE(PlatformWriteEntireFileNoop) { return false; }
 
+PUSH_TASK_TO_QUEUE(PushTaskToQueueNoop) {}
 
-PUSH_TASK_TO_QUEUE(PushTaskToQueueNoop) {
+WAIT_FOR_QUEUE_TO_FINISH(WaitForQueueToFinishNoop) {}
 
-}
+GAME_UPDATE_AND_RENDER(GameUpdateAndRenderNoop) { return false; }
 
-WAIT_FOR_QUEUE_TO_FINISH(WaitForQueueToFinishNoop) {
-
-}
-
-GAME_UPDATE_AND_RENDER(GameUpdateAndRenderNoop) {
-  return false;
-}
-
-GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesNoop) {
-
-}
+GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesNoop) {}
 
 // Tiny shaders as source string (no .metal file needed)
 typedef struct {
@@ -237,25 +228,25 @@ struct macos_state {
 };
 
 timespec MacOsGetLastWriteTime(const char *filename) {
-    timespec lastWrite = {0,0};
+  timespec lastWrite = {0, 0};
 
-    struct stat st;
-    if (stat(filename, &st) == 0) {
-        lastWrite = st.st_mtimespec; // macOS has st_mtimespec
-    }
+  struct stat st;
+  if (stat(filename, &st) == 0) {
+    lastWrite = st.st_mtimespec; // macOS has st_mtimespec
+  }
 
-    return lastWrite;
+  return lastWrite;
 }
 
 void MacOsUnloadGame(macos_game *Game) {
-  if(Game->GameDLL) {
+  if (Game->GameDLL) {
     dlclose(Game->GameDLL);
     free(Game->FullDllPath);
     Game->GameDLL = NULL;
   }
-    Game->GameUpdateAndRender = GameUpdateAndRenderNoop;
-    Game->GameGetSoundSamples  = GameGetSoundSamplesNoop;
-    Game->IsValid = false;
+  Game->GameUpdateAndRender = GameUpdateAndRenderNoop;
+  Game->GameGetSoundSamples = GameGetSoundSamplesNoop;
+  Game->IsValid = false;
 }
 
 void MacOsLoadGame(macos_game *Game) {
@@ -554,12 +545,13 @@ int main(void) {
   MacOsSetupGameMemory(&MacOsState, &GameMemory);
   while (MacOsState.Running) {
 
-          timespec LatestWriteTime =
-              MacOsGetLastWriteTime(MacOsState.Game.FullDllPath);
-          if (LatestWriteTime.tv_nsec != MacOsState.Game.LatestWriteTime.tv_nsec || LatestWriteTime.tv_sec != MacOsState.Game.LatestWriteTime.tv_sec) {
-            MacOsUnloadGame(&MacOsState.Game);
-            MacOsLoadGame(&MacOsState.Game);
-          }
+    timespec LatestWriteTime =
+        MacOsGetLastWriteTime(MacOsState.Game.FullDllPath);
+    if (LatestWriteTime.tv_nsec != MacOsState.Game.LatestWriteTime.tv_nsec ||
+        LatestWriteTime.tv_sec != MacOsState.Game.LatestWriteTime.tv_sec) {
+      MacOsUnloadGame(&MacOsState.Game);
+      MacOsLoadGame(&MacOsState.Game);
+    }
 
     game_input *SwapInput = CurrentInput;
     CurrentInput = LastInput;
@@ -666,6 +658,9 @@ int main(void) {
       }
       thread_context Context = {};
       game_sound_output_buffer SoundBuffer = {};
+      SoundBuffer.SamplesPerSecond = 44000;
+      SoundBuffer.Samples = AudioBuffer.Memory;
+      SoundBuffer.SampleCount = AudioBuffer.Size / 2;
 
       CurrentInput->DeltaTime = 0.016;
       MacOsState.Game.GameGetSoundSamples(&Context, &GameMemory, &SoundBuffer);

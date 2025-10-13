@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 
 #ifndef GL_BGRA
 #define GL_BGRA 0x80E1
@@ -53,10 +54,15 @@ internal void InitializeArena(memory_arena *Arena, memory_index Size,
   Arena->Base = Base;
 }
 
-#define ArenaPushStruct(Arena, Type) (Type *)ArenaPushSize(Arena, sizeof(Type))
+#define ArenaPushStruct(Arena, Type) (Type *)ArenaPushSize(Arena, sizeof(Type), #Arena)
 #define ArenaPushArray(Arena, Type, Count)                                     \
-  (Type *)ArenaPushSize(Arena, sizeof(Type) * Count)
-internal void *ArenaPushSize(memory_arena *Arena, memory_index Size) {
+  (Type *)ArenaPushSize(Arena, sizeof(Type) * Count, #Arena)
+
+internal void *ArenaPushSize(memory_arena *Arena, memory_index Size, const char* Label) {
+  if (Arena->Used >= Arena->Size) {
+    printf("Arena full: %s\n", Label);
+    return 0;
+  }
   void *Result = Arena->Base + Arena->Used;
   Arena->Used += Size;
 
