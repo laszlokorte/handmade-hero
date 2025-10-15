@@ -314,17 +314,110 @@ void MacOsSetupGameMemory(macos_state *MacState, game_memory *GameMemory) {
       PlatformWriteEntireFileNoop; //&DEBUGPlatformWriteEntireFile;
 }
 
-void MacOsPaint(macos_screen_buffer *ScreenBuffer) {
+inline uint32 lerpColor(real32 t, uint32 c1, uint32 c2) {
+  uint32 a1 = (c1 >> 24) & 0xff;
+  uint32 r1 = (c1 >> 16) & 0xff;
+  uint32 g1 = (c1 >> 8) & 0xff;
+  uint32 b1 = (c1 >> 0) & 0xff;
+  uint32 a2 = (c2 >> 24) & 0xff;
+  uint32 r2 = (c2 >> 16) & 0xff;
+  uint32 g2 = (c2 >> 8) & 0xff;
+  uint32 b2 = (c2 >> 0) & 0xff;
+
+  real32 rm = r1 * (1.0f - t) + r2 * t;
+  real32 gm = g1 * (1.0f - t) + g2 * t;
+  real32 bm = b1 * (1.0f - t) + b2 * t;
+  real32 am = a1 * (1.0f - t) + a2 * t;
+  return ((int)am << 24) | ((int)rm << 16) | ((int)gm << 8) | ((int)bm << 0);
+}
+
+inline uint32 Blend(uint32 Bg, uint32 Fg) {
+  real32 Alpha = (((Fg >> 24) & 0xff) / 255.0f);
+  return lerpColor(Alpha, Bg, Fg);
+}
+
+void MacOsPaintRect(macos_screen_buffer *ScreenBuffer, real32 MinX, real32 MinY,
+                    real32 MaxX, real32 MaxY, real32 r, real32 g, real32 b,
+                    real32 a) {
+  if (MaxX < MinX) {
+    real32 tmp = MinX;
+    MinX = MaxX;
+    MaxX = tmp;
+  }
+  if (MaxY < MinY) {
+    real32 tmp = MinY;
+    MinY = MaxY;
+    MaxY = tmp;
+  }
+  if (MaxX < 0)
+    MaxX = 0;
+  if (MaxY < 0)
+    MaxY = 0;
+  if (MinX < 0)
+    MinX = 0;
+  if (MinY < 0)
+    MinY = 0;
+  if (MinX >= ScreenBuffer->Width)
+    MinX = ScreenBuffer->Width - 1;
+  if (MinY >= ScreenBuffer->Height)
+    MinY = ScreenBuffer->Height - 1;
+  if (MaxX >= ScreenBuffer->Width)
+    MaxX = ScreenBuffer->Width - 1;
+  if (MaxY >= ScreenBuffer->Height)
+    MaxY = ScreenBuffer->Height - 1;
+
+  int Color = ((uint8_t)(a * 255) << 24) | ((uint8_t)(b * 255) << 16) |
+              ((uint8_t)(g * 255) << 8) | ((uint8_t)(r * 255) << 0);
+
+  uint8_t *Row =
+      (uint8_t *)ScreenBuffer->Memory + (ScreenBuffer->Pitch * (int)MinY);
+  for (int y = MinY; y < MaxY; y++) {
+    uint8_t *Column = Row + (ScreenBuffer->BytesPerPixel * (int)MinX);
+    for (int x = MinX; x < MaxX; x++) {
+      uint32_t *Pixel = (uint32_t *)Column;
+      (*Pixel) = Blend(*Pixel, Color);
+      Column += ScreenBuffer->BytesPerPixel;
+    }
+    Row += ScreenBuffer->Pitch;
+  }
+}
+
+void MacOsPaint(macos_screen_buffer *ScreenBuffer,
+                render_buffer *RenderBuffer) {
   uint8_t *Row = (uint8_t *)ScreenBuffer->Memory;
   for (int y = 0; y < ScreenBuffer->Height; y++) {
     uint8_t *Column = Row;
     for (int x = 0; x < ScreenBuffer->Width; x++) {
       uint32_t *Pixel = (uint32_t *)Column;
-      (*Pixel) =
-          (x / 100 % 2 == 0) ^ (y / 100 % 2 == 0) ? 0xffffeebb : 0xffbbeeff;
+      (*Pixel) = 0xff000000;
       Column += ScreenBuffer->BytesPerPixel;
     }
     Row += ScreenBuffer->Pitch;
+  }
+  for (uint32 ri = 0; ri < RenderBuffer->Count; ri += 1) {
+
+    render_command *RCmd = &RenderBuffer->Base[ri];
+    switch (RCmd->Type) {
+    case RenderCommandRect: {
+      // glColor4f(0.0f,0.0f,0.0f,0.0f);
+      if (RCmd->Rect.Image) {
+        MacOsPaintRect(ScreenBuffer, RCmd->Rect.MinX, RCmd->Rect.MinY,
+                       RCmd->Rect.MaxX, RCmd->Rect.MaxY, 0, 0, 0, 0.3f);
+      } else {
+        MacOsPaintRect(ScreenBuffer, RCmd->Rect.MinX, RCmd->Rect.MinY,
+                       RCmd->Rect.MaxX, RCmd->Rect.MaxY, RCmd->Rect.Color.Red,
+                       RCmd->Rect.Color.Green, RCmd->Rect.Color.Blue,
+                       RCmd->Rect.Color.Alpha);
+      }
+
+    } break;
+    case RenderCommandTriangle: {
+
+    } break;
+    default: {
+      break;
+    } break;
+    }
   }
 }
 
@@ -394,7 +487,7 @@ void MacOsSwapWindowBuffer(NSWindow *Window,
                           Window.contentView.frame.size.width,
                           Window.contentView.frame.size.height);
 
-  MacOsPaint(&_State->ScreenBuffer);
+  MacOsPaint(&_State->ScreenBuffer, &_State->RenderBuffer);
   MacOsSwapWindowBuffer(_State->Window, &_State->ScreenBuffer);
 #endif
   _State->WindowWidth = Window.contentView.frame.size.width;
@@ -657,16 +750,18 @@ int main(void) {
           NSMakePoint(mousePos.x - MacOsState.Window.frame.origin.x,
                       mousePos.y - MacOsState.Window.frame.origin.y);
       NSRect content = MacOsState.Window.frame;
-      if (NSPointInRect([NSEvent mouseLocation], content)) {
-        CurrentInput->Mouse.MouseX = (int)posInWindow.x;
-        CurrentInput->Mouse.MouseY =
-            (int)(MacOsState.WindowHeight - posInWindow.y);
-      }
-      for (int m = 0; m < ArrayCount(CurrentInput->Mouse.Buttons); m++) {
-        bool NewDown = NSEvent.pressedMouseButtons & (1 << m);
-        bool toggled = CurrentInput->Mouse.Buttons[m].EndedDown != NewDown;
-        CurrentInput->Mouse.Buttons[m].HalfTransitionCount += (NewDown ? 1 : 0);
-        CurrentInput->Mouse.Buttons[m].EndedDown = NewDown;
+      CurrentInput->Mouse.MouseX = (int)posInWindow.x;
+      CurrentInput->Mouse.MouseY =
+          (int)(MacOsState.WindowHeight - posInWindow.y);
+      if (NSPointInRect(mousePos, content)) {
+
+        for (int m = 0; m < ArrayCount(CurrentInput->Mouse.Buttons); m++) {
+          bool NewDown = NSEvent.pressedMouseButtons & (1 << m);
+          bool toggled = CurrentInput->Mouse.Buttons[m].EndedDown != NewDown;
+          CurrentInput->Mouse.Buttons[m].HalfTransitionCount +=
+              (NewDown ? 1 : 0);
+          CurrentInput->Mouse.Buttons[m].EndedDown = NewDown;
+        }
       }
       thread_context Context = {};
 
@@ -706,18 +801,27 @@ int main(void) {
                                           &MacOsState.RenderBuffer);
 
       int padding = 10;
-      for (int d = 0; d < AudioBuffer.Size; d += 1) {
-        int c1 = AudioBuffer.Memory[d * 2];
-        int c2 = AudioBuffer.Memory[d * 2];
+      int skip = 2;
+      float barWidthHalf = 0.5;
+      int screenWidth = MacOsState.RenderBuffer.Viewport.Width - (2 * padding);
+      float c1Base = 100;
+      float c2Base = 200;
+      float height = 128.0;
+      render_color_rgba c1Color = render_color_rgba{0.0f, 1.0f, 0.0f, 1.0f};
+      render_color_rgba c2Color = render_color_rgba{1.0f, 0.0f, 0.0f, 1.0f};
+      for (int s = 0; s < screenWidth; s += skip) {
+        size_t d = s * AudioBuffer.Size / screenWidth;
+        float c1 = AudioBuffer.Memory[d * 2] / (float)(1 << 15);
+        float c2 = AudioBuffer.Memory[d * 2] / (float)(1 << 15);
         float x =
             padding + (float)(d * (MacOsState.RenderBuffer.Viewport.Width -
                                    (2 * padding))) /
                           AudioBuffer.Size;
-        PushRect(&MacOsState.RenderBuffer, x, 100 - 10, x + 1, 100 + c1 / 100.0,
-                 render_color_rgba{0.0f, 1.0f, 0.0f, 1.0f});
+        PushRect(&MacOsState.RenderBuffer, x - barWidthHalf, c1Base - 1,
+                 x + barWidthHalf, c1Base + c1 * height, c1Color);
 
-        PushRect(&MacOsState.RenderBuffer, x, 200 - 10, x + 1, 200 + c2 / 100.0,
-                 render_color_rgba{0.0f, 0.0f, 1.0f, 1.0f});
+        PushRect(&MacOsState.RenderBuffer, x - barWidthHalf, c2Base - 1,
+                 x + barWidthHalf, c2Base + c2 * height, c2Color);
       }
 
       {
@@ -806,7 +910,7 @@ int main(void) {
       MetalDraw(&Vertices, 2.0f / MacOsState.WindowWidth,
                 -2.0f / MacOsState.WindowHeight, -1.f, 1.f);
 #else
-      MacOsPaint(&MacOsState.ScreenBuffer);
+      MacOsPaint(&MacOsState.ScreenBuffer, &MacOsState.RenderBuffer);
       MacOsSwapWindowBuffer(MacOsState.Window, &MacOsState.ScreenBuffer);
       if (gLayer) {
         NSView *v = MacOsState.Window.contentView;

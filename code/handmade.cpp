@@ -160,7 +160,7 @@ internal void GameOutputSound(bool muted, game_sound_state *SoundState,
       }
     }
 
-    int16 finalSample = (int16) SampleValue;
+    int16 finalSample = (int16)SampleValue;
     *SampleOut++ = SampleValue;
     *SampleOut++ = SampleValue;
   }
@@ -925,17 +925,26 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         Y + arrow[5] * Entity->s.y / 2.0f +
             RenderBuffer->Viewport.Height / 2.0f,
         render_color_rgba{0.6f, 0.0f, 0.8f, 1.0f});
-    PushRectImage(RenderBuffer,
-                  X - Entity->s.x / 2 + RenderBuffer->Viewport.Width / 2.0f,
-                  Y - Entity->s.y / 2 + RenderBuffer->Viewport.Height / 2.0f,
-                  X + Entity->s.x / 2 + RenderBuffer->Viewport.Width / 2.0f,
-                  Y + Entity->s.x / 2 + RenderBuffer->Viewport.Height / 2.0f,
-                  &GameState->Logo);
+    if (GameState->Logo.Width) {
+      PushRectImage(RenderBuffer,
+                    X - Entity->s.x / 2 + RenderBuffer->Viewport.Width / 2.0f,
+                    Y - Entity->s.y / 2 + RenderBuffer->Viewport.Height / 2.0f,
+                    X + Entity->s.x / 2 + RenderBuffer->Viewport.Width / 2.0f,
+                    Y + Entity->s.x / 2 + RenderBuffer->Viewport.Height / 2.0f,
+                    &GameState->Logo);
+    } else {
+      PushRect(RenderBuffer,
+               X - Entity->s.x / 2 + RenderBuffer->Viewport.Width / 2.0f,
+               Y - Entity->s.y / 2 + RenderBuffer->Viewport.Height / 2.0f,
+               X + Entity->s.x / 2 + RenderBuffer->Viewport.Width / 2.0f,
+               Y + Entity->s.x / 2 + RenderBuffer->Viewport.Height / 2.0f,
+               render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
+    }
   }
   real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
   real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height / 2);
   PushRect(RenderBuffer, PaddingH, PaddingV,
-           (real32)RenderBuffer->Viewport.Width - PaddingV ,
+           (real32)RenderBuffer->Viewport.Width - PaddingV,
            (real32)min(100, (int32)RenderBuffer->Viewport.Height),
            render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
 
