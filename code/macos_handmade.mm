@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <dlfcn.h>
 #include "handmade.h"
+#include "renderer.cpp"
 #include <Metal/Metal.h>
 #include <QuartzCore/QuartzCore.h>
 #include <mach-o/dyld.h>
@@ -48,7 +49,7 @@ struct MetalVertices {
   MetalVertex *Buffer;
 };
 
-static void CreateMetal(NSView *view, CGSize size) {
+static void CreateMetal(NSView *view, CGSize size, MetalVertices* Vertices) {
   gDevice = MTLCreateSystemDefaultDevice();
   gQueue = [gDevice newCommandQueue];
 
@@ -99,13 +100,15 @@ static void CreateMetal(NSView *view, CGSize size) {
     exit(1);
   }
 
-  gVtx = [gDevice newBufferWithLength:sizeof(MetalVertex) * 1000
+  gVtx = [gDevice newBufferWithLength:sizeof(MetalVertex) * Vertices->Capacity
                               options:MTLResourceStorageModeManaged];
 }
 
 static void MetalPushQuad(MetalVertices *Vertices, float x0, float y0, float x1,
                           float y1, float r, float g, float b, float a) {
   if (Vertices->Capacity < Vertices->Count + 6) {
+    //printf("%lu\n", Vertices->Count);
+    //printf("%lu\n", Vertices->Capacity);
     return;
   }
   Vertices->Buffer[(Vertices->Count)++] = {{x0, y0}, {r, g, b, a}};
@@ -272,12 +275,12 @@ void MacOsLoadGame(macos_game *Game) {
 }
 
 void MacOsSetupGameMemory(macos_state *MacState, game_memory *GameMemory) {
-  uint32 RenderBufferLength = 10000;
+  uint32 RenderBufferLength = 180000;
   memory_index RenderBufferSize = RenderBufferLength * sizeof(render_command);
   uint32 WorkQueueLength = 128;
   size_t WorkQueueSize = WorkQueueLength * sizeof(macos_work_queue_task);
   GameMemory->Initialized = false;
-  GameMemory->PermanentStorageSize = Megabytes(10);
+  GameMemory->PermanentStorageSize = Megabytes(100);
   GameMemory->TransientStorageSize = Megabytes(100);
   MacState->TotalMemorySize = GameMemory->TransientStorageSize +
                               GameMemory->PermanentStorageSize +
@@ -419,17 +422,22 @@ OSStatus MacAudioCallback(void *inRefCon,
                           UInt32 inNumberFrames, AudioBufferList *ioData) {
   mac_audio_buffer *data = (mac_audio_buffer *)inRefCon;
 
-  data->WriteHead = (data->WriteHead + inNumberFrames) % data->Size;
   Float32 *out = (Float32 *)ioData->mBuffers[0].mData;
   uint16 *source = (uint16_t *)data->Memory;
+  // printf("read: %d\n", data->ReadHead);
+  // printf("data-size: %lu\n", data->Size);
   for (UInt32 i = 0; i < inNumberFrames; i++) {
-    // printf("%f\n", source[2 * i]/ 655360.0f);
-    out[i * 2 + 0] =
-        source[(2 * (data->ReadHead + i)) % data->Size] / (float)(1 << 24);
-    out[i * 2 + 1] =
-        source[(2 * (data->ReadHead + i) + 1) % data->Size] / (float)(1 << 24);
+    uint32_t frameIndex = data->ReadHead % data->Size;
+    if (data->ReadHead == data->WriteHead && data->ReadHead != 0) {
+      out[i * 2 + 0] = 0.0f;
+      out[i * 2 + 1] = 0.0f;
+    } else {
+      // printf("%f\n", source[2 * i]/ 655360.0f);
+      out[i * 2 + 0] = source[frameIndex * 2 + 0] / (float)(1 << 24);
+      out[i * 2 + 1] = source[frameIndex * 2 + 1] / (float)(1 << 24);
+      data->ReadHead = (data->ReadHead + 1) % data->Size;
+    }
   }
-  data->ReadHead = (data->ReadHead + inNumberFrames) % data->Size;
   return noErr;
 }
 
@@ -521,22 +529,23 @@ int main(void) {
 
   mac_audio_buffer AudioBuffer = {};
   uint32 f = 44100;
-  AudioBuffer.Size = f * 2;
+  AudioBuffer.Size = f / 8;
+  AudioBuffer.WriteHead = 0;
+  AudioBuffer.ReadHead = 0;
   AudioBuffer.Memory =
-      (int16_t *)mmap(NULL, AudioBuffer.Size * sizeof(int16_t),
+      (int16_t *)mmap(NULL, AudioBuffer.Size * 2 * sizeof(int16_t),
                       PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-  int note = 1;
-  for (int i = 0; i < f; i++) { // i = frame index
-    float sample =
-        6000 * sinf(440 * pow(2, note * 1.0 / 12.0) * Pi32 * i / (float)f);
-    AudioBuffer.Memory[2 * i + 0] = (int16_t)sample; // left
-    AudioBuffer.Memory[2 * i + 1] = (int16_t)sample; // right
-  }
+
 #ifdef USE_AUDIO
   MacInitAudio(&AudioBuffer);
 #endif
 #ifdef USE_METAL
-  CreateMetal(MacOsState.Window.contentView, initialFrame.size);
+  MetalVertices Vertices = {};
+  Vertices.Capacity = 64000;
+  Vertices.Buffer = (MetalVertex *)mmap(
+      NULL, Vertices.Capacity * sizeof(*Vertices.Buffer),
+      PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+  CreateMetal(MacOsState.Window.contentView, initialFrame.size, &Vertices);
 #endif
   game_input GameInputs[2] = {};
   game_input *LastInput = &GameInputs[0];
@@ -657,24 +666,48 @@ int main(void) {
         CurrentInput->Mouse.Buttons[m].EndedDown = NewDown;
       }
       thread_context Context = {};
-      game_sound_output_buffer SoundBuffer = {};
-      SoundBuffer.SamplesPerSecond = 44000;
-      SoundBuffer.Samples = AudioBuffer.Memory;
-      SoundBuffer.SampleCount = AudioBuffer.Size / 2;
 
-      CurrentInput->DeltaTime = 0.016;
+#ifdef USE_AUDIO
+      uint32_t filled =
+          (AudioBuffer.WriteHead + AudioBuffer.Size - AudioBuffer.ReadHead) %
+          AudioBuffer.Size;
+      // printf("filled: %d\n", filled);
+      uint32_t available = AudioBuffer.Size - filled - 1;
+      // printf("available: %d\n", available);
+      //
+
+      // printf("read,write: %d, %d\n", AudioBuffer.ReadHead,
+      //  AudioBuffer.WriteHead);
+      game_sound_output_buffer SoundBuffer = {};
+      SoundBuffer.SamplesPerSecond = 44100;
+      SoundBuffer.SampleCount = available;
+      SoundBuffer.Samples = &AudioBuffer.Memory[AudioBuffer.WriteHead * 2];
+
       MacOsState.Game.GameGetSoundSamples(&Context, &GameMemory, &SoundBuffer);
+      AudioBuffer.WriteHead =
+          (AudioBuffer.WriteHead + SoundBuffer.SampleCount) % AudioBuffer.Size;
+#endif
       ClearRenderBuffer(&MacOsState.RenderBuffer, MacOsState.WindowWidth,
                         MacOsState.WindowHeight);
+      CurrentInput->DeltaTime = 0.016;
       MacOsState.Game.GameUpdateAndRender(&Context, &GameMemory, CurrentInput,
                                           &MacOsState.RenderBuffer);
 
+      for (int d = 0; d < AudioBuffer.Size; d+=20) {
+          int c1 = AudioBuffer.Memory[d * 2];
+          int c2 = AudioBuffer.Memory[d * 2];
+          int padding = 10;
+          float x =padding + (float)(d * (MacOsState.RenderBuffer.Viewport.Width-(2*padding)))/AudioBuffer.Size;
+          PushRect(&MacOsState.RenderBuffer, x, 100-10, x+1, 100 + c1/100.0,
+                 render_color_rgba{0.0f, 1.0f, 0.0f, 1.0f});
+
+          PushRect(&MacOsState.RenderBuffer, x, 200-10, x+1, 200 + c2/100.0,
+                 render_color_rgba{0.0f, 0.0f, 1.0f, 1.0f});
+
+      }
+
 #ifdef USE_METAL
-      MetalVertices Vertices = {};
-      Vertices.Capacity = 6000;
-      Vertices.Buffer = (MetalVertex *)mmap(
-          NULL, Vertices.Capacity * sizeof(*Vertices.Buffer),
-          PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+      Vertices.Count = 0;
       MetalPushQuad(&Vertices, -1, -1, 1, 1, 0.5, 0, 0.7, 1);
       for (uint32 ri = 0; ri < MacOsState.RenderBuffer.Count; ri += 1) {
 
@@ -691,7 +724,7 @@ int main(void) {
             MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
                           RCmd->Rect.MaxX, RCmd->Rect.MaxY,
                           RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
-                          RCmd->Rect.Color.Blue, 1.0f);
+                          RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
             // glColor4f(RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
             //           RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
           }

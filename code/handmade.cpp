@@ -934,7 +934,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
   real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height / 2);
   PushRect(RenderBuffer, PaddingH, PaddingV,
-           (real32)RenderBuffer->Viewport.Width - PaddingV * 2,
+           (real32)RenderBuffer->Viewport.Width - PaddingV ,
            (real32)min(100, (int32)RenderBuffer->Viewport.Height),
            render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
 
