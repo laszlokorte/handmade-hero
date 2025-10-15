@@ -131,7 +131,7 @@ internal void GameOutputSound(bool muted, game_sound_state *SoundState,
   for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount;
        ++SampleIndex) {
     game_sound_synth **CurrentSoundPointer = &SoundState->PlayingSound;
-    int16 SampleValue = 0;
+    float SampleValue = 0;
     real32 toneHz = 440;
     real32 ToneVolume = muted ? 0 : (2.0f * powf(2.0f, 8 + 4 * BaseVolume));
     while (*CurrentSoundPointer) {
@@ -144,7 +144,7 @@ internal void GameOutputSound(bool muted, game_sound_state *SoundState,
               (sinf(2.0f * Pi32 * CurrentSound->GeneratorTimeInRadians) *
                ToneVolume * CurrentSound->ToneBaseVolume *
                SoundEnvelope(CurrentSound->Progress, CurrentSound->Duration));
-          SampleValue += (int16)ThisSampleValue;
+          SampleValue += ThisSampleValue;
 
           CurrentSound->GeneratorTimeInRadians =
               fmodf(CurrentSound->GeneratorTimeInRadians + f, 1.0);
@@ -160,6 +160,7 @@ internal void GameOutputSound(bool muted, game_sound_state *SoundState,
       }
     }
 
+    int16 finalSample = (int16) SampleValue;
     *SampleOut++ = SampleValue;
     *SampleOut++ = SampleValue;
   }

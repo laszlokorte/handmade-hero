@@ -49,7 +49,7 @@ struct MetalVertices {
   MetalVertex *Buffer;
 };
 
-static void CreateMetal(NSView *view, CGSize size, MetalVertices* Vertices) {
+static void CreateMetal(NSView *view, CGSize size, MetalVertices *Vertices) {
   gDevice = MTLCreateSystemDefaultDevice();
   gQueue = [gDevice newCommandQueue];
 
@@ -107,8 +107,8 @@ static void CreateMetal(NSView *view, CGSize size, MetalVertices* Vertices) {
 static void MetalPushQuad(MetalVertices *Vertices, float x0, float y0, float x1,
                           float y1, float r, float g, float b, float a) {
   if (Vertices->Capacity < Vertices->Count + 6) {
-    //printf("%lu\n", Vertices->Count);
-    //printf("%lu\n", Vertices->Capacity);
+    // printf("%lu\n", Vertices->Count);
+    // printf("%lu\n", Vertices->Capacity);
     return;
   }
   Vertices->Buffer[(Vertices->Count)++] = {{x0, y0}, {r, g, b, a}};
@@ -275,7 +275,7 @@ void MacOsLoadGame(macos_game *Game) {
 }
 
 void MacOsSetupGameMemory(macos_state *MacState, game_memory *GameMemory) {
-  uint32 RenderBufferLength = 180000;
+  uint32 RenderBufferLength = 240000;
   memory_index RenderBufferSize = RenderBufferLength * sizeof(render_command);
   uint32 WorkQueueLength = 128;
   size_t WorkQueueSize = WorkQueueLength * sizeof(macos_work_queue_task);
@@ -423,20 +423,20 @@ OSStatus MacAudioCallback(void *inRefCon,
   mac_audio_buffer *data = (mac_audio_buffer *)inRefCon;
 
   Float32 *out = (Float32 *)ioData->mBuffers[0].mData;
-  uint16 *source = (uint16_t *)data->Memory;
+  int16 *source = (int16_t *)data->Memory;
   // printf("read: %d\n", data->ReadHead);
   // printf("data-size: %lu\n", data->Size);
   for (UInt32 i = 0; i < inNumberFrames; i++) {
     uint32_t frameIndex = data->ReadHead % data->Size;
-    if (data->ReadHead == data->WriteHead && data->ReadHead != 0) {
+    if (data->ReadHead == data->WriteHead) {
       out[i * 2 + 0] = 0.0f;
       out[i * 2 + 1] = 0.0f;
-    } else {
-      // printf("%f\n", source[2 * i]/ 655360.0f);
-      out[i * 2 + 0] = source[frameIndex * 2 + 0] / (float)(1 << 24);
-      out[i * 2 + 1] = source[frameIndex * 2 + 1] / (float)(1 << 24);
-      data->ReadHead = (data->ReadHead + 1) % data->Size;
+      continue;
     }
+    // printf("%f\n", source[2 * i]/ 655360.0f);
+    out[i * 2 + 0] = source[frameIndex * 2 + 0] / (float)(1 << 15);
+    out[i * 2 + 1] = source[frameIndex * 2 + 1] / (float)(1 << 15);
+    data->ReadHead = (data->ReadHead + 1) % data->Size;
   }
   return noErr;
 }
@@ -536,12 +536,15 @@ int main(void) {
       (int16_t *)mmap(NULL, AudioBuffer.Size * 2 * sizeof(int16_t),
                       PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 
+  int16_t *LinearAudioSamples =
+      (int16_t *)mmap(NULL, f * 2 * sizeof(int16_t), PROT_READ | PROT_WRITE,
+                      MAP_ANON | MAP_PRIVATE, -1, 0);
 #ifdef USE_AUDIO
   MacInitAudio(&AudioBuffer);
 #endif
 #ifdef USE_METAL
   MetalVertices Vertices = {};
-  Vertices.Capacity = 64000;
+  Vertices.Capacity = 128000;
   Vertices.Buffer = (MetalVertex *)mmap(
       NULL, Vertices.Capacity * sizeof(*Vertices.Buffer),
       PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
@@ -681,11 +684,20 @@ int main(void) {
       game_sound_output_buffer SoundBuffer = {};
       SoundBuffer.SamplesPerSecond = 44100;
       SoundBuffer.SampleCount = available;
-      SoundBuffer.Samples = &AudioBuffer.Memory[AudioBuffer.WriteHead * 2];
+      SoundBuffer.Samples = LinearAudioSamples;
 
       MacOsState.Game.GameGetSoundSamples(&Context, &GameMemory, &SoundBuffer);
+
+      uint32_t firstChunk = AudioBuffer.Size - AudioBuffer.WriteHead;
+      if (available < firstChunk) {
+        firstChunk = available;
+      }
+      memcpy(&AudioBuffer.Memory[AudioBuffer.WriteHead * 2], LinearAudioSamples,
+             firstChunk * 2 * sizeof(int16_t));
+      memcpy(&AudioBuffer.Memory[0], &LinearAudioSamples[firstChunk * 2],
+             (available - firstChunk) * 2 * sizeof(int16_t));
       AudioBuffer.WriteHead =
-          (AudioBuffer.WriteHead + SoundBuffer.SampleCount) % AudioBuffer.Size;
+          (AudioBuffer.WriteHead + available) % AudioBuffer.Size;
 #endif
       ClearRenderBuffer(&MacOsState.RenderBuffer, MacOsState.WindowWidth,
                         MacOsState.WindowHeight);
@@ -693,17 +705,40 @@ int main(void) {
       MacOsState.Game.GameUpdateAndRender(&Context, &GameMemory, CurrentInput,
                                           &MacOsState.RenderBuffer);
 
-      for (int d = 0; d < AudioBuffer.Size; d+=20) {
-          int c1 = AudioBuffer.Memory[d * 2];
-          int c2 = AudioBuffer.Memory[d * 2];
-          int padding = 10;
-          float x =padding + (float)(d * (MacOsState.RenderBuffer.Viewport.Width-(2*padding)))/AudioBuffer.Size;
-          PushRect(&MacOsState.RenderBuffer, x, 100-10, x+1, 100 + c1/100.0,
+      int padding = 10;
+      for (int d = 0; d < AudioBuffer.Size; d += 1) {
+        int c1 = AudioBuffer.Memory[d * 2];
+        int c2 = AudioBuffer.Memory[d * 2];
+        float x =
+            padding + (float)(d * (MacOsState.RenderBuffer.Viewport.Width -
+                                   (2 * padding))) /
+                          AudioBuffer.Size;
+        PushRect(&MacOsState.RenderBuffer, x, 100 - 10, x + 1, 100 + c1 / 100.0,
                  render_color_rgba{0.0f, 1.0f, 0.0f, 1.0f});
 
-          PushRect(&MacOsState.RenderBuffer, x, 200-10, x+1, 200 + c2/100.0,
+        PushRect(&MacOsState.RenderBuffer, x, 200 - 10, x + 1, 200 + c2 / 100.0,
                  render_color_rgba{0.0f, 0.0f, 1.0f, 1.0f});
+      }
 
+      {
+
+        float x =
+            padding +
+            (float)(AudioBuffer.ReadHead *
+                    (MacOsState.RenderBuffer.Viewport.Width - (2 * padding))) /
+                AudioBuffer.Size;
+        PushRect(&MacOsState.RenderBuffer, x, 100 - 10, x + 5, 100 + 100.0,
+                 render_color_rgba{0.0f, 0.0f, 1.0f, 1.0f});
+      }
+      {
+
+        float x =
+            padding +
+            (float)(AudioBuffer.WriteHead *
+                    (MacOsState.RenderBuffer.Viewport.Width - (2 * padding))) /
+                AudioBuffer.Size;
+        PushRect(&MacOsState.RenderBuffer, x, 100 - 10, x + 5, 100 + 100.0,
+                 render_color_rgba{1.0f, 0.0f, 0.0f, 1.0f});
       }
 
 #ifdef USE_METAL
