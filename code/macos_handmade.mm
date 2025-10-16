@@ -1,15 +1,12 @@
-#include <AppKit/AppKit.h>
 #include <AudioToolbox/AudioToolbox.h>
 #include <stdio.h>
 #include <dlfcn.h>
-#include "handmade.h"
+#include "macos_handmade.h"
 #include "renderer.cpp"
 #include <Metal/Metal.h>
 #include <QuartzCore/QuartzCore.h>
 #include <mach-o/dyld.h>
-#include <Carbon/Carbon.h>
 #include <sys/stat.h>
-#include <time.h>
 
 #define USE_METAL
 #define USE_AUDIO
@@ -167,68 +164,6 @@ static void MetalDraw(MetalVertices *Vertices, float scaleX, float scaleY,
     [cb commit];
   }
 }
-
-struct macos_screen_buffer {
-  uint32_t Width;
-  uint32_t Height;
-  uint32_t Pitch;
-  uint32_t BytesPerPixel;
-  void *Memory;
-};
-
-struct macos_game {
-  bool IsValid;
-  void *GameDLL;
-  timespec LatestWriteTime;
-  char *FullDllPath;
-  game_update_and_render *GameUpdateAndRender;
-  game_get_sound_samples *GameGetSoundSamples;
-};
-
-struct macos_work_queue_task {
-  work_queue_callback *Callback;
-  void *Data;
-};
-
-struct work_queue {
-  size_t Size;
-  macos_work_queue_task *Base;
-
-  uint32 volatile NextWrite;
-  uint32 volatile NextRead;
-
-  size_t volatile CompletionGoal;
-  size_t volatile CompletionCount;
-
-  void *SemaphoreHandle;
-};
-
-struct macos_thread_info {
-  int32 LogicalThreadIndex;
-  uint32 ThreadId;
-  work_queue *Queue;
-};
-
-struct macos_thread_pool {
-  size_t Count;
-  macos_thread_info *Threads;
-};
-
-struct macos_state {
-  bool Running;
-  float WindowWidth;
-  float WindowHeight;
-
-  NSWindow *Window;
-  macos_screen_buffer ScreenBuffer;
-  macos_game Game;
-
-  size_t TotalMemorySize;
-  void *GameMemoryBlock;
-  render_buffer RenderBuffer;
-  work_queue WorkQueue;
-  macos_thread_pool ThreadPool;
-};
 
 timespec MacOsGetLastWriteTime(const char *filename) {
   timespec lastWrite = {0, 0};
@@ -501,14 +436,6 @@ void MacOsSwapWindowBuffer(NSWindow *Window,
 }
 @end
 
-struct mac_audio_buffer {
-  size_t Size;
-  int16_t *Memory;
-
-  uint32 ReadHead;
-  uint32 WriteHead;
-};
-
 OSStatus MacAudioCallback(void *inRefCon,
                           AudioUnitRenderActionFlags *ioActionFlags,
                           const AudioTimeStamp *inTimeStamp, UInt32 inBusNumber,
@@ -580,12 +507,23 @@ void MacOsHandKeyInput(game_button_state *Button, uint32 keyCode,
   }
 }
 
+struct macos_frame_measures {
+  int64 DeltaTimeMS;
+  int32 SkippedFrames;
+};
+
 int main(void) {
   macos_state MacOsState = {};
   MacOsState.Running = true;
   MacOsState.WindowWidth = 1200;
   MacOsState.WindowHeight = 800;
   MacOsState.ScreenBuffer.BytesPerPixel = 4;
+  macos_frame_measures FrameMeasures = {};
+  int64_t LastCounter;
+
+  mach_timebase_info(&GlobalMachTimebase);
+  LastCounter = mach_absolute_time();
+
   MacOsLoadGame(&MacOsState.Game);
   // printf("%p\n%p\n", MacOsState.Game.GameGetSoundSamples,
   //        MacOsState.Game.GameUpdateAndRender);
@@ -796,7 +734,8 @@ int main(void) {
 #endif
       ClearRenderBuffer(&MacOsState.RenderBuffer, MacOsState.WindowWidth,
                         MacOsState.WindowHeight);
-      CurrentInput->DeltaTime = 0.016;
+      CurrentInput->DeltaTime = FrameMeasures.DeltaTimeMS / 1000.0f;
+      // printf("%f\n", FrameMeasures.DeltaTimeMS / 1000.0f);
       MacOsState.Game.GameUpdateAndRender(&Context, &GameMemory, CurrentInput,
                                           &MacOsState.RenderBuffer);
 
@@ -864,30 +803,8 @@ int main(void) {
                           RCmd->Rect.MaxX, RCmd->Rect.MaxY,
                           RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
                           RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
-            // glColor4f(RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
-            //           RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
           }
 
-          // glBegin(GL_TRIANGLES);
-          // glTexCoord2f(0.0f, 1.0f);
-          // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
-
-          // glTexCoord2f(1.0f, 1.0f);
-          // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MinY);
-
-          // glTexCoord2f(1.0f, 0.0f);
-          // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
-
-          // glTexCoord2f(1.0f, 0.0f);
-          // glVertex2f(RCmd->Rect.MaxX, RCmd->Rect.MaxY);
-
-          // glTexCoord2f(0.0f, 0.0f);
-          // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MaxY);
-
-          // glTexCoord2f(0.0f, 1.0f);
-          // glVertex2f(RCmd->Rect.MinX, RCmd->Rect.MinY);
-          // glEnd();
-          // glDisable(GL_TEXTURE_2D);
         } break;
         case RenderCommandTriangle: {
           // glColor4f(RCmd->Triangle.Color.Red, RCmd->Triangle.Color.Green,
@@ -922,6 +839,16 @@ int main(void) {
       }
 #endif
     }
+
+    uint64_t EndCounter = mach_absolute_time();
+    uint64_t DeltaTime = EndCounter - LastCounter;
+    uint64_t DeltaTimeNS =
+        DeltaTime * GlobalMachTimebase.numer / GlobalMachTimebase.denom;
+    uint64_t DeltaTimeMS = DeltaTimeNS / 1e6;
+    FrameMeasures.DeltaTimeMS = DeltaTimeMS;
+    char printBuffer[256];
+
+    LastCounter = EndCounter;
   }
   printf("Finished!\n");
   return 0;

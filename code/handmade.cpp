@@ -615,8 +615,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         }
       }
 
-      NewVelocity.x *= 512 * Input->DeltaTime;
-      NewVelocity.y *= 512 * Input->DeltaTime;
+      NewVelocity.x *= 768 * Input->DeltaTime;
+      NewVelocity.y *= 768 * Input->DeltaTime;
       Entity->v = NewVelocity;
     }
     if (Controller->Menu.EndedDown) {
