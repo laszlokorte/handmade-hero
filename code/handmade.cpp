@@ -161,8 +161,8 @@ internal void GameOutputSound(bool muted, game_sound_state *SoundState,
     }
 
     int16 finalSample = (int16)SampleValue;
-    *SampleOut++ = SampleValue;
-    *SampleOut++ = SampleValue;
+    *SampleOut++ = finalSample;
+    *SampleOut++ = finalSample;
   }
 }
 
