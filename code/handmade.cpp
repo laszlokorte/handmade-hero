@@ -360,7 +360,7 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
 
 internal tile_chunk *GetOrCreateTileChunk(memory_arena *Arena, tile_map *Map,
                                           int ChunkX, int ChunkY) {
-  for (int i = 0; i < Map->MaxChunks; i++) {
+  for (memory_index i = 0; i < Map->MaxChunks; i++) {
     uint32 Hash = (ChunkX * 7 + ChunkY * 13 + i * 11) % Map->MaxChunks;
 
     tile_hash_entry *Entry = &Map->Chunks[Hash];
@@ -393,7 +393,7 @@ internal tile_chunk *GetOrCreateTileChunk(memory_arena *Arena, tile_map *Map,
 }
 
 internal tile_chunk *GetTileChunk(tile_map *Map, int ChunkX, int ChunkY) {
-  for (int i = 0; i < Map->MaxChunks; i++) {
+  for (memory_index i = 0; i < Map->MaxChunks; i++) {
     uint32 Hash = (ChunkX * 7 + ChunkY * 13 + i * 11) % Map->MaxChunks;
 
     tile_hash_entry Entry = Map->Chunks[Hash];
@@ -948,7 +948,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
            (real32)min(100, (int32)RenderBuffer->Viewport.Height),
            render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
 
-  for (int m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
+  for (size_t m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
     game_button_state Button = Input->Mouse.Buttons[m];
     PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
              (real32)Input->Mouse.MouseY + 10.0f * Button.HalfTransitionCount,

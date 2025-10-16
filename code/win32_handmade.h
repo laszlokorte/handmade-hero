@@ -1,4 +1,3 @@
-#include "renderer.h"
 #if !defined(WIN32_HANDMADE_H)
 
 #include "handmade.h"
@@ -11,6 +10,7 @@
 #include <timeapi.h>
 
 #include "work_queue.h"
+#include "renderer.h"
 
 global_variable bool GlobalTransparent;
 
