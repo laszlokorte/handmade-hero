@@ -220,6 +220,27 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
   app->Game.GameUpdateAndRender(&Context, &app->GameMemory,
                                 &app->GameInputs[app->CurrentGameInputIndex],
                                 &app->RenderBuffer);
+
+  float oct = sqrt(12.0);
+  static double phase = 0;
+
+  short buffer[1024];
+  double phase_inc = pow(2, 1 / oct) * 2 * M_PI * 440.0 / 44100;
+  for (int i = 0; i < 1024; i++) {
+    buffer[i] = (short)(1000.0 * sin(phase));
+    phase += phase_inc;
+    if (phase >= 2 * M_PI)
+      phase -= 2 * M_PI;
+  }
+
+  int rc = snd_pcm_writei(app->PCM, buffer, 1024);
+  if (rc == -EPIPE) {
+    snd_pcm_prepare(app->PCM);
+    printf("undederrun\n");
+  } else if (rc < 0) {
+    fprintf(stderr, "Error writing to PCM device: %s\n", snd_strerror(rc));
+  }
+
   app->GLState.Vertices.Count = 0;
 
   glEnable(GL_BLEND);
@@ -545,6 +566,24 @@ int main() {
   LinuxLoadGame(&LinuxState.Game);
 
   LinuxSetupGameMemory(&LinuxState, &LinuxState.GameMemory);
+  snd_pcm_t *pcm;
+  snd_pcm_hw_params_t *params;
+  int err;
+
+  snd_pcm_open(&pcm, "default", SND_PCM_STREAM_PLAYBACK, 0);
+  snd_pcm_hw_params_malloc(&params);
+  snd_pcm_hw_params_any(pcm, params);
+  snd_pcm_hw_params_set_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED);
+  snd_pcm_hw_params_set_format(pcm, params, SND_PCM_FORMAT_S16_LE);
+  snd_pcm_hw_params_set_channels(pcm, params, 1);
+  snd_pcm_hw_params_set_rate(pcm, params, 44100, 0);
+  snd_pcm_hw_params_set_buffer_size(pcm, params, 2048);
+  snd_pcm_hw_params_set_period_size(pcm, params, 256, 0);
+  snd_pcm_hw_params(pcm, params);
+  snd_pcm_hw_params_free(params);
+  snd_pcm_prepare(pcm);
+
+  LinuxState.PCM = pcm;
 
   struct wl_display *display = wl_display_connect(0);
   if (!display) {
