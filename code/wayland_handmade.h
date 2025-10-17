@@ -21,38 +21,39 @@
 
 #include "handmade.h"
 
+struct gl_vertex {
+  float pos[2];
+  float col[4];
+};
+
+struct gl_vertices {
+  size_t Capacity;
+  size_t Count;
+  gl_vertex *Buffer;
+};
 struct gl_state {
   GLint uniformOffset;
+  GLuint vertexBufferIndex;
+
+  gl_vertices Vertices;
 };
 
-struct app_state {
-  struct wl_display *display;
-  struct wl_surface *surface;
-  struct wl_egl_window *egl_window;
-
-  EGLDisplay egl_display;
-  EGLSurface egl_surface;
-  EGLContext egl_context;
-  int width;
-  int height;
-  int configured;
-
-  struct gl_state GLState;
-};
-static struct app_state app = {0};
-
-static GLfloat verts[] = {-0.5f, 0.5f, -0.5f, -0.5f, 0.5f, -0.5f,
-                          0.5f,  0.5f, -0.5f, 0.5f,  0.5f, -0.5f};
-static int VertexCount = 6;
+struct app_state {};
 
 static const char *VertexShaderSource =
     "uniform vec2 offset;\n"
     "attribute vec2 pos;\n"
-    "void main(){ gl_Position = vec4(pos + offset, 0.0, 1.0); }\n";
+    "attribute vec4 color;\n"
+    "varying vec4 varColor;\n"
+    "void main(){ \n"
+    "  gl_Position = vec4(pos + offset, 0.0, 1.0);\n"
+    "  varColor = vec4(color.rgb,1.0); \n"
+    "}\n";
 
 static const char *FragmentShaderSource =
     "precision mediump float;\n"
-    "void main(){ gl_FragColor = vec4(0.1, 0.8, 0.7, 1.0); }\n";
+    "varying vec4 varColor;\n"
+    "void main(){ gl_FragColor = varColor; }\n";
 
 void frame_new(void *data, struct wl_callback *cb, uint32_t a);
 
@@ -104,11 +105,26 @@ struct linux_thread_pool {
 
 struct linux_state {
   bool Running;
+  bool Configured;
   float WindowWidth;
   float WindowHeight;
 
+  struct wl_display *Display;
+  struct wl_surface *Surface;
+  struct wl_egl_window *EglWindow;
+
+  EGLDisplay EglDisplay;
+  EGLSurface EglSurface;
+  EGLContext EglContext;
+
+  struct gl_state GLState;
+
   linux_screen_buffer ScreenBuffer;
   linux_game Game;
+
+  game_input GameInputs[2];
+  size_t CurrentGameInputIndex;
+  game_memory GameMemory;
 
   size_t TotalMemorySize;
   void *GameMemoryBlock;
