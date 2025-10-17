@@ -361,7 +361,7 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
 internal tile_chunk *GetOrCreateTileChunk(memory_arena *Arena, tile_map *Map,
                                           int ChunkX, int ChunkY) {
   for (memory_index i = 0; i < Map->MaxChunks; i++) {
-    uint32 Hash = (ChunkX * 7 + ChunkY * 13 + i * 11) % Map->MaxChunks;
+    memory_index Hash = (ChunkX * 7 + ChunkY * 13 + i * 11) % Map->MaxChunks;
 
     tile_hash_entry *Entry = &Map->Chunks[Hash];
     if (Entry->Removed || Entry->Chunk == 0) {
@@ -394,7 +394,7 @@ internal tile_chunk *GetOrCreateTileChunk(memory_arena *Arena, tile_map *Map,
 
 internal tile_chunk *GetTileChunk(tile_map *Map, int ChunkX, int ChunkY) {
   for (memory_index i = 0; i < Map->MaxChunks; i++) {
-    uint32 Hash = (ChunkX * 7 + ChunkY * 13 + i * 11) % Map->MaxChunks;
+    memory_index Hash = (ChunkX * 7 + ChunkY * 13 + i * 11) % Map->MaxChunks;
 
     tile_hash_entry Entry = Map->Chunks[Hash];
     if (Entry.Removed) {
@@ -961,7 +961,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                  : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
 
     if (Button.HalfTransitionCount > 0 && Button.EndedDown) {
-      GamePlaySound(&GameState->SoundState, m - 10, 7000, 1, 0);
+      GamePlaySound(&GameState->SoundState, (int) m - 10, 7000, 1, 0);
     }
   }
   Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask, GameState);
