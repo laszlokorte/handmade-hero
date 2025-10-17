@@ -6,6 +6,8 @@
 #include <string.h>
 #include <wayland-client.h>
 #include <wayland-client-protocol.h>
+#include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-keysyms.h>
 
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
@@ -21,9 +23,56 @@
 
 #include "handmade.h"
 
+union v4 {
+  struct {
+    float x;
+    float y;
+    float z;
+    float w;
+  };
+  struct {
+    float r;
+    float g;
+    float b;
+    float a;
+  };
+  float vals[4];
+};
+
+union v3 {
+  struct {
+    float x;
+    float y;
+    float z;
+  };
+  struct {
+    float r;
+    float g;
+    float b;
+  };
+  float vals[3];
+};
+union v2 {
+  struct {
+    float x;
+    float y;
+  };
+  float vals[2];
+};
+
+union m33 {
+  v3 rows[3];
+  float entries[3 * 3];
+};
+
+union m44 {
+  v4 rows[4];
+  float entries[4 * 4];
+};
+
 struct gl_vertex {
-  float pos[2];
-  float col[4];
+  v2 pos;
+  v4 color;
 };
 
 struct gl_vertices {
@@ -31,8 +80,11 @@ struct gl_vertices {
   size_t Count;
   gl_vertex *Buffer;
 };
+struct gl_uniforms {
+  GLint ViewMatrix;
+};
 struct gl_state {
-  GLint uniformOffset;
+  gl_uniforms Uniforms;
   GLuint vertexBufferIndex;
 
   gl_vertices Vertices;
@@ -41,13 +93,14 @@ struct gl_state {
 struct app_state {};
 
 static const char *VertexShaderSource =
-    "uniform vec2 offset;\n"
+    "uniform mat3 viewMatrix;\n"
     "attribute vec2 pos;\n"
     "attribute vec4 color;\n"
     "varying vec4 varColor;\n"
     "void main(){ \n"
-    "  gl_Position = vec4(pos + offset, 0.0, 1.0);\n"
-    "  varColor = vec4(color.rgb,1.0); \n"
+    "  vec2 newPos = (viewMatrix * vec3(pos,1.0)).xy;"
+    "  gl_Position = vec4(newPos, 0.0, 1.0);\n"
+    "  varColor = color; \n"
     "}\n";
 
 static const char *FragmentShaderSource =
@@ -116,6 +169,10 @@ struct linux_state {
   EGLDisplay EglDisplay;
   EGLSurface EglSurface;
   EGLContext EglContext;
+
+  xkb_context *XKbdContext;
+  xkb_keymap *XKbdKeyMap;
+  xkb_state *XKbdState;
 
   struct gl_state GLState;
 

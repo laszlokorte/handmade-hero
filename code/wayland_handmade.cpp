@@ -1,5 +1,9 @@
 #include "wayland_handmade.h"
+#include "handmade.h"
+#include <GLES2/gl2.h>
 #include <cstdint>
+#include <wayland-client-protocol.h>
+#include <xkbcommon/xkbcommon-keysyms.h>
 
 struct wl_compositor *comp;
 struct wl_surface *surface;
@@ -9,6 +13,47 @@ struct xdg_toplevel *surface_top_level;
 struct wl_seat *seat;
 struct wl_keyboard *kb;
 uint8_t cls;
+
+void m3Mul(m33 *a, m33 *b, m33 *t) {
+  m33 res = {0};
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 3; ++k) {
+        res.rows[i].vals[j] += a->rows[i].vals[k] * b->rows[k].vals[j];
+      }
+    }
+  }
+  t->rows[0] = res.rows[0];
+  t->rows[1] = res.rows[1];
+  t->rows[2] = res.rows[2];
+}
+
+void m3MakeIdentity(m33 *mat) {
+  mat->rows[0] = {0};
+  mat->rows[1] = {0};
+  mat->rows[2] = {0};
+  mat->rows[0].vals[0] = 1.0;
+  mat->rows[1].vals[1] = 1.0;
+  mat->rows[2].vals[2] = 1.0;
+}
+void m3makeScale(m33 *mat, float x, float y) {
+  mat->rows[0] = {0};
+  mat->rows[1] = {0};
+  mat->rows[2] = {0};
+  mat->rows[0].vals[0] = x;
+  mat->rows[1].vals[1] = y;
+  mat->rows[2].vals[2] = 1;
+}
+void m3makeTranslate(m33 *mat, float x, float y) {
+  mat->rows[0] = {0};
+  mat->rows[1] = {0};
+  mat->rows[2] = {0};
+  mat->rows[0].vals[0] = 1;
+  mat->rows[1].vals[1] = 1;
+  mat->rows[2].vals[0] = x;
+  mat->rows[2].vals[1] = y;
+  mat->rows[2].vals[2] = 1;
+}
 
 static void GlPushQuad(gl_vertices *Vertices, float x0, float y0, float x1,
                        float y1, float r, float g, float b, float a) {
@@ -176,6 +221,10 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
                                 &app->GameInputs[app->CurrentGameInputIndex],
                                 &app->RenderBuffer);
   app->GLState.Vertices.Count = 0;
+
+  glEnable(GL_BLEND);
+  glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE,
+                      GL_ONE_MINUS_SRC_ALPHA);
   for (uint32 ri = 0; ri < app->RenderBuffer.Count; ri += 1) {
 
     render_command *RCmd = &app->RenderBuffer.Base[ri];
@@ -212,21 +261,57 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
     } break;
     }
   }
-  GlPushQuad(&app->GLState.Vertices, -0.5, -0.5, 0.5, 0.5, 1.0, 1.0, 0.0, 0.0);
 
   glBindBuffer(GL_ARRAY_BUFFER, app->GLState.vertexBufferIndex);
   glBufferData(GL_ARRAY_BUFFER, sizeof(gl_vertex) * app->GLState.Vertices.Count,
                app->GLState.Vertices.Buffer, GL_STATIC_DRAW);
 
   glViewport(0, 0, app->WindowWidth, app->WindowHeight);
-  glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+  glClearColor(0.1f, 0.1f, 0.1f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
-  glUniform2f(app->GLState.uniformOffset, Player.PosX / 100.0,
-              -Player.PosY / 100.0);
+  m33 ViewMatrix = {};
+  m33 OpMatrix = {};
+  m3MakeIdentity(&ViewMatrix);
+  m3makeScale(&OpMatrix, 2.0f / app->RenderBuffer.Viewport.Width,
+              -2.0f / app->RenderBuffer.Viewport.Height);
+  m3Mul(&OpMatrix, &ViewMatrix, &ViewMatrix);
+  m3makeTranslate(&OpMatrix, app->RenderBuffer.Viewport.Width / -2.0f,
+                  app->RenderBuffer.Viewport.Height / -2.0);
+
+  m3Mul(&OpMatrix, &ViewMatrix, &ViewMatrix);
+  glUniformMatrix3fv(app->GLState.Uniforms.ViewMatrix, 1, false,
+                     ViewMatrix.entries);
   glDrawArrays(GL_TRIANGLES, 0, app->GLState.Vertices.Count);
   eglSwapBuffers(app->EglDisplay, app->EglSurface);
   wl_surface_commit(app->Surface);
   wl_display_flush(app->Display);
+  app->CurrentGameInputIndex = (app->CurrentGameInputIndex + 1) % 2;
+
+  game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
+  game_input *OldInput = &app->GameInputs[1 - app->CurrentGameInputIndex];
+
+  game_controller_input *KeyBoardController = &NewInput->Controllers[0];
+  game_controller_input *OldKeyBoardController = &OldInput->Controllers[0];
+
+  game_mouse_input *Mouse = &NewInput->Mouse;
+  game_mouse_input *OldMouse = &OldInput->Mouse;
+
+  game_controller_input reset_controller = {};
+  game_mouse_input reset_mouse = {};
+
+  reset_mouse.MouseX = OldMouse->MouseX;
+  reset_mouse.MouseY = OldMouse->MouseY;
+  for (size_t b = 0; b < ArrayCount(reset_mouse.Buttons); b++) {
+    reset_mouse.Buttons[b].EndedDown = OldMouse->Buttons[b].EndedDown;
+  }
+
+  for (size_t b = 0; b < ArrayCount(reset_controller.Buttons); b++) {
+    reset_controller.Buttons[b].EndedDown =
+        OldKeyBoardController->Buttons[b].EndedDown;
+  }
+
+  *KeyBoardController = reset_controller;
+  *Mouse = reset_mouse;
 }
 
 void xrfc_conf(void *data, struct xdg_surface *xrfc, uint32_t ser) {
@@ -283,7 +368,45 @@ void sh_ping(void *data, struct xdg_wm_base *sh, uint32_t ser) {
 struct xdg_wm_base_listener sh_list = {.ping = sh_ping};
 
 void kb_map(void *data, struct wl_keyboard *kb, uint32_t frmt, int32_t fd,
-            uint32_t sz) {}
+            uint32_t size) {
+
+  struct linux_state *app = (linux_state *)data;
+
+  // 1. Read the keymap string from fd
+  char *keymap_string = (char *)malloc(size + 1);
+  if (!keymap_string)
+    return;
+
+  ssize_t n = read(fd, keymap_string, size);
+  close(fd);
+  if (n != size) {
+    fprintf(stderr, "Failed to read keymap from fd\n");
+    free(keymap_string);
+    return;
+  }
+  keymap_string[size] = '\0'; // null-terminate
+
+  struct xkb_context *ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+
+  app->XKbdContext = ctx;
+  //
+  // 2. Create a keymap (e.g., from string from wl_keyboard.keymap event)
+  struct xkb_keymap *keymap =
+      xkb_keymap_new_from_string(ctx, keymap_string, XKB_KEYMAP_FORMAT_TEXT_V1,
+                                 XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+  if (!keymap) {
+    fprintf(stderr, "Failed to create XKB keymap\n");
+    xkb_context_unref(ctx);
+    free(keymap_string);
+    return;
+  }
+  app->XKbdKeyMap = keymap;
+  free(keymap_string);
+
+  // 3. Create the state from the keymap
+  app->XKbdState = xkb_state_new(keymap);
+}
 
 void kb_enter(void *data, struct wl_keyboard *kb, uint32_t ser,
               struct wl_surface *surface, struct wl_array *keys) {}
@@ -293,30 +416,85 @@ void kb_leave(void *data, struct wl_keyboard *kb, uint32_t ser,
 
 void kb_key(void *data, struct wl_keyboard *kb, uint32_t ser, uint32_t t,
             uint32_t key, uint32_t stat) {
-  if (stat == 1) {
+  struct linux_state *app = (linux_state *)data;
 
-    if (key == 1 || key == 16) {
-      cls = 1;
-    } else if (key == 30) {
-      Player.PosX -= 10;
-      // printf("a\n");
-    } else if (key == 17) {
-      Player.PosY -= 10;
-      // printf("w\n");
-    } else if (key == 31) {
-      Player.PosY += 10;
-      // printf("s\n");
-    } else if (key == 32) {
-      Player.PosX += 10;
-      // printf("d\n");
-    } else {
-      printf("%d\n", key);
-    }
+  game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
+  game_input *OldInput = &app->GameInputs[1 - app->CurrentGameInputIndex];
+
+  game_controller_input *KeyBoardController = &NewInput->Controllers[0];
+  game_controller_input *OldKeyBoardController = &OldInput->Controllers[0];
+
+  bool IsDown = stat == WL_KEYBOARD_KEY_STATE_PRESSED;
+  bool WasDown = stat == !IsDown;
+  bool AltIsDown = false;
+  xkb_keysym_t sym = xkb_state_key_get_one_sym(app->XKbdState, key + 8);
+  if (sym == XKB_KEY_q || sym == XKB_KEY_Q) {
+    KeyBoardController->LeftShoulder.EndedDown = IsDown;
+    KeyBoardController->LeftShoulder.HalfTransitionCount +=
+        IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_e || sym == XKB_KEY_E) {
+    KeyBoardController->RightShoulder.EndedDown = IsDown;
+    KeyBoardController->RightShoulder.HalfTransitionCount +=
+        IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_w || sym == XKB_KEY_W) {
+    KeyBoardController->MoveUp.EndedDown = IsDown;
+    KeyBoardController->MoveUp.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_a || sym == XKB_KEY_A) {
+    KeyBoardController->MoveLeft.EndedDown = IsDown;
+    KeyBoardController->MoveLeft.HalfTransitionCount +=
+        IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_s || sym == XKB_KEY_S) {
+    KeyBoardController->MoveDown.EndedDown = IsDown;
+    KeyBoardController->MoveDown.HalfTransitionCount +=
+        IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_d || sym == XKB_KEY_D) {
+    KeyBoardController->MoveRight.EndedDown = IsDown;
+    KeyBoardController->MoveRight.HalfTransitionCount +=
+        IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_Up) {
+    KeyBoardController->ActionUp.EndedDown = IsDown;
+    KeyBoardController->ActionUp.HalfTransitionCount +=
+        IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_Down) {
+    KeyBoardController->ActionDown.EndedDown = IsDown;
+    KeyBoardController->ActionDown.HalfTransitionCount +=
+        IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_Left) {
+    KeyBoardController->ActionLeft.EndedDown = IsDown;
+    KeyBoardController->ActionLeft.HalfTransitionCount +=
+        IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_Right) {
+    KeyBoardController->ActionRight.EndedDown = IsDown;
+    KeyBoardController->ActionRight.HalfTransitionCount +=
+        IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_Escape) {
+    KeyBoardController->Menu.EndedDown = IsDown;
+    KeyBoardController->Menu.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
+  }
+  if (sym == XKB_KEY_BackSpace) {
+    KeyBoardController->Back.EndedDown = IsDown;
+    KeyBoardController->Back.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
   }
 }
 
-void kb_mod(void *data, struct wl_keyboard *kb, uint32_t ser, uint32_t dep,
-            uint32_t lat, uint32_t lock, uint32_t grp) {}
+void kb_mod(void *data, struct wl_keyboard *keyboard, uint32_t serial,
+            uint32_t mods_depressed, uint32_t mods_latched,
+            uint32_t mods_locked, uint32_t group) {
+  struct linux_state *app = (linux_state *)data;
+
+  xkb_state_update_mask(app->XKbdState, mods_depressed, mods_latched,
+                        mods_locked, 0, 0, group);
+}
 
 void kb_rep(void *data, struct wl_keyboard *kb, int32_t rate, int32_t del) {}
 
@@ -330,7 +508,7 @@ struct wl_keyboard_listener kb_list = {.keymap = kb_map,
 void seat_cap(void *data, struct wl_seat *seat, uint32_t cap) {
   if (cap & WL_SEAT_CAPABILITY_KEYBOARD && !kb) {
     kb = wl_seat_get_keyboard(seat);
-    wl_keyboard_add_listener(kb, &kb_list, 0);
+    wl_keyboard_add_listener(kb, &kb_list, data);
   }
 }
 
@@ -349,7 +527,7 @@ void registry_global(void *data, struct wl_registry *reg, uint32_t name,
     xdg_wm_base_add_listener(sh, &sh_list, 0);
   } else if (!strcmp(intf, wl_seat_interface.name)) {
     seat = (wl_seat *)wl_registry_bind(reg, name, &wl_seat_interface, 1);
-    wl_seat_add_listener(seat, &seat_list, 0);
+    wl_seat_add_listener(seat, &seat_list, data);
   }
 }
 
@@ -375,7 +553,7 @@ int main() {
   }
   LinuxState.Display = display;
   struct wl_registry *reg = wl_display_get_registry(display);
-  wl_registry_add_listener(reg, &registry_listener, 0);
+  wl_registry_add_listener(reg, &registry_listener, &LinuxState);
   wl_display_roundtrip(display);
 
   surface = wl_compositor_create_surface(comp);
@@ -456,7 +634,9 @@ int main() {
 
   // printf("%lu\n", LinuxState.GLState.Vertices.Count);
   // printf("%lu\n", sizeof(((gl_vertex){0}).pos));
-  LinuxState.GLState.uniformOffset = glGetUniformLocation(prog, "offset");
+  LinuxState.GLState.Uniforms.ViewMatrix =
+      glGetUniformLocation(prog, "viewMatrix");
+  // printf("%d\n", LinuxState.GLState.Uniforms.ViewMatrix);
   glGenBuffers(1, &LinuxState.GLState.vertexBufferIndex);
 
   glBindBuffer(GL_ARRAY_BUFFER, LinuxState.GLState.vertexBufferIndex);
