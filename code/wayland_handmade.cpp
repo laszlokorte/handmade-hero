@@ -197,15 +197,31 @@ static GLuint compile_shader(GLenum type, const char *src) {
   return s;
 }
 
-typedef struct player {
-  int32_t PosX;
-  int32_t PosY;
-} player;
+void *audio_thread(void *arg) {
+  linux_state *app = (linux_state *)arg;
+  short buffer[2048];
+  while (app->Running) {
 
-struct player Player = {
-    .PosX = 0,
-    .PosY = 0,
-};
+    game_sound_output_buffer GameSoundBuffer = {};
+    GameSoundBuffer.SamplesPerSecond = 44100;
+    GameSoundBuffer.SampleCount = 1024; // SoundBuffer.SamplesPerSecond / 30;
+    GameSoundBuffer.Samples = buffer;
+
+    thread_context Context = {0};
+
+    app->Game.GameGetSoundSamples(&Context, &app->GameMemory, &GameSoundBuffer);
+
+    int rc = snd_pcm_writei(app->PCM, buffer, 1024);
+    if (rc == -EPIPE) {
+      snd_pcm_prepare(app->PCM);
+      printf("undederrun\n");
+    } else if (rc < 0) {
+      fprintf(stderr, "Error writing to PCM device: %s\n", snd_strerror(rc));
+    }
+  }
+  return 0;
+}
+
 static struct wl_callback_listener cb_list = {.done = frame_new};
 void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
   struct linux_state *app = (linux_state *)data;
@@ -220,22 +236,6 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
   app->Game.GameUpdateAndRender(&Context, &app->GameMemory,
                                 &app->GameInputs[app->CurrentGameInputIndex],
                                 &app->RenderBuffer);
-
-  short buffer[2048];
-  game_sound_output_buffer GameSoundBuffer = {};
-  GameSoundBuffer.SamplesPerSecond = 44100;
-  GameSoundBuffer.SampleCount = 1024; // SoundBuffer.SamplesPerSecond / 30;
-  GameSoundBuffer.Samples = buffer;
-
-  app->Game.GameGetSoundSamples(&Context, &app->GameMemory, &GameSoundBuffer);
-
-  int rc = snd_pcm_writei(app->PCM, buffer, 1024);
-  if (rc == -EPIPE) {
-    snd_pcm_prepare(app->PCM);
-    printf("undederrun\n");
-  } else if (rc < 0) {
-    fprintf(stderr, "Error writing to PCM device: %s\n", snd_strerror(rc));
-  }
 
   app->GLState.Vertices.Count = 0;
 
@@ -580,6 +580,10 @@ int main() {
   snd_pcm_prepare(pcm);
 
   LinuxState.PCM = pcm;
+  pthread_t thread;
+  pthread_create(&thread, NULL, audio_thread, &LinuxState);
+
+  LinuxState.AudioThread = thread;
 
   struct wl_display *display = wl_display_connect(0);
   if (!display) {

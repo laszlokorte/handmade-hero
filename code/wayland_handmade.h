@@ -1,6 +1,7 @@
 #if !defined(WAYLAND_HANDMADE_H)
 
 #include <alsa/asoundlib.h>
+#include <pthread.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -177,6 +178,7 @@ struct linux_state {
   xkb_state *XKbdState;
 
   snd_pcm_t *PCM;
+  pthread_t AudioThread;
 
   struct gl_state GLState;
 
