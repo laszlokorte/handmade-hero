@@ -221,17 +221,13 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
                                 &app->GameInputs[app->CurrentGameInputIndex],
                                 &app->RenderBuffer);
 
-  float oct = sqrt(12.0);
-  static double phase = 0;
+  short buffer[2048];
+  game_sound_output_buffer GameSoundBuffer = {};
+  GameSoundBuffer.SamplesPerSecond = 44100;
+  GameSoundBuffer.SampleCount = 1024; // SoundBuffer.SamplesPerSecond / 30;
+  GameSoundBuffer.Samples = buffer;
 
-  short buffer[1024];
-  double phase_inc = pow(2, 1 / oct) * 2 * M_PI * 440.0 / 44100;
-  for (int i = 0; i < 1024; i++) {
-    buffer[i] = (short)(1000.0 * sin(phase));
-    phase += phase_inc;
-    if (phase >= 2 * M_PI)
-      phase -= 2 * M_PI;
-  }
+  app->Game.GameGetSoundSamples(&Context, &app->GameMemory, &GameSoundBuffer);
 
   int rc = snd_pcm_writei(app->PCM, buffer, 1024);
   if (rc == -EPIPE) {
@@ -575,7 +571,7 @@ int main() {
   snd_pcm_hw_params_any(pcm, params);
   snd_pcm_hw_params_set_access(pcm, params, SND_PCM_ACCESS_RW_INTERLEAVED);
   snd_pcm_hw_params_set_format(pcm, params, SND_PCM_FORMAT_S16_LE);
-  snd_pcm_hw_params_set_channels(pcm, params, 1);
+  snd_pcm_hw_params_set_channels(pcm, params, 2);
   snd_pcm_hw_params_set_rate(pcm, params, 44100, 0);
   snd_pcm_hw_params_set_buffer_size(pcm, params, 2048);
   snd_pcm_hw_params_set_period_size(pcm, params, 256, 0);
