@@ -527,7 +527,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 3, TILE_WALL);
 
     Memory->Initialized = true;
-
   }
 
   if (GameState->JumpTime > 0) {
@@ -591,14 +590,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
               &GameState->Entities[GameState->EntityCount];
           GameState->CameraTrack = &GameState->Entities[GameState->EntityCount];
           GameState->EntityCount++;
-          Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask, GameState);
+          Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask,
+                                          GameState);
         }
       } else {
         game_velocity v0 = {};
         GameState->ControllerMap.controllers[c]->v = v0;
         GameState->ControllerMap.controllers[c] = 0;
-        Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask2, GameState);
+        Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask2,
+                                        GameState);
       }
+      Memory->PlatformWaitForQueueToFinish(Memory->TaskQueue);
     }
     game_entity *Entity = GameState->ControllerMap.controllers[c];
     if (Entity) {

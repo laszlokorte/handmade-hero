@@ -2,7 +2,7 @@
 #include <AppKit/AppKit.h>
 #include <Carbon/Carbon.h>
 #include <time.h>
-#include <semaphore.h>    // for sem_t, sem_init, sem_post, sem_wait
+#include <semaphore.h>
 #include <mach/mach_time.h>
 
 #include "handmade.h"

@@ -2,6 +2,8 @@
 
 #include <alsa/asoundlib.h>
 #include <pthread.h>
+#include <semaphore.h>
+#include <atomic>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -139,13 +141,12 @@ struct work_queue {
   size_t Size;
   linux_work_queue_task *Base;
 
-  uint32 volatile NextWrite;
-  uint32 volatile NextRead;
+  std::atomic<unsigned int> NextWrite;
+  std::atomic<unsigned int> NextRead;
+  std::atomic<long long> CompletionGoal;
+  std::atomic<long long> CompletionCount;
 
-  size_t volatile CompletionGoal;
-  size_t volatile CompletionCount;
-
-  void *SemaphoreHandle;
+  sem_t Semaphore;
 };
 
 struct linux_thread_info {

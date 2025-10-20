@@ -5,6 +5,8 @@
 #include <wayland-client-protocol.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "linux_work_queue.cpp"
+
 struct wl_compositor *comp;
 struct wl_surface *surface;
 struct wl_buffer *bfr;
@@ -163,17 +165,17 @@ void LinuxSetupGameMemory(linux_state *LinuxState, game_memory *GameMemory) {
                          (render_command *)(GameMemory->PermanentStorage +
                                             GameMemory->PermanentStorageSize +
                                             GameMemory->TransientStorageSize));
-  // InitializeWorkQueue(
-  //     &LinuxState->WorkQueue, WorkQueueLength,
-  //     (win32_work_queue_task *)(GameMemory->PermanentStorage +
-  //                               GameMemory->PermanentStorageSize +
-  //                               GameMemory->TransientStorageSize +
-  //                               RenderBufferSize));
+  InitializeWorkQueue(
+      &LinuxState->WorkQueue, WorkQueueLength,
+      (linux_work_queue_task *)(GameMemory->PermanentStorage +
+                                GameMemory->PermanentStorageSize +
+                                GameMemory->TransientStorageSize +
+                                RenderBufferSize));
 
   GameMemory->TaskQueue = &LinuxState->WorkQueue;
-  GameMemory->PlatformPushTaskToQueue = PushTaskToQueueNoop; //&PushTaskToQueue;
+  GameMemory->PlatformPushTaskToQueue = PushTaskToQueue; //&PushTaskToQueue;
   GameMemory->PlatformWaitForQueueToFinish =
-      WaitForQueueToFinishNoop; //&WaitForQueueToFinish;
+      WaitForQueueToFinish; //&WaitForQueueToFinish;
   GameMemory->DebugPlatformReadEntireFile =
       PlatformReadEntireFileNoop; //&DEBUGPlatformReadEntireFile;
   GameMemory->DebugPlatformFreeFileMemory =
