@@ -7,6 +7,7 @@
 #include <QuartzCore/QuartzCore.h>
 #include <mach-o/dyld.h>
 #include <sys/stat.h>
+#include "macos_work_queue.mm"
 
 #define USE_METAL
 #define USE_AUDIO
@@ -33,6 +34,15 @@ WAIT_FOR_QUEUE_TO_FINISH(WaitForQueueToFinishNoop) {}
 GAME_UPDATE_AND_RENDER(GameUpdateAndRenderNoop) { return false; }
 
 GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesNoop) {}
+
+
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory) {}
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile) {
+  debug_read_file_result Result = {};
+
+  return Result;
+}
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) { return false; }
 
 // Tiny shaders as source string (no .metal file needed)
 typedef struct {
@@ -230,23 +240,23 @@ void MacOsSetupGameMemory(macos_state *MacState, game_memory *GameMemory) {
                          (render_command *)(GameMemory->PermanentStorage +
                                             GameMemory->PermanentStorageSize +
                                             GameMemory->TransientStorageSize));
-  // InitializeWorkQueue(
-  //     &MacState->WorkQueue, WorkQueueLength,
-  //     (win32_work_queue_task *)(GameMemory->PermanentStorage +
-  //                               GameMemory->PermanentStorageSize +
-  //                               GameMemory->TransientStorageSize +
-  //                               RenderBufferSize));
+   InitializeWorkQueue(
+       &MacState->WorkQueue, WorkQueueLength,
+       (macos_work_queue_task *)(GameMemory->PermanentStorage +
+                                 GameMemory->PermanentStorageSize +
+                                 GameMemory->TransientStorageSize +
+                                 RenderBufferSize));
 
   GameMemory->TaskQueue = &MacState->WorkQueue;
-  GameMemory->PlatformPushTaskToQueue = PushTaskToQueueNoop; //&PushTaskToQueue;
+  GameMemory->PlatformPushTaskToQueue = PushTaskToQueue;
   GameMemory->PlatformWaitForQueueToFinish =
-      WaitForQueueToFinishNoop; //&WaitForQueueToFinish;
+      WaitForQueueToFinish;
   GameMemory->DebugPlatformReadEntireFile =
-      PlatformReadEntireFileNoop; //&DEBUGPlatformReadEntireFile;
+      &DEBUGPlatformReadEntireFile;
   GameMemory->DebugPlatformFreeFileMemory =
-      PlatformFreeFileNoop; //&DEBUGPlatformFreeFileMemory;
+      &DEBUGPlatformFreeFileMemory;
   GameMemory->DebugPlatformWriteEntireFile =
-      PlatformWriteEntireFileNoop; //&DEBUGPlatformWriteEntireFile;
+      DEBUGPlatformWriteEntireFile;
 }
 
 inline uint32 lerpColor(real32 t, uint32 c1, uint32 c2) {

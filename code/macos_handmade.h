@@ -1,6 +1,8 @@
+#if !defined(MACOS_HANDMADE_H)
 #include <AppKit/AppKit.h>
 #include <Carbon/Carbon.h>
 #include <time.h>
+#include <semaphore.h>    // for sem_t, sem_init, sem_post, sem_wait
 #include <mach/mach_time.h>
 
 #include "handmade.h"
@@ -33,13 +35,12 @@ struct work_queue {
   size_t Size;
   macos_work_queue_task *Base;
 
-  uint32 volatile NextWrite;
-  uint32 volatile NextRead;
+  _Atomic unsigned int NextWrite;
+  _Atomic unsigned int NextRead;
+  _Atomic long long CompletionGoal;
+  _Atomic long long CompletionCount;
 
-  size_t volatile CompletionGoal;
-  size_t volatile CompletionCount;
-
-  void *SemaphoreHandle;
+  dispatch_semaphore_t Semaphore;
 };
 
 struct macos_thread_info {
@@ -76,3 +77,5 @@ struct mac_audio_buffer {
   uint32 ReadHead;
   uint32 WriteHead;
 };
+#define MACOS_HANDMADE_H
+#endif

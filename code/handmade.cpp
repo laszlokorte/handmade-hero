@@ -14,11 +14,6 @@ int32 min(int32 a, int32 b) {
   }
 }
 
-void TestTask(void *Data) {
-  game_state *State = (game_state *)Data;
-  // State->Muted = false;
-}
-
 global_variable game_state global_game_state = {};
 struct bit_scan_result {
   bool Found;
@@ -475,6 +470,21 @@ void GamePlaySound(game_sound_state *SoundState, int32 Note, int32 Duration,
   SoundState->PlayingSound = PlayingSound;
 }
 
+void TestTask(void *Data) {
+  game_state *GameState = (game_state *)Data;
+
+  GamePlaySound(&GameState->SoundState, 4, 5000, 1.5, 0);
+  GamePlaySound(&GameState->SoundState, 6, 5000, 1.5, 3000);
+  // State->Muted = false;
+}
+void TestTask2(void *Data) {
+  game_state *GameState = (game_state *)Data;
+
+  GamePlaySound(&GameState->SoundState, 1, 5000, 1.5, 0);
+  GamePlaySound(&GameState->SoundState, -1, 5000, 1.5, 3000);
+  // State->Muted = false;
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
@@ -517,6 +527,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 3, TILE_WALL);
 
     Memory->Initialized = true;
+
   }
 
   if (GameState->JumpTime > 0) {
@@ -580,11 +591,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
               &GameState->Entities[GameState->EntityCount];
           GameState->CameraTrack = &GameState->Entities[GameState->EntityCount];
           GameState->EntityCount++;
+          Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask, GameState);
         }
       } else {
         game_velocity v0 = {};
         GameState->ControllerMap.controllers[c]->v = v0;
         GameState->ControllerMap.controllers[c] = 0;
+        Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask2, GameState);
       }
     }
     game_entity *Entity = GameState->ControllerMap.controllers[c];
@@ -961,10 +974,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                  : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
 
     if (Button.HalfTransitionCount > 0 && Button.EndedDown) {
-      GamePlaySound(&GameState->SoundState, (int) m - 10, 7000, 1, 0);
+      GamePlaySound(&GameState->SoundState, (int)m - 10, 7000, 1, 0);
     }
   }
-  Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask, GameState);
 
   Memory->PlatformWaitForQueueToFinish(Memory->TaskQueue);
   GameState->Time++;
