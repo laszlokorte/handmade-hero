@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <wayland-client-protocol.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
+#include <linux/input-event-codes.h>
 
 #include "linux_work_queue.cpp"
 
@@ -98,7 +99,47 @@ __time_t LinuxGetLastWriteTime(const char *filename) {
 
   return lastWrite;
 }
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory) {
+  if (Memory) {
+    free(Memory); // On Linux, we can just free
+  }
+}
 
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile) {
+  debug_read_file_result Result = {0};
+  int fd = open(Filename, O_RDONLY);
+  if (fd != -1) {
+    struct stat st;
+    if (fstat(fd, &st) == 0) {
+      size_t FileSize = (size_t)st.st_size;
+      void *Memory = malloc(FileSize);
+      if (Memory) {
+        ssize_t BytesRead = read(fd, Memory, FileSize);
+        if (BytesRead == (ssize_t)FileSize) {
+          Result.Contents = Memory;
+          Result.ContentSize = FileSize;
+        } else {
+          DEBUGPlatformFreeFileMemory(Context, Memory);
+        }
+      }
+    }
+    close(fd);
+  }
+  return Result;
+}
+
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) {
+  bool Result = false;
+  int fd = open(Filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fd != -1) {
+    ssize_t BytesWritten = write(fd, Memory, MemorySize);
+    if (BytesWritten == (ssize_t)MemorySize) {
+      Result = true;
+    }
+    close(fd);
+  }
+  return Result;
+}
 void LinuxUnloadGame(linux_game *Game) {
   if (Game->GameDLL) {
     dlclose(Game->GameDLL);
@@ -176,12 +217,9 @@ void LinuxSetupGameMemory(linux_state *LinuxState, game_memory *GameMemory) {
   GameMemory->PlatformPushTaskToQueue = PushTaskToQueue; //&PushTaskToQueue;
   GameMemory->PlatformWaitForQueueToFinish =
       WaitForQueueToFinish; //&WaitForQueueToFinish;
-  GameMemory->DebugPlatformReadEntireFile =
-      PlatformReadEntireFileNoop; //&DEBUGPlatformReadEntireFile;
-  GameMemory->DebugPlatformFreeFileMemory =
-      PlatformFreeFileNoop; //&DEBUGPlatformFreeFileMemory;
-  GameMemory->DebugPlatformWriteEntireFile =
-      PlatformWriteEntireFileNoop; //&DEBUGPlatformWriteEntireFile;
+  GameMemory->DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
+  GameMemory->DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
+  GameMemory->DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
 }
 
 static GLuint compile_shader(GLenum type, const char *src) {
@@ -386,6 +424,74 @@ void sh_ping(void *data, struct xdg_wm_base *sh, uint32_t ser) {
 
 struct xdg_wm_base_listener sh_list = {.ping = sh_ping};
 
+static void pointer_handle_enter(void *data, struct wl_pointer *pointer,
+                                 uint32_t serial, struct wl_surface *surface,
+                                 wl_fixed_t sx, wl_fixed_t sy) {
+  // Mouse entered a surface
+}
+
+static void pointer_handle_leave(void *data, struct wl_pointer *pointer,
+                                 uint32_t serial, struct wl_surface *surface) {
+  // Mouse left a surface
+}
+
+static void pointer_handle_motion(void *data, struct wl_pointer *pointer,
+                                  uint32_t time, wl_fixed_t sx, wl_fixed_t sy) {
+
+  struct linux_state *app = (linux_state *)data;
+
+  game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
+
+  game_mouse_input *MouseController = &NewInput->Mouse;
+
+  MouseController->MouseX = wl_fixed_to_int(sx);
+  MouseController->MouseY = wl_fixed_to_int(sy);
+}
+
+static void pointer_handle_button(void *data, struct wl_pointer *pointer,
+                                  uint32_t serial, uint32_t time,
+                                  uint32_t button, uint32_t state) {
+
+  struct linux_state *app = (linux_state *)data;
+
+  game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
+
+  game_mouse_input *MouseController = &NewInput->Mouse;
+
+  game_button_state *MouseButton = 0;
+  switch (button) {
+  case BTN_LEFT: {
+    MouseButton = &MouseController->Left;
+  } break;
+  case BTN_RIGHT: {
+    MouseButton = &MouseController->Right;
+  } break;
+  case BTN_MIDDLE: {
+    MouseButton = &MouseController->Middle;
+  } break;
+  case BTN_EXTRA: {
+    MouseButton = &MouseController->Extra1;
+  } break;
+  case BTN_SIDE: {
+    MouseButton = &MouseController->Extra2;
+  } break;
+  }
+  if (MouseButton != 0) {
+    MouseButton->HalfTransitionCount += 1;
+    MouseButton->EndedDown = state == WL_POINTER_BUTTON_STATE_PRESSED;
+  }
+}
+
+static void pointer_handle_axis(void *data, struct wl_pointer *pointer,
+                                uint32_t time, uint32_t axis,
+                                wl_fixed_t value) {
+  // Scroll wheel
+}
+
+static const struct wl_pointer_listener pointer_listener = {
+    pointer_handle_enter, pointer_handle_leave, pointer_handle_motion,
+    pointer_handle_button, pointer_handle_axis};
+
 void kb_map(void *data, struct wl_keyboard *kb, uint32_t frmt, int32_t fd,
             uint32_t size) {
 
@@ -438,10 +544,8 @@ void kb_key(void *data, struct wl_keyboard *kb, uint32_t ser, uint32_t t,
   struct linux_state *app = (linux_state *)data;
 
   game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
-  game_input *OldInput = &app->GameInputs[1 - app->CurrentGameInputIndex];
 
   game_controller_input *KeyBoardController = &NewInput->Controllers[0];
-  game_controller_input *OldKeyBoardController = &OldInput->Controllers[0];
 
   bool IsDown = stat == WL_KEYBOARD_KEY_STATE_PRESSED;
   bool WasDown = stat == !IsDown;
@@ -528,6 +632,10 @@ void seat_cap(void *data, struct wl_seat *seat, uint32_t cap) {
   if (cap & WL_SEAT_CAPABILITY_KEYBOARD && !kb) {
     kb = wl_seat_get_keyboard(seat);
     wl_keyboard_add_listener(kb, &kb_list, data);
+  }
+  if (cap & WL_SEAT_CAPABILITY_POINTER) {
+    struct wl_pointer *pointer = wl_seat_get_pointer(seat);
+    wl_pointer_add_listener(pointer, &pointer_listener, data);
   }
 }
 

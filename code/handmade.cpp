@@ -510,6 +510,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     char FileName[] = "./data/logo.bmp";
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
+    printf("Logo: %p, Width: %lu, Height: %lu\n", GameState->Logo.Memory,
+           GameState->Logo.Width, GameState->Logo.Height);
     InitializeArena(&GameState->WorldArena,
                     Memory->PermanentStorageSize - sizeof(*GameState) -
                         sizeof(game_sound_synth) * 100,
