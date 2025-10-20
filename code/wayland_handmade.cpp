@@ -199,7 +199,7 @@ static GLuint compile_shader(GLenum type, const char *src) {
 
 void *audio_thread(void *arg) {
   linux_state *app = (linux_state *)arg;
-  short buffer[2048];
+  short buffer[2048] = {0};
   while (app->Running) {
 
     game_sound_output_buffer GameSoundBuffer = {};
