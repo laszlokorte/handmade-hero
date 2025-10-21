@@ -2,6 +2,7 @@
 #include "handmade.h"
 #include <GL/gl.h>
 #include <GL/glext.h>
+#include <GLES2/gl2.h>
 #include <cstdint>
 #include <wayland-client-protocol.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
@@ -61,18 +62,37 @@ void m3makeTranslate(m33 *mat, float x, float y) {
 }
 
 static void GlPushQuad(gl_vertices *Vertices, float x0, float y0, float x1,
-                       float y1, float r, float g, float b, float a) {
+                       float y1, float r, float g, float b, float a,
+                       GLint texture) {
   if (Vertices->Capacity < Vertices->Count + 6) {
     // printf("%lu\n", Vertices->Count);
     // printf("%lu\n", Vertices->Capacity);
     return;
   }
-  Vertices->Buffer[(Vertices->Count)++] = {{x0, y0}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x1, y0}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x0, y1}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x1, y0}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x1, y1}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x0, y1}, {r, g, b, a}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x0, y0},
+      .color = {r, g, b, a},
+      .texCoord = {0.0f, 1.0f, texture > -1 ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x1, y0},
+      .color = {r, g, b, a},
+      .texCoord = {1.0f, 1.0f, texture > -1 ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x0, y1},
+      .color = {r, g, b, a},
+      .texCoord = {0.0f, 0.0f, texture > -1 ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x1, y0},
+      .color = {r, g, b, a},
+      .texCoord = {1.0f, 1.0f, texture > -1 ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x1, y1},
+      .color = {r, g, b, a},
+      .texCoord = {1.0f, 0.0f, texture > -1 ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x0, y1},
+      .color = {r, g, b, a},
+      .texCoord = {0.0f, 0.0f, texture > -1 ? 1.0f : 0.0f}};
 }
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(PlatformFreeFileNoop) {}
@@ -290,15 +310,53 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
     switch (RCmd->Type) {
     case RenderCommandRect: {
       // glColor4f(0.0f,0.0f,0.0f,0.0f);
+      gl_bitmap_slot *LoadedTexture = 0;
       if (RCmd->Rect.Image) {
+        for (int i = 0; i < 10; i++) {
+          if (app->GLState.Bitmaps[i].Bitmap == RCmd->Rect.Image) {
+            LoadedTexture = &app->GLState.Bitmaps[i];
+            break;
+          }
+        }
+        int UseSlot = -1;
+        if (!LoadedTexture) {
+          for (int i = 0; i < 10; i++) {
+            UseSlot = i;
+            if (!app->GLState.Bitmaps[i].Bitmap) {
+              break;
+            }
+          }
+          printf("Load Texture\n");
+          app->GLState.Bitmaps[UseSlot] = {};
+          app->GLState.Bitmaps[UseSlot].Texture = UseSlot;
+          app->GLState.Bitmaps[UseSlot].Bitmap = RCmd->Rect.Image;
+
+          glActiveTexture(GL_TEXTURE0);
+          glBindTexture(GL_TEXTURE_2D, app->GLState.Textures[0]);
+          glTexImage2D(GL_TEXTURE_2D,
+                       0,       // mipmap level
+                       GL_RGBA, // internal format
+                       RCmd->Rect.Image->Width, RCmd->Rect.Image->Height,
+                       0,                // border, must be 0
+                       GL_BGRA,          // format of your data
+                       GL_UNSIGNED_BYTE, // data type
+                       RCmd->Rect.Image->Memory);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        } else {
+          UseSlot = LoadedTexture->Texture;
+        }
         GlPushQuad(&app->GLState.Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
                    RCmd->Rect.MaxX, RCmd->Rect.MaxY, RCmd->Rect.Color.Red,
-                   RCmd->Rect.Color.Green, RCmd->Rect.Color.Blue, 0.3f);
+                   RCmd->Rect.Color.Green, RCmd->Rect.Color.Blue, 0.3f,
+                   UseSlot);
       } else {
         GlPushQuad(&app->GLState.Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
                    RCmd->Rect.MaxX, RCmd->Rect.MaxY, RCmd->Rect.Color.Red,
                    RCmd->Rect.Color.Green, RCmd->Rect.Color.Blue,
-                   RCmd->Rect.Color.Alpha);
+                   RCmd->Rect.Color.Alpha, -1);
       }
 
     } break;
@@ -338,6 +396,7 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
                   app->RenderBuffer.Viewport.Height / -2.0);
 
   m3Mul(&OpMatrix, &ViewMatrix, &ViewMatrix);
+  glUniform1i(app->GLState.Uniforms.Texture, 0); // texture unit 0
   glUniformMatrix3fv(app->GLState.Uniforms.ViewMatrix, 1, false,
                      ViewMatrix.entries);
   glDrawArrays(GL_TRIANGLES, 0, app->GLState.Vertices.Count);
@@ -784,8 +843,12 @@ int main() {
   glAttachShader(prog, fs);
   glBindAttribLocation(prog, 0, "pos");
   glBindAttribLocation(prog, 1, "color");
+  glBindAttribLocation(prog, 2, "texCoord");
   glLinkProgram(prog);
   glUseProgram(prog);
+
+  glGenTextures(10, &LinuxState.GLState.Textures[0]);
+  glBindTexture(GL_TEXTURE_2D, LinuxState.GLState.Textures[0]);
 
   gl_vertex Verts[1000];
   LinuxState.GLState.Vertices.Buffer = Verts;
@@ -805,6 +868,7 @@ int main() {
   // printf("%lu\n", sizeof(((gl_vertex){0}).pos));
   LinuxState.GLState.Uniforms.ViewMatrix =
       glGetUniformLocation(prog, "viewMatrix");
+  LinuxState.GLState.Uniforms.Texture = glGetUniformLocation(prog, "texture");
   // printf("%d\n", LinuxState.GLState.Uniforms.ViewMatrix);
   glGenBuffers(1, &LinuxState.GLState.vertexBufferIndex);
 
@@ -814,9 +878,13 @@ int main() {
                LinuxState.GLState.Vertices.Buffer, GL_STATIC_DRAW);
   glEnableVertexAttribArray(0);
   glEnableVertexAttribArray(1);
+  glEnableVertexAttribArray(2);
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(gl_vertex), 0);
   glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(gl_vertex),
                         (const GLvoid *)sizeof(((gl_vertex){0}).pos));
+  glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(gl_vertex),
+                        (const GLvoid *)(sizeof(((gl_vertex){0}).color) +
+                                         sizeof(((gl_vertex){0}).pos)));
 
   while (wl_display_dispatch(display)) {
     if (cls)

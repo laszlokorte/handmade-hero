@@ -78,6 +78,7 @@ union m44 {
 struct gl_vertex {
   v2 pos;
   v4 color;
+  v3 texCoord;
 };
 
 struct gl_vertices {
@@ -87,9 +88,18 @@ struct gl_vertices {
 };
 struct gl_uniforms {
   GLint ViewMatrix;
+  GLint Texture;
 };
+
+struct gl_bitmap_slot {
+  size_t Texture;
+  void *Bitmap;
+};
+
 struct gl_state {
   gl_uniforms Uniforms;
+  GLuint Textures[10];
+  gl_bitmap_slot Bitmaps[10];
   GLuint vertexBufferIndex;
 
   gl_vertices Vertices;
@@ -101,21 +111,26 @@ static const char *VertexShaderSource =
     "#version 330 core\n"
     "uniform mat3 viewMatrix;\n"
     "in vec2 pos;\n"
-    "in vec2 texUV;\n"
+    "in vec3 texCoord;\n"
     "in vec4 color;\n"
     "out vec4 varColor;\n"
+    "out vec3 texUVW;\n"
     "void main(){ \n"
     "  vec2 newPos = (viewMatrix * vec3(pos,1.0)).xy;"
     "  gl_Position = vec4(newPos, 0.0, 1.0);\n"
     "  varColor = color; \n"
+    "  texUVW = texCoord; \n"
     "}\n";
 
 static const char *FragmentShaderSource =
     "#version 330 core\n"
     "uniform sampler2D texture;\n"
+    "uniform float useTexture;\n"
     "in vec4 varColor;\n"
+    "in vec3 texUVW;\n"
     "out vec4 FragColor;\n"
-    "void main(){ FragColor = varColor; }\n";
+    "void main(){ FragColor = texture2D(texture, texUVW.xy) * texUVW.z + "
+    "varColor * (1.0- texUVW.z); }\n";
 
 void frame_new(void *data, struct wl_callback *cb, uint32_t a);
 
