@@ -98,10 +98,12 @@ struct gl_state {
 struct app_state {};
 
 static const char *VertexShaderSource =
+    "#version 330 core\n"
     "uniform mat3 viewMatrix;\n"
-    "attribute vec2 pos;\n"
-    "attribute vec4 color;\n"
-    "varying vec4 varColor;\n"
+    "in vec2 pos;\n"
+    "in vec2 texUV;\n"
+    "in vec4 color;\n"
+    "out vec4 varColor;\n"
     "void main(){ \n"
     "  vec2 newPos = (viewMatrix * vec3(pos,1.0)).xy;"
     "  gl_Position = vec4(newPos, 0.0, 1.0);\n"
@@ -109,9 +111,11 @@ static const char *VertexShaderSource =
     "}\n";
 
 static const char *FragmentShaderSource =
-    "precision mediump float;\n"
-    "varying vec4 varColor;\n"
-    "void main(){ gl_FragColor = varColor; }\n";
+    "#version 330 core\n"
+    "uniform sampler2D texture;\n"
+    "in vec4 varColor;\n"
+    "out vec4 FragColor;\n"
+    "void main(){ FragColor = varColor; }\n";
 
 void frame_new(void *data, struct wl_callback *cb, uint32_t a);
 

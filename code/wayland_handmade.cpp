@@ -1,13 +1,15 @@
 #include "wayland_handmade.h"
 #include "handmade.h"
-#include <GLES2/gl2.h>
+#include <GL/gl.h>
+#include <GL/glext.h>
 #include <cstdint>
 #include <wayland-client-protocol.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <linux/input-event-codes.h>
 
 #include "linux_work_queue.cpp"
-
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
 struct wl_compositor *comp;
 struct wl_surface *surface;
 struct wl_buffer *bfr;
@@ -742,13 +744,21 @@ int main() {
                    EGL_ALPHA_SIZE,
                    8,
                    EGL_RENDERABLE_TYPE,
-                   EGL_OPENGL_ES2_BIT,
+                   EGL_OPENGL_BIT,
                    EGL_NONE};
   EGLConfig config;
   EGLint ncfg;
   eglChooseConfig(egl_display, attr, &config, 1, &ncfg);
+  eglBindAPI(EGL_OPENGL_API);
 
-  EGLint ctxattr[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
+  EGLint ctxattr[] = {EGL_CONTEXT_MAJOR_VERSION,
+                      3,
+                      EGL_CONTEXT_MINOR_VERSION,
+                      3,
+                      EGL_CONTEXT_OPENGL_PROFILE_MASK,
+                      EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+                      EGL_NONE};
+  ;
   EGLContext egl_context =
       eglCreateContext(egl_display, config, EGL_NO_CONTEXT, ctxattr);
   LinuxState.EglContext = egl_context;
@@ -780,7 +790,17 @@ int main() {
   gl_vertex Verts[1000];
   LinuxState.GLState.Vertices.Buffer = Verts;
   LinuxState.GLState.Vertices.Capacity = 1000;
-
+  printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
+  printf("GL_RENDERER: %s\n", glGetString(GL_RENDERER));
+  printf("GL_VENDOR: %s\n", glGetString(GL_VENDOR));
+  printf("GLSL_VERSION: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+  glGenVertexArrays =
+      (PFNGLGENVERTEXARRAYSPROC)eglGetProcAddress("glGenVertexArrays");
+  glBindVertexArray =
+      (PFNGLBINDVERTEXARRAYPROC)eglGetProcAddress("glBindVertexArray");
+  GLuint vao;
+  glGenVertexArrays(1, &vao);
+  glBindVertexArray(vao);
   // printf("%lu\n", LinuxState.GLState.Vertices.Count);
   // printf("%lu\n", sizeof(((gl_vertex){0}).pos));
   LinuxState.GLState.Uniforms.ViewMatrix =

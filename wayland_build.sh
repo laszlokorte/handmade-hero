@@ -17,5 +17,5 @@ wayland-scanner client-header "$WAYLAND_PROT" "$WAYLAND_PROT_H"
 g++ -std=c++11 -pthread code/handmade.cpp -g -shared -fPIC -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/handmade_game
 if [ "$1" != gameonly ]; then
     gcc "$WAYLAND_PROT_C" -c -o "$WAYLAND_PROT_O"
-    g++ -std=c++11 -pthread code/wayland_handmade.cpp "$WAYLAND_PROT_O" -include "$WAYLAND_PROT_H" -lasound -lxkbcommon -lwayland-client -lwayland-egl -lEGL -lGLESv2 -lm -g -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/wayland_handmade
+    g++ -std=c++11 -pthread code/wayland_handmade.cpp "$WAYLAND_PROT_O" -include "$WAYLAND_PROT_H" -lasound -lxkbcommon -lwayland-client -lwayland-egl -lEGL -lGL -lm -g -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/wayland_handmade
 fi;
