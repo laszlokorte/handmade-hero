@@ -18,7 +18,8 @@ static id<MTLLibrary> gLib;
 static id<MTLRenderPipelineState> gPSO;
 static CAMetalLayer *gLayer;
 static id<MTLBuffer> gVtx;
-
+static id<MTLSamplerState> sampler;
+static id<MTLTexture> texture = 0;
 DEBUG_PLATFORM_FREE_FILE_MEMORY(PlatformFreeFileNoop) {}
 DEBUG_PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFileNoop) {
   debug_read_file_result Result = {};
@@ -35,7 +36,6 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderNoop) { return false; }
 
 GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesNoop) {}
 
-
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory) {}
 DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile) {
   debug_read_file_result Result = {};
@@ -48,6 +48,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) { return false; }
 typedef struct {
   float pos[2];
   float col[4];
+  float tex[3];
 } MetalVertex;
 
 struct MetalVertices {
@@ -106,24 +107,30 @@ static void CreateMetal(NSView *view, CGSize size, MetalVertices *Vertices) {
     NSLog(@"PSO failed: %@", err);
     exit(1);
   }
+  MTLSamplerDescriptor *samplerDesc = [[MTLSamplerDescriptor alloc] init];
+  samplerDesc.minFilter = MTLSamplerMinMagFilterLinear;
+  samplerDesc.magFilter = MTLSamplerMinMagFilterLinear;
+  samplerDesc.sAddressMode = MTLSamplerAddressModeRepeat;
+  samplerDesc.tAddressMode = MTLSamplerAddressModeRepeat;
 
+  sampler = [gDevice newSamplerStateWithDescriptor:samplerDesc];
   gVtx = [gDevice newBufferWithLength:sizeof(MetalVertex) * Vertices->Capacity
                               options:MTLResourceStorageModeManaged];
 }
 
 static void MetalPushQuad(MetalVertices *Vertices, float x0, float y0, float x1,
-                          float y1, float r, float g, float b, float a) {
+                          float y1, float r, float g, float b, float a, bool tex) {
   if (Vertices->Capacity < Vertices->Count + 6) {
     // printf("%lu\n", Vertices->Count);
     // printf("%lu\n", Vertices->Capacity);
     return;
   }
-  Vertices->Buffer[(Vertices->Count)++] = {{x0, y0}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x1, y0}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x0, y1}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x1, y0}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x1, y1}, {r, g, b, a}};
-  Vertices->Buffer[(Vertices->Count)++] = {{x0, y1}, {r, g, b, a}};
+  Vertices->Buffer[(Vertices->Count)++] = {.pos={x0, y0}, .col={r, g, b, a}, .tex={0.0f, 1.0f,tex?1.0f:0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {.pos={x1, y0}, .col={r, g, b, a}, .tex={1.0f, 1.0f,tex?1.0f:0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {.pos={x0, y1}, .col={r, g, b, a}, .tex={0.0f, 0.0f,tex?1.0f:0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {.pos={x1, y0}, .col={r, g, b, a}, .tex={1.0f, 1.0f,tex?1.0f:0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {.pos={x1, y1}, .col={r, g, b, a}, .tex={1.0f, 0.0f,tex?1.0f:0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {.pos={x0, y1}, .col={r, g, b, a}, .tex={0.0f, 0.0f,tex?1.0f:0.0f}};
 }
 
 typedef struct {
@@ -166,6 +173,8 @@ static void MetalDraw(MetalVertices *Vertices, float scaleX, float scaleY,
     [enc setRenderPipelineState:gPSO];
     [enc setVertexBuffer:gVtx offset:0 atIndex:0];
     [enc setVertexBytes:&uni length:sizeof(uni) atIndex:1];
+    [enc setFragmentTexture:texture atIndex:0];
+    [enc setFragmentSamplerState:sampler atIndex:0];
     [enc drawPrimitives:MTLPrimitiveTypeTriangle
             vertexStart:0
             vertexCount:Vertices->Count];
@@ -240,23 +249,19 @@ void MacOsSetupGameMemory(macos_state *MacState, game_memory *GameMemory) {
                          (render_command *)(GameMemory->PermanentStorage +
                                             GameMemory->PermanentStorageSize +
                                             GameMemory->TransientStorageSize));
-   InitializeWorkQueue(
-       &MacState->WorkQueue, WorkQueueLength,
-       (macos_work_queue_task *)(GameMemory->PermanentStorage +
-                                 GameMemory->PermanentStorageSize +
-                                 GameMemory->TransientStorageSize +
-                                 RenderBufferSize));
+  InitializeWorkQueue(
+      &MacState->WorkQueue, WorkQueueLength,
+      (macos_work_queue_task *)(GameMemory->PermanentStorage +
+                                GameMemory->PermanentStorageSize +
+                                GameMemory->TransientStorageSize +
+                                RenderBufferSize));
 
   GameMemory->TaskQueue = &MacState->WorkQueue;
   GameMemory->PlatformPushTaskToQueue = PushTaskToQueue;
-  GameMemory->PlatformWaitForQueueToFinish =
-      WaitForQueueToFinish;
-  GameMemory->DebugPlatformReadEntireFile =
-      &DEBUGPlatformReadEntireFile;
-  GameMemory->DebugPlatformFreeFileMemory =
-      &DEBUGPlatformFreeFileMemory;
-  GameMemory->DebugPlatformWriteEntireFile =
-      DEBUGPlatformWriteEntireFile;
+  GameMemory->PlatformWaitForQueueToFinish = WaitForQueueToFinish;
+  GameMemory->DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
+  GameMemory->DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
+  GameMemory->DebugPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 }
 
 inline uint32 lerpColor(real32 t, uint32 c1, uint32 c2) {
@@ -796,23 +801,48 @@ int main(void) {
 
 #ifdef USE_METAL
       Vertices.Count = 0;
-      MetalPushQuad(&Vertices, -1, -1, 1, 1, 0.5, 0, 0.7, 1);
+      MetalPushQuad(&Vertices, -1, -1, 1, 1, 0.5, 0, 0.7, 1, false);
       for (uint32 ri = 0; ri < MacOsState.RenderBuffer.Count; ri += 1) {
 
         render_command *RCmd = &MacOsState.RenderBuffer.Base[ri];
         switch (RCmd->Type) {
         case RenderCommandRect: {
           // glColor4f(0.0f,0.0f,0.0f,0.0f);
+
           if (RCmd->Rect.Image) {
-            MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
-                          RCmd->Rect.MaxX, RCmd->Rect.MaxY,
-                          RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
-                          RCmd->Rect.Color.Blue, 0.3f);
+              MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
+                            RCmd->Rect.MaxX, RCmd->Rect.MaxY, RCmd->Rect.Color.Red,
+                            RCmd->Rect.Color.Green, RCmd->Rect.Color.Blue, 0.3f, true);
+            if (!texture) {
+              // 1. Describe the texture
+              MTLTextureDescriptor *desc = [[MTLTextureDescriptor alloc] init];
+              desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+              desc.width = RCmd->Rect.Image->Width;
+              desc.height = RCmd->Rect.Image->Height;
+              desc.usage = MTLTextureUsageShaderRead;
+
+              // 2. Create texture on the GPU
+              texture = [gDevice newTextureWithDescriptor:desc];
+
+              // 3. Upload your bitmap data
+              MTLRegion region = {
+                  {0, 0, 0},                   // origin
+                  {desc.width, desc.height, 1} // size
+              };
+
+              NSUInteger bytesPerPixel = 4;
+              NSUInteger bytesPerRow = bytesPerPixel * desc.width;
+
+              [texture replaceRegion:region
+                         mipmapLevel:0
+                           withBytes:RCmd->Rect.Image->Memory
+                         bytesPerRow:bytesPerRow];
+            }
           } else {
-            MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
+              MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
                           RCmd->Rect.MaxX, RCmd->Rect.MaxY,
                           RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
-                          RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha);
+                          RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha, false);
           }
 
         } break;
