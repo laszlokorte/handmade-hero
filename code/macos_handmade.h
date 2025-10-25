@@ -68,6 +68,8 @@ struct macos_state {
   render_buffer RenderBuffer;
   work_queue WorkQueue;
   macos_thread_pool ThreadPool;
+
+  bool DebugSoundWave;
 };
 
 struct mac_audio_buffer {

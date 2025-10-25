@@ -36,13 +36,47 @@ GAME_UPDATE_AND_RENDER(GameUpdateAndRenderNoop) { return false; }
 
 GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesNoop) {}
 
-DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory) {}
-DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile) {
-  debug_read_file_result Result = {};
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory) {
+  if (Memory) {
+    free(Memory); // On Linux, we can just free
+  }
+}
 
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile) {
+  debug_read_file_result Result = {0};
+  int fd = open(Filename, O_RDONLY);
+  if (fd != -1) {
+    struct stat st;
+    if (fstat(fd, &st) == 0) {
+      size_t FileSize = (size_t)st.st_size;
+      void *Memory = malloc(FileSize);
+      if (Memory) {
+        ssize_t BytesRead = read(fd, Memory, FileSize);
+        if (BytesRead == (ssize_t)FileSize) {
+          Result.Contents = Memory;
+          Result.ContentSize = FileSize;
+        } else {
+          DEBUGPlatformFreeFileMemory(Context, Memory);
+        }
+      }
+    }
+    close(fd);
+  }
   return Result;
 }
-DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) { return false; }
+
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile) {
+  bool Result = false;
+  int fd = open(Filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fd != -1) {
+    ssize_t BytesWritten = write(fd, Memory, MemorySize);
+    if (BytesWritten == (ssize_t)MemorySize) {
+      Result = true;
+    }
+    close(fd);
+  }
+  return Result;
+}
 
 // Tiny shaders as source string (no .metal file needed)
 typedef struct {
@@ -119,18 +153,37 @@ static void CreateMetal(NSView *view, CGSize size, MetalVertices *Vertices) {
 }
 
 static void MetalPushQuad(MetalVertices *Vertices, float x0, float y0, float x1,
-                          float y1, float r, float g, float b, float a, bool tex) {
+                          float y1, float r, float g, float b, float a,
+                          bool tex) {
   if (Vertices->Capacity < Vertices->Count + 6) {
     // printf("%lu\n", Vertices->Count);
     // printf("%lu\n", Vertices->Capacity);
     return;
   }
-  Vertices->Buffer[(Vertices->Count)++] = {.pos={x0, y0}, .col={r, g, b, a}, .tex={0.0f, 1.0f,tex?1.0f:0.0f}};
-  Vertices->Buffer[(Vertices->Count)++] = {.pos={x1, y0}, .col={r, g, b, a}, .tex={1.0f, 1.0f,tex?1.0f:0.0f}};
-  Vertices->Buffer[(Vertices->Count)++] = {.pos={x0, y1}, .col={r, g, b, a}, .tex={0.0f, 0.0f,tex?1.0f:0.0f}};
-  Vertices->Buffer[(Vertices->Count)++] = {.pos={x1, y0}, .col={r, g, b, a}, .tex={1.0f, 1.0f,tex?1.0f:0.0f}};
-  Vertices->Buffer[(Vertices->Count)++] = {.pos={x1, y1}, .col={r, g, b, a}, .tex={1.0f, 0.0f,tex?1.0f:0.0f}};
-  Vertices->Buffer[(Vertices->Count)++] = {.pos={x0, y1}, .col={r, g, b, a}, .tex={0.0f, 0.0f,tex?1.0f:0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x0, y0},
+      .col = {r, g, b, a},
+      .tex = {0.0f, 1.0f, tex ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x1, y0},
+      .col = {r, g, b, a},
+      .tex = {1.0f, 1.0f, tex ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x0, y1},
+      .col = {r, g, b, a},
+      .tex = {0.0f, 0.0f, tex ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x1, y0},
+      .col = {r, g, b, a},
+      .tex = {1.0f, 1.0f, tex ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x1, y1},
+      .col = {r, g, b, a},
+      .tex = {1.0f, 0.0f, tex ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x0, y1},
+      .col = {r, g, b, a},
+      .tex = {0.0f, 0.0f, tex ? 1.0f : 0.0f}};
 }
 
 typedef struct {
@@ -685,6 +738,9 @@ int main(void) {
               MacOsUnloadGame(&MacOsState.Game);
               MacOsLoadGame(&MacOsState.Game);
             }
+            if([[Event charactersIgnoringModifiers] isEqualToString:@"9"]) {
+                MacOsState.DebugSoundWave = !MacOsState.DebugSoundWave;
+            }
             NSString *chars = [Event charactersIgnoringModifiers];
             if (chars.length > 0 &&
                 [chars characterAtIndex:0] == 0x1B) { // 0x1B = ESC
@@ -753,52 +809,51 @@ int main(void) {
       // printf("%f\n", FrameMeasures.DeltaTimeMS / 1000.0f);
       MacOsState.Game.GameUpdateAndRender(&Context, &GameMemory, CurrentInput,
                                           &MacOsState.RenderBuffer);
+      if (MacOsState.DebugSoundWave) {
+        int padding = 10;
+        int skip = 2;
+        float barWidthHalf = 0.5;
+        int screenWidth =
+            MacOsState.RenderBuffer.Viewport.Width - (2 * padding);
+        float c1Base = 100;
+        float c2Base = 200;
+        float height = 128.0;
+        render_color_rgba c1Color = render_color_rgba{0.0f, 1.0f, 0.0f, 1.0f};
+        render_color_rgba c2Color = render_color_rgba{1.0f, 0.0f, 0.0f, 1.0f};
+        for (int s = 0; s < screenWidth; s += skip) {
+          size_t d = s * AudioBuffer.Size / screenWidth;
+          float c1 = AudioBuffer.Memory[d * 2] / (float)(1 << 15);
+          float c2 = AudioBuffer.Memory[d * 2] / (float)(1 << 15);
+          float x =
+              padding + (float)(d * (MacOsState.RenderBuffer.Viewport.Width -
+                                     (2 * padding))) /
+                            AudioBuffer.Size;
+          PushRect(&MacOsState.RenderBuffer, x - barWidthHalf, c1Base - 1,
+                   x + barWidthHalf, c1Base + c1 * height, c1Color);
 
-      int padding = 10;
-      int skip = 2;
-      float barWidthHalf = 0.5;
-      int screenWidth = MacOsState.RenderBuffer.Viewport.Width - (2 * padding);
-      float c1Base = 100;
-      float c2Base = 200;
-      float height = 128.0;
-      render_color_rgba c1Color = render_color_rgba{0.0f, 1.0f, 0.0f, 1.0f};
-      render_color_rgba c2Color = render_color_rgba{1.0f, 0.0f, 0.0f, 1.0f};
-      for (int s = 0; s < screenWidth; s += skip) {
-        size_t d = s * AudioBuffer.Size / screenWidth;
-        float c1 = AudioBuffer.Memory[d * 2] / (float)(1 << 15);
-        float c2 = AudioBuffer.Memory[d * 2] / (float)(1 << 15);
-        float x =
-            padding + (float)(d * (MacOsState.RenderBuffer.Viewport.Width -
-                                   (2 * padding))) /
-                          AudioBuffer.Size;
-        PushRect(&MacOsState.RenderBuffer, x - barWidthHalf, c1Base - 1,
-                 x + barWidthHalf, c1Base + c1 * height, c1Color);
+          PushRect(&MacOsState.RenderBuffer, x - barWidthHalf, c2Base - 1,
+                   x + barWidthHalf, c2Base + c2 * height, c2Color);
+        }
 
-        PushRect(&MacOsState.RenderBuffer, x - barWidthHalf, c2Base - 1,
-                 x + barWidthHalf, c2Base + c2 * height, c2Color);
+        {
+
+          float x = padding + (float)(AudioBuffer.ReadHead *
+                                      (MacOsState.RenderBuffer.Viewport.Width -
+                                       (2 * padding))) /
+                                  AudioBuffer.Size;
+          PushRect(&MacOsState.RenderBuffer, x, 100 - 10, x + 5, 100 + 100.0,
+                   render_color_rgba{0.0f, 0.0f, 1.0f, 1.0f});
+        }
+        {
+
+          float x = padding + (float)(AudioBuffer.WriteHead *
+                                      (MacOsState.RenderBuffer.Viewport.Width -
+                                       (2 * padding))) /
+                                  AudioBuffer.Size;
+          PushRect(&MacOsState.RenderBuffer, x, 100 - 10, x + 5, 100 + 100.0,
+                   render_color_rgba{1.0f, 0.0f, 0.0f, 1.0f});
+        }
       }
-
-      {
-
-        float x =
-            padding +
-            (float)(AudioBuffer.ReadHead *
-                    (MacOsState.RenderBuffer.Viewport.Width - (2 * padding))) /
-                AudioBuffer.Size;
-        PushRect(&MacOsState.RenderBuffer, x, 100 - 10, x + 5, 100 + 100.0,
-                 render_color_rgba{0.0f, 0.0f, 1.0f, 1.0f});
-      }
-      {
-
-        float x =
-            padding +
-            (float)(AudioBuffer.WriteHead *
-                    (MacOsState.RenderBuffer.Viewport.Width - (2 * padding))) /
-                AudioBuffer.Size;
-        PushRect(&MacOsState.RenderBuffer, x, 100 - 10, x + 5, 100 + 100.0,
-                 render_color_rgba{1.0f, 0.0f, 0.0f, 1.0f});
-      }
-
 #ifdef USE_METAL
       Vertices.Count = 0;
       MetalPushQuad(&Vertices, -1, -1, 1, 1, 0.5, 0, 0.7, 1, false);
@@ -810,13 +865,14 @@ int main(void) {
           // glColor4f(0.0f,0.0f,0.0f,0.0f);
 
           if (RCmd->Rect.Image) {
-              MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
-                            RCmd->Rect.MaxX, RCmd->Rect.MaxY, RCmd->Rect.Color.Red,
-                            RCmd->Rect.Color.Green, RCmd->Rect.Color.Blue, 0.3f, true);
+            MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
+                          RCmd->Rect.MaxX, RCmd->Rect.MaxY,
+                          RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
+                          RCmd->Rect.Color.Blue, 0.3f, true);
             if (!texture) {
               // 1. Describe the texture
               MTLTextureDescriptor *desc = [[MTLTextureDescriptor alloc] init];
-              desc.pixelFormat = MTLPixelFormatRGBA8Unorm;
+              desc.pixelFormat = MTLPixelFormatBGRA8Unorm;
               desc.width = RCmd->Rect.Image->Width;
               desc.height = RCmd->Rect.Image->Height;
               desc.usage = MTLTextureUsageShaderRead;
@@ -839,7 +895,7 @@ int main(void) {
                          bytesPerRow:bytesPerRow];
             }
           } else {
-              MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
+            MetalPushQuad(&Vertices, RCmd->Rect.MinX, RCmd->Rect.MinY,
                           RCmd->Rect.MaxX, RCmd->Rect.MaxY,
                           RCmd->Rect.Color.Red, RCmd->Rect.Color.Green,
                           RCmd->Rect.Color.Blue, RCmd->Rect.Color.Alpha, false);
