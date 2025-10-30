@@ -1,5 +1,10 @@
 #include "win32_handmade.h"
 #include <intrin.h>
+#if defined(_M_ARM64) || defined(_M_ARM)
+  #define STORE_FENCE() do { _WriteBarrier(); __dmb(_ARM64_BARRIER_ISHST); } while(0)
+#else
+  #define STORE_FENCE() do { _WriteBarrier(); _mm_sfence(); } while(0)
+#endif
 
 internal void InitializeWorkQueue(work_queue *Queue, size_t Size,
                                   win32_work_queue_task *Base) {
@@ -21,7 +26,7 @@ void PushTaskToQueue(work_queue *Queue, work_queue_callback *Callback,
   NewEntry->Callback = Callback;
   NewEntry->Data = Data;
   _WriteBarrier();
-  _mm_sfence();
+  STORE_FENCE();
   InterlockedIncrement64((LONG64 volatile *)&Queue->CompletionGoal);
   ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
 }
