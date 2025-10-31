@@ -81,6 +81,7 @@ struct game_controller_input {
 struct game_mouse_input {
   int MouseX;
   int MouseY;
+  bool InRange;
   union {
     game_button_state Buttons[5];
     struct {

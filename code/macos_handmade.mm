@@ -738,8 +738,8 @@ int main(void) {
               MacOsUnloadGame(&MacOsState.Game);
               MacOsLoadGame(&MacOsState.Game);
             }
-            if([[Event charactersIgnoringModifiers] isEqualToString:@"9"]) {
-                MacOsState.DebugSoundWave = !MacOsState.DebugSoundWave;
+            if ([[Event charactersIgnoringModifiers] isEqualToString:@"9"]) {
+              MacOsState.DebugSoundWave = !MacOsState.DebugSoundWave;
             }
             NSString *chars = [Event charactersIgnoringModifiers];
             if (chars.length > 0 &&
@@ -764,13 +764,16 @@ int main(void) {
           (int)(MacOsState.WindowHeight - posInWindow.y);
       if (NSPointInRect(mousePos, content)) {
 
+        CurrentInput->Mouse.InRange = true;
         for (int m = 0; m < ArrayCount(CurrentInput->Mouse.Buttons); m++) {
           bool NewDown = NSEvent.pressedMouseButtons & (1 << m);
           bool toggled = CurrentInput->Mouse.Buttons[m].EndedDown != NewDown;
           CurrentInput->Mouse.Buttons[m].HalfTransitionCount +=
-              (NewDown ? 1 : 0);
+              (NewDown != LastInput->Mouse.Buttons[m].EndedDown ? 1 : 0);
           CurrentInput->Mouse.Buttons[m].EndedDown = NewDown;
         }
+      } else {
+        CurrentInput->Mouse.InRange = false;
       }
       thread_context Context = {};
 

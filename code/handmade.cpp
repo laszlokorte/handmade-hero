@@ -713,20 +713,32 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   }
   if (GameState->CameraTrack) {
     game_entity *Entity = GameState->CameraTrack;
-    tile_distance Distance = TileDistance(GameState->Camera.pos, Entity->p);
+    tile_distance Distance = TileDistance(Entity->p, GameState->Camera.pos);
     real32 ScreenDistX = Distance.DX * GameState->TileMap.TileWidth +
                          Distance.DRelX * GameState->TileMap.TileWidth;
     real32 ScreenDistY = Distance.DY * GameState->TileMap.TileHeight +
                          Distance.DRelY * GameState->TileMap.TileHeight;
     real32 MaxDistX = RenderBuffer->Viewport.Width / 3.0f;
     real32 MaxDistY = RenderBuffer->Viewport.Height / 3.0f;
-    if (ScreenDistX < -MaxDistX || ScreenDistX > MaxDistX) {
-      GameState->Camera.pos.X -= Distance.DX;
-      // GameState->Camera.pos.RelX -= Distance.DRelX;
+    if (ScreenDistX < -MaxDistX) {
+      // GameState->Camera.pos.X -= Distance.DX;
+      GameState->Camera.pos.RelX +=
+          (ScreenDistX + MaxDistX) / GameState->TileMap.TileWidth;
+    } else if (ScreenDistX > MaxDistX) {
+      // GameState->Camera.pos.X -= Distance.DX;
+      GameState->Camera.pos.RelX +=
+          (ScreenDistX - MaxDistX) / GameState->TileMap.TileWidth;
     }
-    if (ScreenDistY < -MaxDistY || ScreenDistY > MaxDistY) {
-      GameState->Camera.pos.Y -= Distance.DY;
-      // GameState->Camera.pos.RelY -= Distance.DRelY;
+    if (ScreenDistY < -MaxDistY) {
+      // GameState->Camera.pos.Y -= Distance.DY;
+      GameState->Camera.pos.RelY +=
+          (ScreenDistY + MaxDistY) /
+          GameState->TileMap.TileHeight; //(ScreenDistY + MaxDistY);
+    } else if (ScreenDistY > MaxDistY) {
+      // GameState->Camera.pos.Y -= Distance.DY;
+      GameState->Camera.pos.RelY +=
+          (ScreenDistY - MaxDistY) /
+          GameState->TileMap.TileHeight; //(ScreenDistY - MaxDistY);
     }
     TilePositionNormalize(&GameState->Camera.pos);
   }
@@ -960,28 +972,30 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   }
   real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
   real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height / 2);
-  PushRect(RenderBuffer, PaddingH, PaddingV,
-           (real32)RenderBuffer->Viewport.Width - PaddingV,
-           (real32)min(100, (int32)RenderBuffer->Viewport.Height),
-           render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
 
-  for (size_t m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
-    game_button_state Button = Input->Mouse.Buttons[m];
-    PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
-             (real32)Input->Mouse.MouseY + 10.0f * Button.HalfTransitionCount,
-             (real32)Input->Mouse.MouseX + 10.0f * m + 10.0f,
-             (real32)Input->Mouse.MouseY + 10.0f,
-             Button.EndedDown
-                 ? (Button.HalfTransitionCount > 0
-                        ? render_color_rgba{1.0f, 0.8f, 0.2f, 1.0f}
-                        : render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f})
-                 : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
 
-    if (Button.HalfTransitionCount > 0 && Button.EndedDown) {
-      GamePlaySound(&GameState->SoundState, (int)m - 10, 7000, 1, 0);
+  if (Input->Mouse.InRange) {
+      PushRect(RenderBuffer, PaddingH, PaddingV,
+                (real32)RenderBuffer->Viewport.Width - PaddingV,
+                (real32)min(100, (int32)RenderBuffer->Viewport.Height),
+                render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
+    for (size_t m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
+      game_button_state Button = Input->Mouse.Buttons[m];
+      PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
+               (real32)Input->Mouse.MouseY + 10.0f * Button.HalfTransitionCount,
+               (real32)Input->Mouse.MouseX + 10.0f * m + 10.0f,
+               (real32)Input->Mouse.MouseY + 10.0f,
+               Button.EndedDown
+                   ? (Button.HalfTransitionCount > 0
+                          ? render_color_rgba{1.0f, 0.8f, 0.2f, 1.0f}
+                          : render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f})
+                   : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
+
+      if (Button.HalfTransitionCount > 0 && Button.EndedDown) {
+        GamePlaySound(&GameState->SoundState, (int)m - 10, 7000, 1, 0);
+      }
     }
   }
-
   Memory->PlatformWaitForQueueToFinish(Memory->TaskQueue);
   GameState->Time++;
   return true;
