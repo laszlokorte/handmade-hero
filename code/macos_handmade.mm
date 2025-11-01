@@ -693,6 +693,7 @@ int main(void) {
         };
 
         switch ([Event type]) {
+
         case NSEventTypeKeyDown:
         case NSEventTypeKeyUp: {
           // printf("0x%04x\n", Event.keyCode);
@@ -748,6 +749,18 @@ int main(void) {
             }
           }
         } break;
+
+        case NSEventTypeScrollWheel: {
+          CGFloat dx = Event.scrollingDeltaX;
+          CGFloat dy = Event.scrollingDeltaY;
+          BOOL precise = Event.hasPreciseScrollingDeltas;
+          if (precise) {
+            // Typically high-resolution touchpad scroll
+          }
+          CurrentInput->Mouse.WheelX += dx;
+          CurrentInput->Mouse.WheelY += dy;
+        } break;
+
         default: {
           [NSApp sendEvent:Event];
         } break;

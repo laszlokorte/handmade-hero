@@ -535,6 +535,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     GameState->JumpTime--;
   }
 
+  GameState->Camera.pos.RelX += Input->Mouse.WheelX / 100.0;
+  GameState->Camera.pos.RelY += Input->Mouse.WheelY / 100.0;
   for (size_t c = 0; c < ArrayCount(Input->Controllers); c++) {
     game_controller_input *Controller = &Input->Controllers[c];
 
@@ -599,6 +601,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
         game_velocity v0 = {};
         GameState->ControllerMap.controllers[c]->v = v0;
         GameState->ControllerMap.controllers[c] = 0;
+        GameState->CameraTrack = 0;
         Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask2,
                                         GameState);
       }
@@ -973,12 +976,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
   real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height / 2);
 
-
+  PushRect(RenderBuffer, PaddingH, PaddingV,
+           (real32)RenderBuffer->Viewport.Width - PaddingV,
+           (real32)min(100, (int32)RenderBuffer->Viewport.Height),
+           render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
   if (Input->Mouse.InRange) {
-      PushRect(RenderBuffer, PaddingH, PaddingV,
-                (real32)RenderBuffer->Viewport.Width - PaddingV,
-                (real32)min(100, (int32)RenderBuffer->Viewport.Height),
-                render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
     for (size_t m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
       game_button_state Button = Input->Mouse.Buttons[m];
       PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
