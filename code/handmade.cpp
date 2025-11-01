@@ -475,14 +475,12 @@ void TestTask(void *Data) {
 
   GamePlaySound(&GameState->SoundState, 4, 5000, 1.5, 0);
   GamePlaySound(&GameState->SoundState, 6, 5000, 1.5, 3000);
-  // State->Muted = false;
 }
 void TestTask2(void *Data) {
   game_state *GameState = (game_state *)Data;
 
   GamePlaySound(&GameState->SoundState, 1, 5000, 1.5, 0);
   GamePlaySound(&GameState->SoundState, -1, 5000, 1.5, 3000);
-  // State->Muted = false;
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
@@ -584,8 +582,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
           int32 RandomY = GameState->EntityCount *
                           (RandomNumbers[GameState->EntityCount + 42] % 3 - 1);
           NewEntity.p = tile_position{};
-          NewEntity.p.X = 0; // RandomX;
-          NewEntity.p.Y = 0; // RandomY;
+          NewEntity.p.X = 0;
+          NewEntity.p.Y = 0;
           NewEntity.v = {0.0f, 0.0f};
           NewEntity.s = {128.0f, 128.0f};
           NewEntity.c = {0.2f, 0.1f * GameState->EntityCount, 0.3f};
@@ -725,24 +723,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     real32 MaxDistX = RenderBuffer->Viewport.Width / 3.0f;
     real32 MaxDistY = RenderBuffer->Viewport.Height / 3.0f;
     if (ScreenDistX < -MaxDistX) {
-      // GameState->Camera.pos.X -= Distance.DX;
       GameState->Camera.pos.RelX +=
           (ScreenDistX + MaxDistX) / GameState->TileMap.TileWidth;
     } else if (ScreenDistX > MaxDistX) {
-      // GameState->Camera.pos.X -= Distance.DX;
       GameState->Camera.pos.RelX +=
           (ScreenDistX - MaxDistX) / GameState->TileMap.TileWidth;
     }
     if (ScreenDistY < -MaxDistY) {
-      // GameState->Camera.pos.Y -= Distance.DY;
       GameState->Camera.pos.RelY +=
-          (ScreenDistY + MaxDistY) /
-          GameState->TileMap.TileHeight; //(ScreenDistY + MaxDistY);
+          (ScreenDistY + MaxDistY) / GameState->TileMap.TileHeight;
     } else if (ScreenDistY > MaxDistY) {
-      // GameState->Camera.pos.Y -= Distance.DY;
       GameState->Camera.pos.RelY +=
-          (ScreenDistY - MaxDistY) /
-          GameState->TileMap.TileHeight; //(ScreenDistY - MaxDistY);
+          (ScreenDistY - MaxDistY) / GameState->TileMap.TileHeight;
     }
     TilePositionNormalize(&GameState->Camera.pos);
   }
@@ -750,10 +742,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   int PlayerHeight = 50;
   int PlayerWidth = 10;
   int PlayerColor = 0x00ff44;
-
-  // ClearScreen(ScreenBuffer, 0x00000000);
-  //  RenderGradient(ScreenBuffer, GameState->XPos, GameState->YPos,
-  //  (int32)GameState->Time);
 
   real32 CenterX = RenderBuffer->Viewport.Width / 2.0f -
                    GameState->Camera.pos.X * GameState->TileMap.TileWidth -
@@ -794,12 +782,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                  CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
                  render_color_rgba{1.0f, 1.0f, 1.0f, 1.0f});
-        // FillRect(ScreenBuffer,
-        //          CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
-        //          CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
-        //          CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
-        //          CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-        //          game_color_rgb{1.0f, 1.0f, 1.0f});
+
       } break;
       case TILE_DOOR: {
         PushRect(RenderBuffer,
@@ -808,12 +791,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                  CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
                  CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
                  render_color_rgba{0.0f, 0.0f, 0.0f, 1.0f});
-        // FillRect(ScreenBuffer,
-        //          CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
-        //          CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
-        //          CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
-        //          CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-        //          game_color_rgb{0.0f, 0.0f, 0.0f});
+
       } break;
       case TILE_EMPTY: {
 
@@ -824,16 +802,37 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                  CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
                  render_color_rgba{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
                                    x % 2 == 0 ? 0.6f : 0.8f, 1.0f});
-        // FillRect(ScreenBuffer,
-        //          CenterX + (x - 0.5f) * GameState->TileMap.TileWidth,
-        //          CenterY + (y - 0.5f) * GameState->TileMap.TileHeight,
-        //          CenterX + (x + 0.5f) * GameState->TileMap.TileWidth,
-        //          CenterY + (y + 0.5f) * GameState->TileMap.TileHeight,
-        //          game_color_rgb{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
-        //                         x % 2 == 0 ? 0.6f : 0.8f});
+
       } break;
       }
     }
+  }
+
+  for (int c = 0; c < ArrayCount(GameState->ControllerMap.controllers); c++) {
+    game_entity *Entity = GameState->ControllerMap.controllers[c];
+    if (!Entity || !Entity->active) {
+      continue;
+    }
+    real32 CX =
+        Entity->p.X - GameState->Camera.pos.X - GameState->Camera.pos.RelX;
+    real32 CY =
+        Entity->p.Y - GameState->Camera.pos.Y - GameState->Camera.pos.RelY;
+    real32 CXR = Entity->p.RelX;
+    real32 CYR = Entity->p.RelY;
+    real32 X =
+        CX * GameState->TileMap.TileWidth + CXR * GameState->TileMap.TileWidth;
+    real32 Y = CY * GameState->TileMap.TileHeight +
+               CYR * GameState->TileMap.TileHeight;
+    PushRect(RenderBuffer,
+             (CX - 0.2f) * GameState->TileMap.TileWidth +
+                 RenderBuffer->Viewport.Width / 2.0f,
+             (CY - 0.2f) * GameState->TileMap.TileHeight +
+                 RenderBuffer->Viewport.Height / 2.0f,
+             (CX + 0.2f) * GameState->TileMap.TileWidth +
+                 RenderBuffer->Viewport.Width / 2.0f,
+             (CY + 0.2f) * GameState->TileMap.TileHeight +
+                 RenderBuffer->Viewport.Height / 2.0f,
+             render_color_rgba{0.5f, 0.1f, 0.5f, 1.0f});
   }
 
   for (int e = 0; e < GameState->EntityCount; e++) {
@@ -841,12 +840,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (!Entity->active) {
       continue;
     }
-    ////    FillRect(ScreenBuffer,
-    ////             Entity->p.x - Entity->s.x / 2 + ScreenBuffer->Width / 2.0f,
-    ////             Entity->p.y - Entity->s.y / 2 + ScreenBuffer->Height
-    //// 2.0f, /             Entity->p.x + Entity->s.x / 2 + ScreenBuffer->Width
-    //// 2.0f, /             Entity->p.y + Entity->s.x / 2 +
-    /// ScreenBuffer->Height / 2.0f, /             Entity->c);
 
     real32 CX =
         Entity->p.X - GameState->Camera.pos.X - GameState->Camera.pos.RelX;
@@ -859,25 +852,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     real32 Y = CY * GameState->TileMap.TileHeight +
                CYR * GameState->TileMap.TileHeight;
 
-    PushRect(RenderBuffer,
-             (CX - 0.2f) * GameState->TileMap.TileWidth +
-                 RenderBuffer->Viewport.Width / 2.0f,
-             (CY - 0.2f) * GameState->TileMap.TileHeight +
-                 RenderBuffer->Viewport.Height / 2.0f,
-             (CX + 0.2f) * GameState->TileMap.TileWidth +
-                 RenderBuffer->Viewport.Width / 2.0f,
-             (CY + 0.2f) * GameState->TileMap.TileHeight +
-                 RenderBuffer->Viewport.Height / 2.0f,
-             render_color_rgba{0.5f, 0.1f, 0.5f, 1.0f});
-    // FillRect(
-    //     ScreenBuffer,
-    //     (CX - 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width
-    //     / 2.0f, (CY - 0.2f) * GameState->TileMap.TileHeight +
-    //         ScreenBuffer->Height / 2.0f,
-    //     (CX + 0.2f) * GameState->TileMap.TileWidth + ScreenBuffer->Width
-    //     / 2.0f, (CY + 0.2f) * GameState->TileMap.TileHeight +
-    //         ScreenBuffer->Height / 2.0f,
-    //     game_color_rgb{0.0f, 0.0f, 0.0f});
     float arrow[6] = {};
     switch (Entity->o) {
 

@@ -151,6 +151,21 @@ static void CreateMetal(NSView *view, CGSize size, MetalVertices *Vertices) {
   gVtx = [gDevice newBufferWithLength:sizeof(MetalVertex) * Vertices->Capacity
                               options:MTLResourceStorageModeManaged];
 }
+static void MetalPushTri(MetalVertices *Vertices, float x0, float y0, float x1,
+                         float y1, float x2, float y2, float r, float g,
+                         float b, float a) {
+  if (Vertices->Capacity < Vertices->Count + 3) {
+    // printf("%lu\n", Vertices->Count);
+    // printf("%lu\n", Vertices->Capacity);
+    return;
+  }
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x0, y0}, .col = {r, g, b, a}, .tex = {0.0, 0.0, 0.0}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x1, y1}, .col = {r, g, b, a}, .tex = {0.0, 0.0, 0.0}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x2, y2}, .col = {r, g, b, a}, .tex = {0.0, 0.0, 0.0}};
+}
 
 static void MetalPushQuad(MetalVertices *Vertices, float x0, float y0, float x1,
                           float y1, float r, float g, float b, float a,
@@ -919,17 +934,11 @@ int main(void) {
 
         } break;
         case RenderCommandTriangle: {
-          // glColor4f(RCmd->Triangle.Color.Red, RCmd->Triangle.Color.Green,
-          //           RCmd->Triangle.Color.Blue, RCmd->Triangle.Color.Alpha);
-
-          // glBegin(GL_TRIANGLES);
-          // glVertex2f(RCmd->Triangle.AX, RCmd->Triangle.AY);
-
-          // glVertex2f(RCmd->Triangle.BX, RCmd->Triangle.BY);
-
-          // glVertex2f(RCmd->Triangle.CX, RCmd->Triangle.CY);
-          // glEnd();
-          // glDisable(GL_TEXTURE_2D);
+          MetalPushTri(&Vertices, RCmd->Triangle.AX, RCmd->Triangle.AY,
+                       RCmd->Triangle.BX, RCmd->Triangle.BY, RCmd->Triangle.CX,
+                       RCmd->Triangle.CY, RCmd->Triangle.Color.Red,
+                       RCmd->Triangle.Color.Green, RCmd->Triangle.Color.Blue,
+                       RCmd->Triangle.Color.Alpha);
         } break;
         default: {
           break;
