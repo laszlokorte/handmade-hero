@@ -596,6 +596,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
           GameState->EntityCount++;
           Memory->PlatformPushTaskToQueue(Memory->TaskQueue, TestTask,
                                           GameState);
+          GameState->Camera.pos = NewEntity.p;
         }
       } else {
         game_velocity v0 = {};
