@@ -549,6 +549,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   } else {
     GameState->Camera.pos.RelX += Input->Mouse.WheelX / 200.0 / ZoomFactor;
     GameState->Camera.pos.RelY += Input->Mouse.WheelY / 200.0 / ZoomFactor;
+
+    TilePositionNormalize(&GameState->Camera.pos);
   }
   for (size_t c = 0; c < ArrayCount(Input->Controllers); c++) {
     game_controller_input *Controller = &Input->Controllers[c];
@@ -992,6 +994,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
            (real32)min(100, (int32)RenderBuffer->Viewport.Height),
            render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
   if (Input->Mouse.InRange) {
+    tile_position MouseTilePos = {};
+    MouseTilePos.RelX =
+        (Input->Mouse.MouseX - RenderBuffer->Viewport.Width / 2.0f) /
+            ZoomFactor / GameState->TileMap.TileWidth +
+        GameState->Camera.pos.X;
+    MouseTilePos.RelY =
+        (Input->Mouse.MouseY - RenderBuffer->Viewport.Height / 2.0f) /
+            ZoomFactor / GameState->TileMap.TileHeight +
+        GameState->Camera.pos.Y;
+
+    TilePositionNormalize(&MouseTilePos);
+    bool AnyMouseDown = false;
+
     for (size_t m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
       game_button_state Button = Input->Mouse.Buttons[m];
       PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
@@ -1004,9 +1019,40 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                           : render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f})
                    : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
 
+      if (Button.EndedDown) {
+        AnyMouseDown = true;
+      }
       if (Button.HalfTransitionCount > 0 && Button.EndedDown) {
         GamePlaySound(&GameState->SoundState, (int)m - 10, 7000, 1, 0);
       }
+    }
+
+    if (AnyMouseDown) {
+      real32 CenterX =
+          (RenderBuffer->Viewport.Width / ZoomFactor / 2.0f -
+           GameState->Camera.pos.X * GameState->TileMap.TileWidth -
+           GameState->Camera.pos.RelX * GameState->TileMap.TileWidth) *
+          ZoomFactor;
+      real32 CenterY =
+          (RenderBuffer->Viewport.Height / ZoomFactor / 2.0f -
+           GameState->Camera.pos.Y * GameState->TileMap.TileHeight -
+           GameState->Camera.pos.RelY * GameState->TileMap.TileHeight) *
+          ZoomFactor;
+      SetTileKind(&GameState->WorldArena, &GameState->TileMap, MouseTilePos.X,
+                  MouseTilePos.Y,
+                  Input->Controllers[0].Menu.EndedDown ? TILE_EMPTY
+                                                       : TILE_WALL);
+
+      PushRect(RenderBuffer,
+               CenterX + (MouseTilePos.X - 0.5f) * ZoomFactor *
+                             GameState->TileMap.TileWidth,
+               CenterY + (MouseTilePos.Y - 0.5f) * ZoomFactor *
+                             GameState->TileMap.TileHeight,
+               CenterX + (MouseTilePos.X + 0.5f) * ZoomFactor *
+                             GameState->TileMap.TileWidth,
+               CenterY + (MouseTilePos.Y + 0.5f) * ZoomFactor *
+                             GameState->TileMap.TileHeight,
+               render_color_rgba{0.7f, 0.3f, 0.3f, 0.6f});
     }
   }
   Memory->PlatformWaitForQueueToFinish(Memory->TaskQueue);
