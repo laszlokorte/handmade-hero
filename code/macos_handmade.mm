@@ -171,6 +171,7 @@ static void MetalPushQuad(MetalVertices *Vertices, float x0, float y0, float x1,
                           float y1, float r, float g, float b, float a,
                           bool tex) {
   if (Vertices->Capacity < Vertices->Count + 6) {
+     printf("Metal Vertex Buffer full\n");
     // printf("%lu\n", Vertices->Count);
     // printf("%lu\n", Vertices->Capacity);
     return;

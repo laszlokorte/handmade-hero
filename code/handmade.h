@@ -175,6 +175,7 @@ struct game_controller_entity_map {
 
 struct game_camera {
   tile_position pos;
+  real32 ZoomLevel;
 };
 
 struct game_sound_synth {
