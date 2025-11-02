@@ -998,11 +998,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     MouseTilePos.RelX =
         (Input->Mouse.MouseX - RenderBuffer->Viewport.Width / 2.0f) /
             ZoomFactor / GameState->TileMap.TileWidth +
-        GameState->Camera.pos.X;
+        GameState->Camera.pos.X + GameState->Camera.pos.RelX;
     MouseTilePos.RelY =
         (Input->Mouse.MouseY - RenderBuffer->Viewport.Height / 2.0f) /
             ZoomFactor / GameState->TileMap.TileHeight +
-        GameState->Camera.pos.Y;
+        GameState->Camera.pos.Y + GameState->Camera.pos.RelY;
 
     TilePositionNormalize(&MouseTilePos);
     bool AnyMouseDown = false;
