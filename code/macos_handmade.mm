@@ -791,7 +791,7 @@ int main(void) {
       CurrentInput->Mouse.MouseX = (int)posInWindow.x;
       CurrentInput->Mouse.MouseY =
           (int)(MacOsState.WindowHeight - posInWindow.y);
-      if (NSPointInRect(mousePos, content)) {
+      if (NSPointInRect(mousePos, content) && [NSApp isActive]) {
 
         CurrentInput->Mouse.InRange = true;
         for (int m = 0; m < ArrayCount(CurrentInput->Mouse.Buttons); m++) {
