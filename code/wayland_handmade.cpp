@@ -419,6 +419,7 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
 
   reset_mouse.MouseX = OldMouse->MouseX;
   reset_mouse.MouseY = OldMouse->MouseY;
+  reset_mouse.InRange = OldMouse->InRange;
   for (size_t b = 0; b < ArrayCount(reset_mouse.Buttons); b++) {
     reset_mouse.Buttons[b].EndedDown = OldMouse->Buttons[b].EndedDown;
   }
@@ -489,11 +490,25 @@ static void pointer_handle_enter(void *data, struct wl_pointer *pointer,
                                  uint32_t serial, struct wl_surface *surface,
                                  wl_fixed_t sx, wl_fixed_t sy) {
   // Mouse entered a surface
+  //
+  struct linux_state *app = (linux_state *)data;
+
+  game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
+
+  game_mouse_input *MouseController = &NewInput->Mouse;
+  MouseController->InRange = true;
 }
 
 static void pointer_handle_leave(void *data, struct wl_pointer *pointer,
                                  uint32_t serial, struct wl_surface *surface) {
   // Mouse left a surface
+  struct linux_state *app = (linux_state *)data;
+
+  game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
+
+  game_mouse_input *MouseController = &NewInput->Mouse;
+
+  MouseController->InRange = false;
 }
 
 static void pointer_handle_motion(void *data, struct wl_pointer *pointer,
@@ -505,8 +520,13 @@ static void pointer_handle_motion(void *data, struct wl_pointer *pointer,
 
   game_mouse_input *MouseController = &NewInput->Mouse;
 
-  MouseController->MouseX = wl_fixed_to_int(sx);
-  MouseController->MouseY = wl_fixed_to_int(sy);
+  int newX = wl_fixed_to_int(sx);
+  int newY = wl_fixed_to_int(sy);
+
+  MouseController->DeltaX += (newX - MouseController->MouseX);
+  MouseController->DeltaY += (newY - MouseController->MouseY);
+  MouseController->MouseX = newX;
+  MouseController->MouseY = newY;
 }
 
 static void pointer_handle_button(void *data, struct wl_pointer *pointer,
@@ -546,7 +566,17 @@ static void pointer_handle_button(void *data, struct wl_pointer *pointer,
 static void pointer_handle_axis(void *data, struct wl_pointer *pointer,
                                 uint32_t time, uint32_t axis,
                                 wl_fixed_t value) {
-  // Scroll wheel
+  struct linux_state *app = (linux_state *)data;
+
+  game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
+
+  game_mouse_input *MouseController = &NewInput->Mouse;
+  double delta = wl_fixed_to_double(value);
+  if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL) {
+    MouseController->WheelY += delta * 3.0;
+  } else if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL) {
+    MouseController->WheelX += delta * 3.0;
+  }
 }
 
 static const struct wl_pointer_listener pointer_listener = {
@@ -850,9 +880,9 @@ int main() {
   glGenTextures(10, &LinuxState.GLState.Textures[0]);
   glBindTexture(GL_TEXTURE_2D, LinuxState.GLState.Textures[0]);
 
-  gl_vertex Verts[1000];
+  gl_vertex Verts[32000];
   LinuxState.GLState.Vertices.Buffer = Verts;
-  LinuxState.GLState.Vertices.Capacity = 1000;
+  LinuxState.GLState.Vertices.Capacity = ArrayCount(Verts);
   printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
   printf("GL_RENDERER: %s\n", glGetString(GL_RENDERER));
   printf("GL_VENDOR: %s\n", glGetString(GL_VENDOR));

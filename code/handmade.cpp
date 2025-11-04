@@ -56,9 +56,10 @@ struct bitmap_header {
 };
 #pragma pack(pop)
 
-internal loaded_bitmap
-DEBUGLoadBMP(thread_context *Context,
-             debug_platform_read_entire_file *ReadEntireFile, char *FileName) {
+internal
+    loaded_bitmap DEBUGLoadBMP(thread_context *Context,
+                               debug_platform_read_entire_file *ReadEntireFile,
+                               char *FileName) {
   debug_read_file_result ReadResult = ReadEntireFile(Context, FileName);
   loaded_bitmap Result = {};
 
@@ -537,7 +538,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   }
   if (Input->Controllers[0].Menu.EndedDown) {
 
-    GameState->Camera.ZoomLevel -= Input->Mouse.WheelY / 1000.0;
+    GameState->Camera.ZoomLevel -= Input->Mouse.WheelY / 512.0;
     float MaxZoom = 1;
     float MinZoom = -3;
     if (GameState->Camera.ZoomLevel > MaxZoom) {
@@ -547,11 +548,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       GameState->Camera.ZoomLevel = MinZoom;
     }
   } else {
-    GameState->Camera.pos.RelX += Input->Mouse.WheelX / 200.0 / ZoomFactor;
-    GameState->Camera.pos.RelY += Input->Mouse.WheelY / 200.0 / ZoomFactor;
+    GameState->Camera.pos.RelX += Input->Mouse.WheelX / 128.0 / ZoomFactor;
+    GameState->Camera.pos.RelY += Input->Mouse.WheelY / 128.0 / ZoomFactor;
 
     TilePositionNormalize(&GameState->Camera.pos);
   }
+  if (Input->Mouse.Buttons[1].EndedDown) {
+    GameState->Camera.pos.RelX -= Input->Mouse.DeltaX / 128.0 / ZoomFactor;
+    GameState->Camera.pos.RelY -= Input->Mouse.DeltaY / 128.0 / ZoomFactor;
+
+    TilePositionNormalize(&GameState->Camera.pos);
+  }
+
   for (size_t c = 0; c < ArrayCount(Input->Controllers); c++) {
     game_controller_input *Controller = &Input->Controllers[c];
 
@@ -834,7 +842,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     }
   }
 
-  for (int c = 0; c < ArrayCount(GameState->ControllerMap.controllers); c++) {
+  for (size_t c = 0; c < ArrayCount(GameState->ControllerMap.controllers);
+       c++) {
     game_entity *Entity = GameState->ControllerMap.controllers[c];
     if (!Entity || !Entity->active) {
       continue;
@@ -1008,6 +1017,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     bool AnyMouseDown = false;
 
     for (size_t m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
+
       game_button_state Button = Input->Mouse.Buttons[m];
       PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
                (real32)Input->Mouse.MouseY + 10.0f * Button.HalfTransitionCount,
@@ -1018,7 +1028,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
                           ? render_color_rgba{1.0f, 0.8f, 0.2f, 1.0f}
                           : render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f})
                    : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
-
+      if (m == 1) {
+        continue;
+      }
       if (Button.EndedDown) {
         AnyMouseDown = true;
       }
@@ -1038,10 +1050,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
            GameState->Camera.pos.Y * GameState->TileMap.TileHeight -
            GameState->Camera.pos.RelY * GameState->TileMap.TileHeight) *
           ZoomFactor;
-      SetTileKind(&GameState->WorldArena, &GameState->TileMap, MouseTilePos.X,
-                  MouseTilePos.Y,
-                  Input->Controllers[0].Menu.EndedDown ? TILE_EMPTY
-                                                       : TILE_WALL);
+      if (Input->Mouse.Buttons[0].EndedDown) {
+        SetTileKind(&GameState->WorldArena, &GameState->TileMap, MouseTilePos.X,
+                    MouseTilePos.Y, TILE_WALL);
+      } else if (Input->Mouse.Buttons[2].EndedDown) {
+
+        SetTileKind(&GameState->WorldArena, &GameState->TileMap, MouseTilePos.X,
+                    MouseTilePos.Y, TILE_EMPTY);
+      }
 
       PushRect(RenderBuffer,
                CenterX + (MouseTilePos.X - 0.5f) * ZoomFactor *

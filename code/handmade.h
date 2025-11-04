@@ -81,6 +81,8 @@ struct game_controller_input {
 struct game_mouse_input {
   int MouseX;
   int MouseY;
+  int DeltaX;
+  int DeltaY;
   bool InRange;
 
   real32 WheelX;
