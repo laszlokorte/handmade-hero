@@ -109,6 +109,12 @@ struct win32_sound_buffer {
   int BytesPerSample;
 };
 
+struct win32_sound_debug_buffer {
+  int16 *Samples;
+  DWORD SoundBufferSize;
+  int BytesPerSample;
+};
+
 struct win32_sound_output {
   int BytesPerSample;
   int SamplingRateInHz;

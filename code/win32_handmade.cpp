@@ -8,7 +8,7 @@
 #include "work_queue.h"
 #include <GL/gl.h>
 #include <debugapi.h>
-
+#include <winuser.h>
 
 typedef BOOL(WINAPI *PFNWGLSWAPINTERVALEXTPROC)(int interval);
 PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
@@ -467,6 +467,7 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
 
   reset_mouse.MouseX = OldMouse->MouseX;
   reset_mouse.MouseY = OldMouse->MouseY;
+  reset_mouse.InRange = OldMouse->InRange;
   for (int b = 0; b < ArrayCount(reset_mouse.Buttons); b++) {
     reset_mouse.Buttons[b].EndedDown = OldMouse->Buttons[b].EndedDown;
   }
@@ -510,6 +511,18 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
       Point.y = GET_Y_LPARAM(message.lParam);
       Mouse->MouseX = Point.x;
       Mouse->MouseY = Point.y;
+      Mouse->InRange = true;
+    } break;
+    case WM_MOUSELEAVE: {
+      Mouse->InRange = false;
+    } break;
+    case WM_MOUSEWHEEL: {
+      short zDelta = GET_WHEEL_DELTA_WPARAM(message.wParam);
+      Mouse->WheelY -= zDelta / 2.0f;
+    } break;
+    case WM_MOUSEHWHEEL: {
+      short zDelta = GET_WHEEL_DELTA_WPARAM(message.wParam);
+      Mouse->WheelX -= zDelta / 2.0f;
     } break;
     case WM_SYSKEYDOWN:
     case WM_SYSKEYUP:
@@ -814,8 +827,8 @@ internal void Win32OutputFramerate(render_buffer *RenderBuffer,
     // Win32DebugDrawVertical(ScreenBuffer, PadX + i * 2, PadY,
     //                     PadY + Height / (i % 10 == 0 ? 1 : 2), 0xff00ffff);
 
-    if(RenderBuffer->Viewport.Width < (real32)PadX + i * 2) {
-        break;
+    if (RenderBuffer->Viewport.Width < (real32)PadX + i * 2) {
+      break;
     }
   }
   int64 Rem = Measures->DeltaTimeMS;
@@ -972,6 +985,34 @@ internal void Win32DisplayRecordingState(render_buffer *RenderBuffer,
     // Win32DebugDrawTriangle(RenderBuffer, Padding, Padding + Radius, Radius *
     // 2,
     //                        Radius, true, false, Color);
+  }
+}
+
+internal void Win32DebugSoundWave(render_buffer *RenderBuffer,
+                                  win32_sound_debug_buffer *SoundBuffer,
+                                  int PadX, int PadY) {
+  int padding = 10;
+  int skip = 2;
+  float barWidthHalf = 0.5;
+  int screenWidth = RenderBuffer->Viewport.Width - (2 * padding);
+  float c1Base = 100;
+  float c2Base = 200;
+  float height = 128.0;
+  render_color_rgba c1Color = render_color_rgba{0.0f, 1.0f, 0.0f, 1.0f};
+  render_color_rgba c2Color = render_color_rgba{1.0f, 0.0f, 0.0f, 1.0f};
+  for (int s = 0; s < screenWidth; s += skip) {
+    printf("%lu\n", SoundBuffer->SoundBufferSize);
+    size_t d = s * SoundBuffer->SoundBufferSize / screenWidth / 2;
+    float c1 = SoundBuffer->Samples[d * 2] / (float)(1 << 15);
+    float c2 = SoundBuffer->Samples[d * 2 + 1] / (float)(1 << 15);
+    float x = padding +
+              (float)(d * 2 * (RenderBuffer->Viewport.Width - (2 * padding))) /
+                  SoundBuffer->SoundBufferSize;
+    PushRect(RenderBuffer, x - barWidthHalf, c1Base - 1, x + barWidthHalf,
+             c1Base + c1 * height, c1Color);
+
+    PushRect(RenderBuffer, x - barWidthHalf, c2Base - 1, x + barWidthHalf,
+             c2Base + c2 * height, c2Color);
   }
 }
 
@@ -1188,7 +1229,6 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
       SoundOutput.SafetySampleBytes = SoundOutput.SamplingRateInHz *
                                       SoundOutput.BytesPerSample /
                                       TargetFrameHz / 2;
-
       win32_sound_buffer SoundBuffer = {};
       SoundBuffer.BytesPerSample = SoundOutput.BytesPerSample;
       SoundBuffer.SoundBufferSize =
@@ -1202,6 +1242,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
           (int16 *)VirtualAlloc(0, SoundBuffer.SoundBufferSize,
                                 MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
+      win32_sound_debug_buffer SoundDebugBuffer = {};
+      SoundDebugBuffer.SoundBufferSize = SoundBuffer.SoundBufferSize;
+      SoundDebugBuffer.BytesPerSample = SoundBuffer.BytesPerSample;
+      SoundDebugBuffer.Samples =
+          (int16 *)VirtualAlloc(0, 2 * SoundDebugBuffer.SoundBufferSize,
+                                MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 #if HANDMADE_INTERNAL
       LPVOID BaseAddress = (LPVOID)Terabytes((uint64)2);
 #else
@@ -1401,6 +1447,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
               Game.GetSoundSamples(&Context, &GameMemory, &GameSoundBuffer);
               Win32FillSoundBuffer(BytesToLock, BytesToWrite, &SoundOutput,
                                    &GameSoundBuffer, &SoundBuffer);
+              for (size_t i = 0; i < GameSoundBuffer.SampleCount; i++) {
+                SoundDebugBuffer.Samples[2 * i] =
+                    GameSoundBuffer.Samples[2 * i];
+                SoundDebugBuffer.Samples[2 * i + 1] =
+                    GameSoundBuffer.Samples[2 * i + 1];
+              }
             } else {
               SoundIsValid = false;
             }
@@ -1427,6 +1479,8 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance,
                                     ArrayCount(DebugTimeMarkers),
                                     TimeMarkerCursor, DebugTimeMarkers,
                                     TargetSecondsPerFrame);
+              Win32DebugSoundWave(&Win32State.RenderBuffer, &SoundDebugBuffer,
+                                  16, 16);
             }
 #endif
             Win32DisplayRecordingState(&Win32State.RenderBuffer,

@@ -538,7 +538,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   }
   if (Input->Controllers[0].Menu.EndedDown) {
 
-    GameState->Camera.ZoomLevel -= Input->Mouse.WheelY / 512.0;
+    GameState->Camera.ZoomLevel -= Input->Mouse.WheelY / 512.0f;
     float MaxZoom = 1;
     float MinZoom = -3;
     if (GameState->Camera.ZoomLevel > MaxZoom) {
@@ -548,14 +548,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
       GameState->Camera.ZoomLevel = MinZoom;
     }
   } else {
-    GameState->Camera.pos.RelX += Input->Mouse.WheelX / 128.0 / ZoomFactor;
-    GameState->Camera.pos.RelY += Input->Mouse.WheelY / 128.0 / ZoomFactor;
+    GameState->Camera.pos.RelX += Input->Mouse.WheelX / 128.0f / ZoomFactor;
+    GameState->Camera.pos.RelY += Input->Mouse.WheelY / 128.0f / ZoomFactor;
 
     TilePositionNormalize(&GameState->Camera.pos);
   }
   if (Input->Mouse.Buttons[1].EndedDown) {
-    GameState->Camera.pos.RelX -= Input->Mouse.DeltaX / 128.0 / ZoomFactor;
-    GameState->Camera.pos.RelY -= Input->Mouse.DeltaY / 128.0 / ZoomFactor;
+    GameState->Camera.pos.RelX -= Input->Mouse.DeltaX / 128.0f / ZoomFactor;
+    GameState->Camera.pos.RelY -= Input->Mouse.DeltaY / 128.0f / ZoomFactor;
 
     TilePositionNormalize(&GameState->Camera.pos);
   }
@@ -768,80 +768,85 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
   int PlayerWidth = 10;
   int PlayerColor = 0x00ff44;
 
-  real32 CenterX = (RenderBuffer->Viewport.Width / ZoomFactor / 2.0f -
-                    GameState->Camera.pos.X * GameState->TileMap.TileWidth -
-                    GameState->Camera.pos.RelX * GameState->TileMap.TileWidth) *
-                   ZoomFactor;
-  real32 CenterY =
-      (RenderBuffer->Viewport.Height / ZoomFactor / 2.0f -
-       GameState->Camera.pos.Y * GameState->TileMap.TileHeight -
-       GameState->Camera.pos.RelY * GameState->TileMap.TileHeight) *
-      ZoomFactor;
-  int32 MinX = RoundRealToInt((GameState->Camera.pos.X -
-                               RenderBuffer->Viewport.Width / 2.0f /
-                                   GameState->TileMap.TileWidth / ZoomFactor +
-                               GameState->Camera.pos.RelX) -
-                              1);
-  int32 MinY = RoundRealToInt((GameState->Camera.pos.Y -
-                               RenderBuffer->Viewport.Height / 2.0f /
-                                   GameState->TileMap.TileHeight / ZoomFactor +
-                               GameState->Camera.pos.RelY) -
-                              1);
+  {
 
-  int32 MaxX = RoundRealToInt((GameState->Camera.pos.X +
-                               RenderBuffer->Viewport.Width / 2.0f /
-                                   GameState->TileMap.TileWidth / ZoomFactor +
-                               GameState->Camera.pos.RelX) +
-                              1);
-  int32 MaxY = RoundRealToInt((GameState->Camera.pos.Y +
-                               RenderBuffer->Viewport.Height / 2.0f /
-                                   GameState->TileMap.TileHeight / ZoomFactor +
-                               GameState->Camera.pos.RelY) +
-                              1);
+    real32 CenterX =
+        (RenderBuffer->Viewport.Width / ZoomFactor / 2.0f -
+         GameState->Camera.pos.X * GameState->TileMap.TileWidth -
+         GameState->Camera.pos.RelX * GameState->TileMap.TileWidth) *
+        ZoomFactor;
+    real32 CenterY =
+        (RenderBuffer->Viewport.Height / ZoomFactor / 2.0f -
+         GameState->Camera.pos.Y * GameState->TileMap.TileHeight -
+         GameState->Camera.pos.RelY * GameState->TileMap.TileHeight) *
+        ZoomFactor;
+    int32 MinX = RoundRealToInt((GameState->Camera.pos.X -
+                                 RenderBuffer->Viewport.Width / 2.0f /
+                                     GameState->TileMap.TileWidth / ZoomFactor +
+                                 GameState->Camera.pos.RelX) -
+                                1);
+    int32 MinY =
+        RoundRealToInt((GameState->Camera.pos.Y -
+                        RenderBuffer->Viewport.Height / 2.0f /
+                            GameState->TileMap.TileHeight / ZoomFactor +
+                        GameState->Camera.pos.RelY) -
+                       1);
 
-  // printf("  x: %d -  %d = %d", MinX, MaxX, MaxX - MinX);
-  // printf("  y: %d - %d = %d\n", MinY, MaxY, MaxY - MinY);
-  for (int32 y = MinY; y <= MaxY; y++) {
-    for (int32 x = MinX; x <= MaxX; x++) {
-      tile_kind Kind = GetTileKind(&GameState->TileMap, x, y);
-      switch (Kind) {
-      case TILE_WALL: {
+    int32 MaxX = RoundRealToInt((GameState->Camera.pos.X +
+                                 RenderBuffer->Viewport.Width / 2.0f /
+                                     GameState->TileMap.TileWidth / ZoomFactor +
+                                 GameState->Camera.pos.RelX) +
+                                1);
+    int32 MaxY =
+        RoundRealToInt((GameState->Camera.pos.Y +
+                        RenderBuffer->Viewport.Height / 2.0f /
+                            GameState->TileMap.TileHeight / ZoomFactor +
+                        GameState->Camera.pos.RelY) +
+                       1);
 
-        PushRect(
-            RenderBuffer,
-            CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
-            CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-            CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
-            CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-            render_color_rgba{1.0f, 1.0f, 1.0f, 1.0f});
+    // printf("  x: %d -  %d = %d", MinX, MaxX, MaxX - MinX);
+    // printf("  y: %d - %d = %d\n", MinY, MaxY, MaxY - MinY);
+    for (int32 y = MinY; y <= MaxY; y++) {
+      for (int32 x = MinX; x <= MaxX; x++) {
+        tile_kind Kind = GetTileKind(&GameState->TileMap, x, y);
+        switch (Kind) {
+        case TILE_WALL: {
 
-      } break;
-      case TILE_DOOR: {
-        PushRect(
-            RenderBuffer,
-            CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
-            CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-            CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
-            CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-            render_color_rgba{0.0f, 0.0f, 0.0f, 1.0f});
+          PushRect(
+              RenderBuffer,
+              CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
+              CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
+              CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
+              CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
+              render_color_rgba{1.0f, 1.0f, 1.0f, 1.0f});
 
-      } break;
-      case TILE_EMPTY: {
+        } break;
+        case TILE_DOOR: {
+          PushRect(
+              RenderBuffer,
+              CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
+              CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
+              CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
+              CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
+              render_color_rgba{0.0f, 0.0f, 0.0f, 1.0f});
 
-        PushRect(
-            RenderBuffer,
-            CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
-            CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-            CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
-            CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-            render_color_rgba{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
-                              x % 2 == 0 ? 0.6f : 0.8f, 1.0f});
+        } break;
+        case TILE_EMPTY: {
 
-      } break;
+          PushRect(
+              RenderBuffer,
+              CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
+              CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
+              CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
+              CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
+              render_color_rgba{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
+                                x % 2 == 0 ? 0.6f : 0.8f, 1.0f});
+
+        } break;
+        }
       }
     }
   }
-
   for (size_t c = 0; c < ArrayCount(GameState->ControllerMap.controllers);
        c++) {
     game_entity *Entity = GameState->ControllerMap.controllers[c];
