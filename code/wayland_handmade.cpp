@@ -414,8 +414,8 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
   game_mouse_input *Mouse = &NewInput->Mouse;
   game_mouse_input *OldMouse = &OldInput->Mouse;
 
-  game_controller_input reset_controller = {};
-  game_mouse_input reset_mouse = {};
+  game_controller_input reset_controller = {0};
+  game_mouse_input reset_mouse = {0};
 
   reset_mouse.MouseX = OldMouse->MouseX;
   reset_mouse.MouseY = OldMouse->MouseY;

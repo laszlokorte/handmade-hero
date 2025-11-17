@@ -531,13 +531,25 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     Memory->Initialized = true;
   }
 
-  real32 ZoomFactor = powf(2.0f, GameState->Camera.ZoomLevel);
+  real32 OldZoomFactor = powf(2.0f, GameState->Camera.ZoomLevel);
+  tile_position MouseTilePos = {0};
+  MouseTilePos.RelX =
+      (Input->Mouse.MouseX - RenderBuffer->Viewport.Width / 2.0f) /
+          OldZoomFactor / GameState->TileMap.TileWidth +
+      GameState->Camera.pos.X + GameState->Camera.pos.RelX;
+  MouseTilePos.RelY =
+      (Input->Mouse.MouseY - RenderBuffer->Viewport.Height / 2.0f) /
+          OldZoomFactor / GameState->TileMap.TileHeight +
+      GameState->Camera.pos.Y + GameState->Camera.pos.RelY;
 
+  TilePositionNormalize(&MouseTilePos);
+  TilePositionNormalize(&GameState->Camera.pos);
   if (GameState->JumpTime > 0) {
     GameState->JumpTime--;
   }
   if (Input->Controllers[0].Menu.EndedDown) {
 
+    float oldZoomLevel = GameState->Camera.ZoomLevel;
     GameState->Camera.ZoomLevel -= Input->Mouse.WheelY / 512.0f;
     float MaxZoom = 1;
     float MinZoom = -3;
@@ -547,19 +559,38 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
     if (GameState->Camera.ZoomLevel < MinZoom) {
       GameState->Camera.ZoomLevel = MinZoom;
     }
+
+    if (Input->Mouse.InRange) {
+
+      float zoomDelta = GameState->Camera.ZoomLevel - oldZoomLevel;
+      float k = powf(2.0f, zoomDelta);
+
+      float zoomPanX =
+          (1.0f - 1.0f / k) * (MouseTilePos.X - GameState->Camera.pos.X);
+      float zoomPanY =
+          (1.0f - 1.0f / k) * (MouseTilePos.Y - GameState->Camera.pos.Y);
+      float zoomPanXRel =
+          (1 - 1 / k) * (MouseTilePos.RelX - GameState->Camera.pos.RelX);
+      float zoomPanYRel =
+          (1 - 1 / k) * (MouseTilePos.RelY - GameState->Camera.pos.RelY);
+      GameState->Camera.pos.RelX += zoomPanXRel + zoomPanX;
+      GameState->Camera.pos.RelY += zoomPanYRel + zoomPanY;
+      TilePositionNormalize(&GameState->Camera.pos);
+    }
   } else {
-    GameState->Camera.pos.RelX += Input->Mouse.WheelX / 128.0f / ZoomFactor;
-    GameState->Camera.pos.RelY += Input->Mouse.WheelY / 128.0f / ZoomFactor;
+    GameState->Camera.pos.RelX += Input->Mouse.WheelX / 128.0f / OldZoomFactor;
+    GameState->Camera.pos.RelY += Input->Mouse.WheelY / 128.0f / OldZoomFactor;
 
     TilePositionNormalize(&GameState->Camera.pos);
   }
   if (Input->Mouse.Buttons[1].EndedDown) {
-    GameState->Camera.pos.RelX -= Input->Mouse.DeltaX / 128.0f / ZoomFactor;
-    GameState->Camera.pos.RelY -= Input->Mouse.DeltaY / 128.0f / ZoomFactor;
+    GameState->Camera.pos.RelX -= Input->Mouse.DeltaX / 128.0f / OldZoomFactor;
+    GameState->Camera.pos.RelY -= Input->Mouse.DeltaY / 128.0f / OldZoomFactor;
 
     TilePositionNormalize(&GameState->Camera.pos);
   }
 
+  float ZoomFactor = powf(2.0f, GameState->Camera.ZoomLevel);
   for (size_t c = 0; c < ArrayCount(Input->Controllers); c++) {
     game_controller_input *Controller = &Input->Controllers[c];
 
@@ -1008,7 +1039,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
            (real32)min(100, (int32)RenderBuffer->Viewport.Height),
            render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
   if (Input->Mouse.InRange) {
-    tile_position MouseTilePos = {};
+    tile_position MouseTilePos = {0};
     MouseTilePos.RelX =
         (Input->Mouse.MouseX - RenderBuffer->Viewport.Width / 2.0f) /
             ZoomFactor / GameState->TileMap.TileWidth +
