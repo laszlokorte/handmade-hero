@@ -2,6 +2,9 @@
 
 #include "handmade_types.h"
 
+typedef struct font_bitmap_symbol font_bitmap_symbol;
+typedef struct debug_font debug_font;
+
 struct font_bitmap_symbol {
   uint8 Bits[8 * 8];
 };

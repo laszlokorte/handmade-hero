@@ -342,7 +342,9 @@ internal void RenderGradient(game_offscreen_buffer *Buffer, int xoff, int yoff,
   }
 }
 
-extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples) {
+extern "C" void GameGetSoundSamples(thread_context *Context,
+                                    game_memory *Memory,
+                                    game_sound_output_buffer *SoundBuffer) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
@@ -484,7 +486,10 @@ void TestTask2(void *Data) {
   GamePlaySound(&GameState->SoundState, -1, 5000, 1.5, 3000);
 }
 
-extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender) {
+extern "C" bool GameUpdateAndRender(thread_context *Context,
+                               game_memory *Memory,
+                               game_input *Input,
+                               render_buffer *RenderBuffer) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;

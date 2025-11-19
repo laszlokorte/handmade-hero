@@ -2,6 +2,15 @@
 
 #include "handmade_types.h"
 
+typedef struct loaded_bitmap loaded_bitmap;
+typedef struct render_viewport render_viewport;
+typedef struct render_color_rgba render_color_rgba;
+typedef struct render_command render_command;
+typedef struct render_command_rect render_command_rect;
+typedef struct render_command_triangle render_command_triangle;
+typedef struct render_buffer render_buffer;
+
+
 struct loaded_bitmap {
   size_t Width;
   size_t Height;
@@ -13,10 +22,10 @@ struct render_viewport {
   uint32 Height;
 };
 
-enum render_command_type {
+typedef enum render_command_type {
   RenderCommandRect,
   RenderCommandTriangle,
-};
+} render_command_type;
 
 struct render_color_rgba {
   real32 Red;
@@ -62,7 +71,7 @@ struct render_buffer {
 internal inline void InitializeRenderBuffer(render_buffer *Buffer,
                                             memory_index Size,
                                             render_command *Base) {
-  Buffer->Viewport = {0, 0};
+  Buffer->Viewport = (render_viewport){0};
   Buffer->Size = Size;
   Buffer->Count = 0;
   Buffer->Base = Base;

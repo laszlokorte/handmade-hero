@@ -2,6 +2,16 @@
 
 #include "handmade_types.h"
 
+typedef struct tile_position tile_position;
+typedef struct tile tile;
+typedef struct tile_chunk tile_chunk;
+typedef struct chunk_tile_position chunk_tile_position;
+typedef struct chunk_position chunk_position;
+typedef struct tile_hash_entry tile_hash_entry;
+typedef struct tile_distance tile_distance;
+typedef struct tile_map tile_map;
+
+
 struct tile_position {
   int X;
   int Y;
@@ -9,11 +19,11 @@ struct tile_position {
   real32 RelX;
   real32 RelY;
 };
-enum tile_kind {
+typedef enum tile_kind {
   TILE_EMPTY,
   TILE_WALL,
   TILE_DOOR,
-};
+} tile_kind;
 
 struct tile {
   tile_kind Kind;

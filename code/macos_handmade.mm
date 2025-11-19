@@ -171,7 +171,7 @@ static void MetalPushQuad(MetalVertices *Vertices, float x0, float y0, float x1,
                           float y1, float r, float g, float b, float a,
                           bool tex) {
   if (Vertices->Capacity < Vertices->Count + 6) {
-     printf("Metal Vertex Buffer full\n");
+    printf("Metal Vertex Buffer full\n");
     // printf("%lu\n", Vertices->Count);
     // printf("%lu\n", Vertices->Capacity);
     return;
@@ -623,9 +623,9 @@ int main(void) {
 
   MacOsState.Window = [[NSWindow alloc]
       initWithContentRect:initialFrame
-                styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                          NSWindowStyleMaskMiniaturizable |
-                          NSWindowStyleMaskResizable
+                styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                           NSWindowStyleMaskMiniaturizable |
+                           NSWindowStyleMaskResizable)
                   backing:NSBackingStoreBuffered
                     defer:YES];
 #ifdef USE_METAL
@@ -693,6 +693,10 @@ int main(void) {
       CurrentInput->Controllers[0].Buttons[b].EndedDown =
           LastInput->Controllers[0].Buttons[b].EndedDown;
     }
+    for (int b = 0; b < ArrayCount(CurrentInput->Mouse.Buttons); b++) {
+      CurrentInput->Mouse.Buttons[b].EndedDown =
+          LastInput->Mouse.Buttons[b].EndedDown;
+    }
 
     @autoreleasepool {
       NSEvent *Event;
@@ -703,7 +707,6 @@ int main(void) {
                                    untilDate:[NSDate distantPast]
                                       inMode:NSEventTrackingRunLoopMode
                                      dequeue:YES];
-
         if (!Event) {
           break;
         };
@@ -783,11 +786,18 @@ int main(void) {
         }
 
       } while (Event != nil);
+
       NSPoint mousePos = [NSEvent mouseLocation];
       NSPoint posInWindow =
           NSMakePoint(mousePos.x - MacOsState.Window.frame.origin.x,
                       mousePos.y - MacOsState.Window.frame.origin.y);
-      NSRect content = MacOsState.Window.frame;
+      NSRect content = [MacOsState.Window
+          convertRectToScreen:MacOsState.Window.contentView.frame];
+      CurrentInput->Mouse.DeltaX =
+          (int)posInWindow.x - CurrentInput->Mouse.MouseX;
+      CurrentInput->Mouse.DeltaY =
+          (int)(MacOsState.WindowHeight - posInWindow.y) -
+          CurrentInput->Mouse.MouseY;
       CurrentInput->Mouse.MouseX = (int)posInWindow.x;
       CurrentInput->Mouse.MouseY =
           (int)(MacOsState.WindowHeight - posInWindow.y);

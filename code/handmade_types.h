@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #ifndef GL_BGRA
 #define GL_BGRA 0x80E1
@@ -41,6 +42,8 @@ typedef double real64;
 #define Terabytes(m) (1024 * Gigabytes(m))
 
 typedef size_t memory_index;
+
+typedef struct memory_arena memory_arena;
 
 struct memory_arena {
   memory_index Size;

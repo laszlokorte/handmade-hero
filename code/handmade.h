@@ -3,7 +3,27 @@
 #include "./handmade_types.h"
 #include "./tilemap.h"
 #include "./renderer.h"
-#include "work_queue.h"
+#include "./work_queue.h"
+typedef struct thread_context thread_context;
+typedef struct debug_read_file_result debug_read_file_result;
+typedef struct game_offscreen_buffer game_offscreen_buffer;
+typedef struct game_sound_output_buffer game_sound_output_buffer;
+typedef struct game_button_state game_button_state;
+typedef struct game_controller_input game_controller_input;
+typedef struct game_mouse_input game_mouse_input;
+typedef struct game_input game_input;
+typedef struct game_memory game_memory;
+typedef struct game_velocity game_velocity;
+typedef struct game_position game_position;
+typedef struct game_color_rgb game_color_rgb;
+typedef struct game_entity game_entity;
+typedef struct game_controller_entity_map game_controller_entity_map;
+typedef struct game_camera game_camera;
+typedef struct game_sound_synth game_sound_synth;
+typedef struct game_sound_state game_sound_state;
+typedef struct game_state game_state;
+typedef struct game_size game_size;
+
 
 struct thread_context {
   int Dummy;
@@ -144,14 +164,14 @@ struct game_color_rgb {
   real32 b;
 };
 
-enum game_direction4 {
+typedef enum game_direction4 {
   GameDirectionNorth,
   GameDirectionSouth,
   GameDirectionEast,
   GameDirectionWest,
-};
+} game_direction4;
 
-enum game_direction8 {
+typedef enum game_direction8 {
   GameDirectionJustNorth,
   GameDirectionJustSouth,
   GameDirectionJustEast,
@@ -160,7 +180,7 @@ enum game_direction8 {
   GameDirectionSouthWest,
   GameDirectionNorthEast,
   GameDirectionSouthEast,
-};
+} game_direction8;
 
 struct game_entity {
   bool active;
@@ -213,18 +233,36 @@ struct game_state {
   game_sound_state SoundState;
 };
 
-#define GAME_UPDATE_AND_RENDER(name)                                           \
-  bool name(thread_context *Context, game_memory *Memory, game_input *Input,   \
-            render_buffer *RenderBuffer)
+typedef bool (*game_update_and_render)(
+    thread_context *Context,
+    game_memory *Memory,
+    game_input *Input,
+    render_buffer *RenderBuffer
+);
 
-extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender);
-typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
+typedef void (*game_get_sound_samples)(
+    thread_context *Context,
+    game_memory *Memory,
+    game_sound_output_buffer *SoundBuffer
+);
 
-#define GAME_GET_SOUND_SAMPLES(name)                                           \
-  void name(thread_context *Context, game_memory *Memory,                      \
-            game_sound_output_buffer *SoundBuffer)
-typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
-extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// function declarations
+ bool GameUpdateAndRender(thread_context *Context,
+                         game_memory *Memory,
+                         game_input *Input,
+                         render_buffer *RenderBuffer);
+
+ void GameGetSoundSamples(thread_context *Context,
+                         game_memory *Memory,
+                         game_sound_output_buffer *SoundBuffer);
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
 
 #define HANDMADE_H
 #endif
