@@ -233,32 +233,38 @@ struct game_state {
   game_sound_state SoundState;
 };
 
-typedef bool (*game_update_and_render)(
+typedef bool (game_update_and_render)(
     thread_context *Context,
     game_memory *Memory,
     game_input *Input,
     render_buffer *RenderBuffer
 );
 
-typedef void (*game_get_sound_samples)(
+typedef void (game_get_sound_samples)(
     thread_context *Context,
     game_memory *Memory,
     game_sound_output_buffer *SoundBuffer
 );
 
+
+#define GAME_UPDATE_AND_RENDER(name)                                           \
+  bool name(thread_context *Context, game_memory *Memory, game_input *Input,   \
+            render_buffer *RenderBuffer)
+
+#define GAME_GET_SOUND_SAMPLES(name)                                           \
+  void name(thread_context *Context, game_memory *Memory,                      \
+            game_sound_output_buffer *SoundBuffer)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// function declarations
- bool GameUpdateAndRender(thread_context *Context,
-                         game_memory *Memory,
-                         game_input *Input,
-                         render_buffer *RenderBuffer);
+GAME_UPDATE_AND_RENDER(GameUpdateAndRender);
+typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 
- void GameGetSoundSamples(thread_context *Context,
-                         game_memory *Memory,
-                         game_sound_output_buffer *SoundBuffer);
+GAME_GET_SOUND_SAMPLES(GameGetSoundSamples);
+typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
