@@ -4,6 +4,7 @@ typedef void work_queue_callback(void *Data);
 
 typedef struct work_queue work_queue;
 
+typedef work_queue work_queue;
 struct work_queue;
 
 #define PUSH_TASK_TO_QUEUE(Name)                                               \
