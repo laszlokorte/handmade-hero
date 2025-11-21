@@ -10,7 +10,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
     var PlatformState: ios_state = ios_state()
     var GameMemory: game_memory = game_memory()
 
-    var GameInputs = [game_input(), game_input()]
+    var GameInput = game_input()
 
     var pipelineState: MTLRenderPipelineState?
 
@@ -31,25 +31,44 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
         PlatformState.RenderBuffer.Viewport.Height = UInt32(size.height)
         metalView.autoResizeDrawable = true
         metalView.onTouch = { (event: TouchState, x: Int32, y: Int32) in
+            let cutoff = Int32(self.PlatformState.RenderBuffer.Viewport.Height * 2 / 3)
+            let landscape =
+                self.PlatformState.RenderBuffer.Viewport.Height
+                < self.PlatformState.RenderBuffer.Viewport.Width
+            let right = x > self.PlatformState.RenderBuffer.Viewport.Width / 2
+            let bottom = y > self.PlatformState.RenderBuffer.Viewport.Height / 2
+
+            let draw = (right && landscape) || bottom && !landscape
+
             switch event {
             case .Begin:
-                self.GameInputs[0].Mouse.MouseX = x
-                self.GameInputs[0].Mouse.MouseY = y
-                self.GameInputs[0].Mouse.Buttons.0.EndedDown = true
-                self.GameInputs[0].Mouse.Buttons.0.HalfTransitionCount += 1
-                self.GameInputs[0].Mouse.InRange = true
+                self.GameInput.Mouse.MouseX = x
+                self.GameInput.Mouse.MouseY = y
+                if !draw {
+                    self.GameInput.Mouse.Buttons.0.EndedDown = true
+                    self.GameInput.Mouse.Buttons.0.HalfTransitionCount += 1
+                    self.GameInput.Mouse.InRange = true
+                } else {
+                    self.GameInput.Mouse.Buttons.1.EndedDown = true
+                    self.GameInput.Mouse.Buttons.1.HalfTransitionCount += 1
+                    self.GameInput.Mouse.InRange = false
+                }
                 break
             case .Move:
-                self.GameInputs[0].Mouse.MouseX = x
-                self.GameInputs[0].Mouse.MouseY = y
+                self.GameInput.Mouse.DeltaX = x - self.GameInput.Mouse.MouseX
+                self.GameInput.Mouse.DeltaY = y - self.GameInput.Mouse.MouseY
+                self.GameInput.Mouse.MouseX = x
+                self.GameInput.Mouse.MouseY = y
                 break
             case .Ended:
-                self.GameInputs[0].Mouse.MouseX = x
-                self.GameInputs[0].Mouse.MouseY = y
-                self.GameInputs[0].Mouse.Buttons.0.EndedDown = false
-                self.GameInputs[0].Mouse.Buttons.0.HalfTransitionCount += 1
+                self.GameInput.Mouse.MouseX = x
+                self.GameInput.Mouse.MouseY = y
+                self.GameInput.Mouse.Buttons.0.EndedDown = false
+                self.GameInput.Mouse.Buttons.1.EndedDown = false
+                self.GameInput.Mouse.Buttons.2.EndedDown = false
+                self.GameInput.Mouse.Buttons.0.HalfTransitionCount += 1
 
-                self.GameInputs[0].Mouse.InRange = false
+                self.GameInput.Mouse.InRange = false
                 break
             }
         }
@@ -95,7 +114,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
     func draw(in view: MTKView) {
 
         var Context = thread_context()
-        var CurrentInput = GameInputs[0]
+        var CurrentInput = GameInput
 
         PlatformState.RenderBuffer.Count = 0
         GameUpdateAndRender(&Context, &GameMemory, &CurrentInput, &PlatformState.RenderBuffer)
@@ -108,6 +127,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
                 GameGetSoundSamples(&Context, &GameMemory, &SoundBuffer)
             }
         }
+
+        self.GameInput.Mouse.Buttons.0.HalfTransitionCount = 0
+        self.GameInput.Mouse.Buttons.1.HalfTransitionCount = 0
+        self.GameInput.Mouse.Buttons.2.HalfTransitionCount = 0
+        self.GameInput.Mouse.Buttons.3.HalfTransitionCount = 0
+        self.GameInput.Mouse.Buttons.4.HalfTransitionCount = 0
+        self.GameInput.Mouse.DeltaX = 0
+        self.GameInput.Mouse.DeltaY = 0
 
         guard
             let drawable = view.currentDrawable,
