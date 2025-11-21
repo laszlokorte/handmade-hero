@@ -26,7 +26,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
 
         // Metal View als RootView
         metalView = TouchMetalView(frame: window!.bounds)
-        mtkView.drawableSize = mtkView.bounds.size
         let size = metalView.drawableSize
         PlatformState.RenderBuffer.Viewport.Width = UInt32(size.width)
         PlatformState.RenderBuffer.Viewport.Height = UInt32(size.height)
@@ -89,17 +88,78 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
         return true
     }
     func draw(in view: MTKView) {
-        guard let drawable = view.currentDrawable,
-            let passDescriptor = view.currentRenderPassDescriptor
+
+        var Context = thread_context()
+        var CurrentInput = GameInputs[0]
+
+        PlatformState.RenderBuffer.Count = 0
+        GameUpdateAndRender(&Context, &GameMemory, &CurrentInput, &PlatformState.RenderBuffer)
+        withUnsafeTemporaryAllocation(of: Int16.self, capacity: 100) { buffer in
+            if let b = buffer.baseAddress {
+                var SoundBuffer = game_sound_output_buffer()
+                SoundBuffer.SamplesPerSecond = 44100
+                SoundBuffer.SampleCount = 100
+                SoundBuffer.Samples = b
+                GameGetSoundSamples(&Context, &GameMemory, &SoundBuffer)
+            }
+        }
+
+        guard
+            let drawable = view.currentDrawable,
+            let passDescriptor = view.currentRenderPassDescriptor,
+            let pipelineState = pipelineState
         else { return }
 
-        passDescriptor.colorAttachments[0].clearColor = MTLClearColor(
-            red: 1, green: 0, blue: 0, alpha: 1)
+        passDescriptor.colorAttachments[0].clearColor =
+            MTLClearColor(red: 0, green: 1, blue: 0.5, alpha: 1)
         passDescriptor.colorAttachments[0].loadAction = .clear
         passDescriptor.colorAttachments[0].storeAction = .store
 
-        let commandBuffer = commandQueue!.makeCommandBuffer()!
+        let commandBuffer = view.device!.makeCommandQueue()!.makeCommandBuffer()!
         let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDescriptor)!
+
+        encoder.setRenderPipelineState(pipelineState)
+
+        var vertices: [MetalVertex] = []
+
+        for i in 0..<PlatformState.RenderBuffer.Count {
+            let cmd = PlatformState.RenderBuffer.Base[i]
+            switch cmd.Type {
+            case RenderCommandTriangle:
+                break
+            case RenderCommandRect:
+                let rect = cmd.Rect
+                let col = (rect.Color.Red, rect.Color.Green, rect.Color.Blue, rect.Color.Alpha)
+                vertices.append(
+                    MetalVertex(pos: (rect.MinX, rect.MinY), col: col, tex: (0.0, 0.0, 0.0)))
+                vertices.append(
+                    MetalVertex(pos: (rect.MinX, rect.MaxY), col: col, tex: (0.0, 0.0, 0.0)))
+                vertices.append(
+                    MetalVertex(pos: (rect.MaxX, rect.MaxY), col: col, tex: (0.0, 0.0, 0.0)))
+                vertices.append(
+                    MetalVertex(pos: (rect.MinX, rect.MinY), col: col, tex: (0.0, 0.0, 0.0)))
+                vertices.append(
+                    MetalVertex(pos: (rect.MaxX, rect.MaxY), col: col, tex: (0.0, 0.0, 0.0)))
+                vertices.append(
+                    MetalVertex(pos: (rect.MaxX, rect.MinY), col: col, tex: (0.0, 0.0, 0.0)))
+            default: break
+            }
+
+        }
+
+        encoder.setVertexBytes(
+            &vertices,
+            length: MemoryLayout<MetalVertex>.stride * vertices.count,
+            index: 0)
+        var uni = MetalUniforms(
+            scaleX: 2.0 / Float(PlatformState.RenderBuffer.Viewport.Width),
+            scaleY: -2.0 / Float(PlatformState.RenderBuffer.Viewport.Height), transX: -1.0,
+            transY: 1.0)
+
+        encoder.setVertexBytes(
+            &uni, length: MemoryLayout<MetalUniforms>.stride, index: 1)
+
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertices.count)
         encoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
