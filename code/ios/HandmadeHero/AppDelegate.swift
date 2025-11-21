@@ -107,7 +107,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
         guard
             let drawable = view.currentDrawable,
             let passDescriptor = view.currentRenderPassDescriptor,
-            let pipelineState = pipelineState
+            let pipelineState = pipelineState,
+            let device = view.device
         else { return }
 
         passDescriptor.colorAttachments[0].clearColor =
@@ -147,10 +148,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
 
         }
 
-        encoder.setVertexBytes(
-            &vertices,
-            length: MemoryLayout<MetalVertex>.stride * vertices.count,
-            index: 0)
+        let dataSize = MemoryLayout<MetalVertex>.stride * vertices.count
+        let vertexBuffer = device.makeBuffer(bytes: vertices, length: dataSize, options: [])!
+
+        encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
         var uni = MetalUniforms(
             scaleX: 2.0 / Float(PlatformState.RenderBuffer.Viewport.Width),
             scaleY: -2.0 / Float(PlatformState.RenderBuffer.Viewport.Height), transX: -1.0,
