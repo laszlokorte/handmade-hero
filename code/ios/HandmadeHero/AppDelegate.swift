@@ -53,13 +53,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
                 break
             }
         }
+
         metalView.delegate = self
         metalView.clearColor = MTLClearColor(red: 0, green: 1, blue: 1, alpha: 1)
         metalView.device = MTLCreateSystemDefaultDevice()
-        metalView.enableSetNeedsDisplay = true
+        metalView.enableSetNeedsDisplay = false
         metalView.isPaused = false
-        metalView.framebufferOnly = true  // usually true
-        metalView.sampleCount = 1
 
         guard let device = metalView.device else { return false }
         let library = try! device.makeDefaultLibrary(bundle: Bundle.main)
@@ -84,6 +83,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
         window?.rootViewController = UIViewController()
         window?.rootViewController?.view = metalView
         window?.makeKeyAndVisible()
+        metalView.setNeedsLayout()
+        metalView.layoutIfNeeded()  // force frame/layout update
+        metalView.drawableSize = CGSize(
+            width: metalView.bounds.width * metalView.contentScaleFactor,
+            height: metalView.bounds.height * metalView.contentScaleFactor
+        )
 
         return true
     }
