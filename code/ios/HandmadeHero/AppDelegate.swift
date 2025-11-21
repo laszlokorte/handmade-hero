@@ -14,6 +14,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
 
     var pipelineState: MTLRenderPipelineState?
 
+    var commandQueue: MTLCommandQueue?
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -21,21 +23,44 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
 
         iOsSetupGameMemory(PlatformState: &PlatformState, GameMemory: &GameMemory)
         window = UIWindow(frame: UIScreen.main.bounds)
-        if let w = window {
 
-            PlatformState.RenderBuffer.Viewport.Width = uint32(w.bounds.size.width)
-            PlatformState.RenderBuffer.Viewport.Height = uint32(w.bounds.size.height)
-        }
         // Metal View als RootView
         metalView = TouchMetalView(frame: window!.bounds)
-        metalView.onTouch = { (event: String, point: CGPoint) in
+        mtkView.drawableSize = mtkView.bounds.size
+        let size = metalView.drawableSize
+        PlatformState.RenderBuffer.Viewport.Width = UInt32(size.width)
+        PlatformState.RenderBuffer.Viewport.Height = UInt32(size.height)
+        metalView.autoResizeDrawable = true
+        metalView.onTouch = { (event: TouchState, x: Int32, y: Int32) in
+            switch event {
+            case .Begin:
+                self.GameInputs[0].Mouse.MouseX = x
+                self.GameInputs[0].Mouse.MouseY = y
+                self.GameInputs[0].Mouse.Buttons.0.EndedDown = true
+                self.GameInputs[0].Mouse.Buttons.0.HalfTransitionCount += 1
+                self.GameInputs[0].Mouse.InRange = true
+                break
+            case .Move:
+                self.GameInputs[0].Mouse.MouseX = x
+                self.GameInputs[0].Mouse.MouseY = y
+                break
+            case .Ended:
+                self.GameInputs[0].Mouse.MouseX = x
+                self.GameInputs[0].Mouse.MouseY = y
+                self.GameInputs[0].Mouse.Buttons.0.EndedDown = false
+                self.GameInputs[0].Mouse.Buttons.0.HalfTransitionCount += 1
 
+                self.GameInputs[0].Mouse.InRange = false
+                break
+            }
         }
         metalView.delegate = self
         metalView.clearColor = MTLClearColor(red: 0, green: 1, blue: 1, alpha: 1)
         metalView.device = MTLCreateSystemDefaultDevice()
         metalView.enableSetNeedsDisplay = true
         metalView.isPaused = false
+        metalView.framebufferOnly = true  // usually true
+        metalView.sampleCount = 1
 
         guard let device = metalView.device else { return false }
         let library = try! device.makeDefaultLibrary(bundle: Bundle.main)
@@ -56,6 +81,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
             colorAttachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
         }
         pipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+        commandQueue = metalView.device?.makeCommandQueue()
         window?.rootViewController = UIViewController()
         window?.rootViewController?.view = metalView
         window?.makeKeyAndVisible()
@@ -63,83 +89,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
         return true
     }
     func draw(in view: MTKView) {
-
-        var Context = thread_context()
-        var CurrentInput = GameInputs[0]
-
-        PlatformState.RenderBuffer.Count = 0
-        GameUpdateAndRender(&Context, &GameMemory, &CurrentInput, &PlatformState.RenderBuffer)
-        withUnsafeTemporaryAllocation(of: Int16.self, capacity: 100) { buffer in
-            if let b = buffer.baseAddress {
-                var SoundBuffer = game_sound_output_buffer()
-                SoundBuffer.SamplesPerSecond = 44100
-                SoundBuffer.SampleCount = 100
-                SoundBuffer.Samples = b
-                GameGetSoundSamples(&Context, &GameMemory, &SoundBuffer)
-            }
-        }
-
-        guard
-            let drawable = view.currentDrawable,
-            let passDescriptor = view.currentRenderPassDescriptor,
-            let pipelineState = pipelineState
+        guard let drawable = view.currentDrawable,
+            let passDescriptor = view.currentRenderPassDescriptor
         else { return }
 
-        passDescriptor.colorAttachments[0].clearColor =
-            MTLClearColor(red: 0, green: 1, blue: 0.5, alpha: 1)
+        passDescriptor.colorAttachments[0].clearColor = MTLClearColor(
+            red: 1, green: 0, blue: 0, alpha: 1)
         passDescriptor.colorAttachments[0].loadAction = .clear
+        passDescriptor.colorAttachments[0].storeAction = .store
 
-        let commandBuffer = view.device!.makeCommandQueue()!.makeCommandBuffer()!
+        let commandBuffer = commandQueue!.makeCommandBuffer()!
         let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDescriptor)!
-
-        encoder.setRenderPipelineState(pipelineState)
-
-        var vertices: [MetalVertex] = []
-
-        for i in 0..<PlatformState.RenderBuffer.Count {
-            let cmd = PlatformState.RenderBuffer.Base[i]
-            switch cmd.Type {
-            case RenderCommandTriangle:
-                break
-            case RenderCommandRect:
-                let rect = cmd.Rect
-                let col = (rect.Color.Red, rect.Color.Green, rect.Color.Blue, rect.Color.Alpha)
-                vertices.append(
-                    MetalVertex(pos: (rect.MinX, rect.MinY), col: col, tex: (0.0, 0.0, 0.0)))
-                vertices.append(
-                    MetalVertex(pos: (rect.MinX, rect.MaxY), col: col, tex: (0.0, 0.0, 0.0)))
-                vertices.append(
-                    MetalVertex(pos: (rect.MaxX, rect.MaxY), col: col, tex: (0.0, 0.0, 0.0)))
-                vertices.append(
-                    MetalVertex(pos: (rect.MinX, rect.MinY), col: col, tex: (0.0, 0.0, 0.0)))
-                vertices.append(
-                    MetalVertex(pos: (rect.MaxX, rect.MaxY), col: col, tex: (0.0, 0.0, 0.0)))
-                vertices.append(
-                    MetalVertex(pos: (rect.MaxX, rect.MinY), col: col, tex: (0.0, 0.0, 0.0)))
-            default: break
-            }
-
-        }
-
-        encoder.setVertexBytes(
-            &vertices,
-            length: MemoryLayout<MetalVertex>.stride * vertices.count,
-            index: 0)
-        var uni = MetalUniforms(
-            scaleX: 2.0 / Float(PlatformState.RenderBuffer.Viewport.Width),
-            scaleY: -2.0 / Float(PlatformState.RenderBuffer.Viewport.Height), transX: -1.0,
-            transY: 1.0)
-
-        encoder.setVertexBytes(
-            &uni, length: MemoryLayout<MetalUniforms>.stride, index: 1)
-
-        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertices.count)
         encoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-
+        PlatformState.RenderBuffer.Viewport.Width = UInt32(size.width)
+        PlatformState.RenderBuffer.Viewport.Height = UInt32(size.height)
     }
 }
 
@@ -162,7 +129,7 @@ func iOsSetupGameMemory(PlatformState: inout ios_state, GameMemory: inout game_m
         byteCount: PlatformState.TotalMemorySize,
         alignment: MemoryLayout<UInt8>.alignment
     )
-    PlatformState.RenderBuffer.Size = 10000
+    PlatformState.RenderBuffer.Size = 1000
     PlatformState.RenderBuffer.Count = 0
     PlatformState.RenderBuffer.Base = UnsafeMutablePointer<render_command>.allocate(
         capacity: PlatformState.RenderBuffer.Size)

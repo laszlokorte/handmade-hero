@@ -1,7 +1,11 @@
 #include "renderer.h"
 
 internal render_command *RenderPushCommand(render_buffer *Buffer) {
-  Assert(Buffer->Count < Buffer->Size);
+
+    static render_command FallbackCommand = {};
+    if(Buffer->Count >= Buffer->Size) {
+        return &FallbackCommand;
+    }
   render_command NewCommand = {};
   render_command *Result = &Buffer->Base[Buffer->Count];
   *Result = NewCommand;

@@ -31,8 +31,7 @@ vertex VSOut v_main(uint vid [[vertex_id]],
   return o;
 }
 
-fragment float4 f_main(VSOut in [[stage_in]], texture2d<float> tex [[texture(0)]], sampler samp [[sampler(0)]]) {
+fragment float4 f_main(VSOut in [[stage_in]], sampler samp [[sampler(0)]]) {
 // sample the texture
-    float4 texColor = tex.sample(samp, in.tex.xy);
-    return mix(in.col, texColor, in.tex.z);
+    return in.col;
 };

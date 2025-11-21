@@ -60,6 +60,7 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(iOSDebugPlatformWriteEntireFile) {
   return Result;
 }
 
+#pragma pack(push, 1)
 typedef struct {
   float pos[2];
   float col[4];
@@ -72,3 +73,4 @@ typedef struct {
   float transX;
   float transY;
 } MetalUniforms;
+#pragma pack(pop)
