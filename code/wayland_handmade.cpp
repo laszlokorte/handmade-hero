@@ -486,7 +486,7 @@ void sh_ping(void *data, struct xdg_wm_base *sh, uint32_t ser) {
 }
 
 struct xdg_wm_base_listener sh_list = {.ping = sh_ping};
-
+static bool have_motion = false;
 static void pointer_handle_enter(void *data, struct wl_pointer *pointer,
                                  uint32_t serial, struct wl_surface *surface,
                                  wl_fixed_t sx, wl_fixed_t sy) {
@@ -495,9 +495,13 @@ static void pointer_handle_enter(void *data, struct wl_pointer *pointer,
   struct linux_state *app = (linux_state *)data;
 
   game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
-
+  int newX = wl_fixed_to_int(sx);
+  int newY = wl_fixed_to_int(sy);
   game_mouse_input *MouseController = &NewInput->Mouse;
-  MouseController->InRange = true;
+
+  if (have_motion) {
+    MouseController->InRange = true;
+  }
 }
 
 static void pointer_handle_leave(void *data, struct wl_pointer *pointer,
@@ -520,7 +524,7 @@ static void pointer_handle_motion(void *data, struct wl_pointer *pointer,
   game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
 
   game_mouse_input *MouseController = &NewInput->Mouse;
-
+  have_motion = true;
   int newX = wl_fixed_to_int(sx);
   int newY = wl_fixed_to_int(sy);
 
@@ -528,6 +532,7 @@ static void pointer_handle_motion(void *data, struct wl_pointer *pointer,
   MouseController->DeltaY += (newY - MouseController->MouseY);
   MouseController->MouseX = newX;
   MouseController->MouseY = newY;
+  MouseController->InRange = true;
 }
 
 static void pointer_handle_button(void *data, struct wl_pointer *pointer,
@@ -629,7 +634,18 @@ void kb_enter(void *data, struct wl_keyboard *kb, uint32_t ser,
               struct wl_surface *surface, struct wl_array *keys) {}
 
 void kb_leave(void *data, struct wl_keyboard *kb, uint32_t ser,
-              struct wl_surface *surface) {}
+              struct wl_surface *surface) {
+
+  struct linux_state *app = (linux_state *)data;
+
+  game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
+
+  game_controller_input *KeyBoardController = &NewInput->Controllers[0];
+  for (size_t b = 0; b < ArrayCount(KeyBoardController->Buttons); b++) {
+    KeyBoardController->Buttons[b].EndedDown = false;
+    KeyBoardController->Buttons[b].HalfTransitionCount = 0;
+  }
+}
 
 void kb_key(void *data, struct wl_keyboard *kb, uint32_t ser, uint32_t t,
             uint32_t key, uint32_t stat) {

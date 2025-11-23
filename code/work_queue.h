@@ -18,7 +18,5 @@ PUSH_TASK_TO_QUEUE(PushTaskToQueue);
 WAIT_FOR_QUEUE_TO_FINISH(WaitForQueueToFinish);
 typedef WAIT_FOR_QUEUE_TO_FINISH(platform_wait_for_queue_to_finish);
 
-
-
 #define WORK_QUEUE_H
 #endif

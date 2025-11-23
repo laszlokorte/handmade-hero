@@ -1,5 +1,6 @@
 //
-//  Use this file to import your target's public headers that you would like to expose to Swift.
+//  Use this file to import your target's public headers that you would like to
+//  expose to Swift.
 //
 #include <pthread.h>
 #include <semaphore.h>
@@ -38,36 +39,34 @@ typedef struct ios_thread_pool {
   ios_thread_info *Threads;
 } ios_thread_pool;
 
-PUSH_TASK_TO_QUEUE(iOSPlatformPushTaskToQueue) {}
+PUSH_TASK_TO_QUEUE(iOSPlatformPushTaskToQueue){};
 
-WAIT_FOR_QUEUE_TO_FINISH(iOSPlatformWaitForQueueToFinish) {}
+WAIT_FOR_QUEUE_TO_FINISH(iOSPlatformWaitForQueueToFinish){};
 
-
-
-DEBUG_PLATFORM_FREE_FILE_MEMORY(iOSDebugPlatformFreeFileMemory) {
-
-}
+DEBUG_PLATFORM_FREE_FILE_MEMORY(iOSDebugPlatformFreeFileMemory){};
 
 DEBUG_PLATFORM_READ_ENTIRE_FILE(iOSDebugPlatformReadEntireFile) {
   debug_read_file_result Result = {0};
 
   return Result;
-}
+};
 
 DEBUG_PLATFORM_WRITE_ENTIRE_FILE(iOSDebugPlatformWriteEntireFile) {
   bool Result = false;
 
   return Result;
-}
+};
 
 #pragma pack(push, 1)
-typedef struct {
+typedef struct MetalVertex {
   float pos[2];
   float col[4];
   float tex[3];
 } MetalVertex;
+#pragma pack(pop)
 
-typedef struct {
+#pragma pack(push, 1)
+typedef struct MetalUniforms {
   float scaleX;
   float scaleY;
   float transX;

@@ -43,13 +43,12 @@ typedef double real64;
 
 typedef size_t memory_index;
 
-typedef struct memory_arena memory_arena;
-
-struct memory_arena {
+typedef struct memory_arena {
   memory_index Size;
   memory_index Used;
   uint8 *Base;
-};
+} memory_arena;
+
 internal void InitializeArena(memory_arena *Arena, memory_index Size,
                               uint8 *Base) {
   Arena->Size = Size;
@@ -57,11 +56,13 @@ internal void InitializeArena(memory_arena *Arena, memory_index Size,
   Arena->Base = Base;
 }
 
-#define ArenaPushStruct(Arena, Type) (Type *)ArenaPushSize(Arena, sizeof(Type), #Arena)
+#define ArenaPushStruct(Arena, Type)                                           \
+  (Type *)ArenaPushSize(Arena, sizeof(Type), #Arena)
 #define ArenaPushArray(Arena, Type, Count)                                     \
   (Type *)ArenaPushSize(Arena, sizeof(Type) * Count, #Arena)
 
-internal void *ArenaPushSize(memory_arena *Arena, memory_index Size, const char* Label) {
+internal void *ArenaPushSize(memory_arena *Arena, memory_index Size,
+                             const char *Label) {
   if (Arena->Used >= Arena->Size) {
     printf("Arena full: %s\n", Label);
     return 0;
