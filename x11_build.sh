@@ -6,7 +6,7 @@ WARNING_FLAGS='-Wno-unused-variable -Wno-unused-function'
 
 mkdir -p build
 
-gcc code/handmade.cpp -g -shared -fPIC -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/handmade_game
+g++ -std=c++11 -pthread code/handmade.cpp -g -shared -fPIC -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/handmade_game
 if [ "$1" != gameonly ]; then
-gcc code/x11_handmade.cpp -g -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/x11_handmade
+g++ -std=c++11 $(pkg-config x11 --cflags --libs) code/x11_handmade.cpp  -lasound -lxkbcommon -lEGL -lGL -lm -g -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/x11_handmade
 fi;

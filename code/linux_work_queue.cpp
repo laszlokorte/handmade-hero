@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#include "wayland_handmade.h"
+#include "linux_work_queue.h"
 
 inline void InitializeWorkQueue(work_queue *Queue, size_t Size,
                                 linux_work_queue_task *Base) {

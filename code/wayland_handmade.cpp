@@ -1,4 +1,6 @@
 #include "wayland_handmade.h"
+
+#include "linux_work_queue.cpp"
 #include "handmade.h"
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -8,7 +10,6 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <linux/input-event-codes.h>
 
-#include "linux_work_queue.cpp"
 PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
 PFNGLBINDVERTEXARRAYPROC glBindVertexArray = NULL;
 struct wl_compositor *comp;

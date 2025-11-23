@@ -3,7 +3,6 @@
 #include <alsa/asoundlib.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <atomic>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -28,6 +27,7 @@
 
 #include "handmade.h"
 
+#include "linux_work_queue.h"
 union v4 {
   struct {
     float x;
@@ -149,34 +149,6 @@ struct linux_game {
   char *FullDllPath;
   game_update_and_render *GameUpdateAndRender;
   game_get_sound_samples *GameGetSoundSamples;
-};
-
-struct linux_work_queue_task {
-  work_queue_callback *Callback;
-  void *Data;
-};
-
-struct work_queue {
-  size_t Size;
-  linux_work_queue_task *Base;
-
-  std::atomic<unsigned int> NextWrite;
-  std::atomic<unsigned int> NextRead;
-  std::atomic<long long> CompletionGoal;
-  std::atomic<long long> CompletionCount;
-
-  sem_t Semaphore;
-};
-
-struct linux_thread_info {
-  int32 LogicalThreadIndex;
-  uint32 ThreadId;
-  work_queue *Queue;
-};
-
-struct linux_thread_pool {
-  size_t Count;
-  linux_thread_info *Threads;
 };
 
 struct linux_state {
