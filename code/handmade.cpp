@@ -1062,9 +1062,10 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
 
       game_button_state Button = Input->Mouse.Buttons[m];
       PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
-               (real32)Input->Mouse.MouseY + 10.0f * Button.HalfTransitionCount,
+               (real32)Input->Mouse.MouseY,
                (real32)Input->Mouse.MouseX + 10.0f * m + 10.0f,
-               (real32)Input->Mouse.MouseY + 10.0f,
+               (real32)Input->Mouse.MouseY + 10.0f +
+                   10.0f * Button.HalfTransitionCount,
                Button.EndedDown
                    ? (Button.HalfTransitionCount > 0
                           ? render_color_rgba{1.0f, 0.8f, 0.2f, 1.0f}

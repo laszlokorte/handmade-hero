@@ -281,10 +281,10 @@ void *audio_thread(void *arg) {
   return 0;
 }
 
-bool quited = false;
+static bool quited = false;
 
 void on_delete(Display *display, Window window) {
-  XDestroyWindow(display, window);
+  // XDestroyWindow(display, window);
   quited = true;
 }
 
@@ -348,7 +348,10 @@ int main() {
 
   XSelectInput(display, window,
                ExposureMask | KeyPressMask | KeyReleaseMask |
-                   StructureNotifyMask);
+                   StructureNotifyMask | ButtonPressMask | ButtonReleaseMask |
+                   EnterWindowMask | LeaveWindowMask | PointerMotionMask |
+                   Button1MotionMask | Button2MotionMask | Button3MotionMask |
+                   Button4MotionMask | Button5MotionMask);
   GC gc = XCreateGC(display, window, 0, NULL);
   if (gc == NULL) {
     fprintf(stderr, "Faied to create GC");
@@ -384,11 +387,91 @@ int main() {
           on_delete(event.xclient.display, event.xclient.window);
         }
       } break;
+      case EnterNotify: {
+
+        CurrentInput.Mouse.InRange = true;
+      } break;
+      case LeaveNotify: {
+
+        CurrentInput.Mouse.InRange = false;
+      } break;
+      case MotionNotify: {
+        int x = event.xmotion.x;
+        int y = event.xmotion.y;
+        CurrentInput.Mouse.DeltaX = x - CurrentInput.Mouse.MouseX;
+        CurrentInput.Mouse.DeltaY = y - CurrentInput.Mouse.MouseY;
+        CurrentInput.Mouse.MouseX = x;
+        CurrentInput.Mouse.MouseY = y;
+      } break;
+      case ButtonRelease: {
+
+        memory_index b = event.xbutton.button - Button1;
+        switch (event.xbutton.button) {
+        case Button4: {
+          CurrentInput.Mouse.WheelY -= 32.0f;
+        } break;
+        case Button5: {
+          CurrentInput.Mouse.WheelY += 32.0f;
+        } break;
+        case 6: {
+
+          CurrentInput.Mouse.WheelX -= 32.0f;
+        } break;
+        case 7: {
+
+          CurrentInput.Mouse.WheelX += 32.0f;
+        } break;
+        case Button1:
+        case Button2:
+        case Button3: {
+          b += 4;
+        }
+        default: {
+          b -= 4;
+          CurrentInput.Mouse.Buttons[b].EndedDown = false;
+          CurrentInput.Mouse.Buttons[b].HalfTransitionCount += 1;
+        } break;
+        }
+      } break;
+      case ButtonPress: {
+
+        memory_index b = event.xbutton.button - Button1;
+        switch (event.xbutton.button) {
+        case Button4: {
+          CurrentInput.Mouse.WheelY -= 32.0f;
+        } break;
+        case Button5: {
+          CurrentInput.Mouse.WheelY += 32.0f;
+        } break;
+        case 6: {
+
+          CurrentInput.Mouse.WheelX -= 32.0f;
+        } break;
+        case 7: {
+
+          CurrentInput.Mouse.WheelX += 32.0f;
+        } break;
+        case Button1:
+        case Button2:
+        case Button3: {
+          b += 4;
+        }
+        default: {
+          b -= 4;
+          CurrentInput.Mouse.Buttons[b].EndedDown = true;
+          CurrentInput.Mouse.Buttons[b].HalfTransitionCount += 1;
+        } break;
+        }
+      } break;
       case KeyRelease: {
         KeySym keysym = XLookupKeysym((XKeyEvent *)&event, 0);
 
         switch (keysym) {
 
+        case XK_space: {
+          CurrentInput.Controllers[0].Menu.EndedDown = false;
+          CurrentInput.Controllers[0].Menu.HalfTransitionCount += 1;
+        } break;
         case XK_BackSpace: {
           CurrentInput.Controllers[0].Back.EndedDown = false;
           CurrentInput.Controllers[0].Back.HalfTransitionCount += 1;
@@ -435,6 +518,10 @@ int main() {
         /* exit on ESC key press */
         KeySym keysym = XLookupKeysym((XKeyEvent *)&event, 0);
         switch (keysym) {
+        case XK_space: {
+          CurrentInput.Controllers[0].Menu.EndedDown = true;
+          CurrentInput.Controllers[0].Menu.HalfTransitionCount += 1;
+        } break;
         case XK_BackSpace: {
           CurrentInput.Controllers[0].Back.EndedDown = true;
           CurrentInput.Controllers[0].Back.HalfTransitionCount += 1;
@@ -519,6 +606,8 @@ int main() {
       } break;
       }
     }
+    if (quited)
+      break;
     {
       struct timespec ts;
       ts.tv_sec = 0;
@@ -534,12 +623,19 @@ int main() {
       for (memory_index c = 0; c < ArrayCount(CurrentInput.Controllers); c++) {
         CurrentInput.Controllers[c].isAnalog = false;
         for (memory_index b = 0;
-             b < ArrayCount(CurrentInput.Controllers[0].Buttons); b++) {
+             b < ArrayCount(CurrentInput.Controllers[c].Buttons); b++) {
           CurrentInput.Controllers[c].Buttons[b].HalfTransitionCount = 0;
         }
       }
+      for (memory_index b = 0; b < ArrayCount(CurrentInput.Mouse.Buttons);
+           b++) {
+        CurrentInput.Mouse.Buttons[b].HalfTransitionCount = 0;
+      }
+      CurrentInput.Mouse.DeltaX = 0;
+      CurrentInput.Mouse.DeltaY = 0;
+      CurrentInput.Mouse.WheelX = 0;
+      CurrentInput.Mouse.WheelY = 0;
 
-      XClearWindow(display, window);
       for (uint32 ri = 0; ri < LinuxState.RenderBuffer.Count; ri += 1) {
 
         render_command *RCmd = &LinuxState.RenderBuffer.Base[ri];
@@ -559,12 +655,14 @@ int main() {
             c.alpha = (unsigned short)(RCmd->Rect.Color.Alpha * 65535);
           }
 
-          // glColor4f(0.0f,0.0f,0.0f,0.0f);
-          XRenderFillRectangle(
-              display, PictOpOver, pict, &c, (int)((RCmd->Rect.MinX)),
-              (int)((RCmd->Rect.MinY)),
-              (unsigned int)roundf((RCmd->Rect.MaxX) - (RCmd->Rect.MinX)),
-              (unsigned int)roundf((RCmd->Rect.MaxY) - (RCmd->Rect.MinY)));
+          int x0 = (int)floorf(RCmd->Rect.MinX);
+          int y0 = (int)floorf(RCmd->Rect.MinY);
+          int x1 = (int)ceilf(RCmd->Rect.MaxX);
+          int y1 = (int)ceilf(RCmd->Rect.MaxY);
+          int w = x1 - x0;
+          int h = y1 - y0;
+          XRenderFillRectangle(display, PictOpOver, pict, &c, x0, y0,
+                               (unsigned)w, (unsigned)h);
 
         } break;
         case RenderCommandTriangle: {
@@ -579,7 +677,7 @@ int main() {
   }
 
   // XFreeGC(display, gc);
-  //  XDestroyWindow(display, window);
+  // XDestroyWindow(display, window);
   // XCloseDisplay(display);
 
   return 0;
