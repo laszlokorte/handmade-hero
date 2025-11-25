@@ -1,14 +1,17 @@
 #include "x11_handmade.h"
 #include "handmade.h"
+#include <math.h>
 #include <GL/gl.h>
 #include <GL/glext.h>
 #include <GLES2/gl2.h>
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/extensions/Xrender.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <linux/input-event-codes.h>
 
+#include "handmade_types.h"
 #include "linux_work_queue.cpp"
 
 PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
@@ -343,7 +346,9 @@ int main() {
   Atom wm_delete_window = XInternAtom(display, "WM_DELETE_WINDOW", False);
   XSetWMProtocols(display, window, &wm_delete_window, 1);
 
-  XSelectInput(display, window, ExposureMask | KeyPressMask);
+  XSelectInput(display, window,
+               ExposureMask | KeyPressMask | KeyReleaseMask |
+                   StructureNotifyMask);
   GC gc = XCreateGC(display, window, 0, NULL);
   if (gc == NULL) {
     fprintf(stderr, "Faied to create GC");
@@ -355,59 +360,227 @@ int main() {
   int black = XBlackPixel(display, screen);
   int white = XWhitePixel(display, screen);
 
-  XColor fgColor;
-  Colormap colormap;
-
-  // Get the default colormap
-  colormap = DefaultColormap(display, screen);
-  fgColor.red = 0x3333;
-  fgColor.green = 0xcccc;
-  fgColor.blue = 0xdddd;
-
-  // Allocate the color by name (e.g., "red")
-  if (!XAllocColor(display, colormap, &fgColor)) {
-    fprintf(stderr, "Failed to allocate color\n");
-    return EXIT_FAILURE;
-  }
+  XRenderPictFormat *fmt =
+      XRenderFindVisualFormat(display, DefaultVisual(display, screen));
+  Picture pict = XRenderCreatePicture(display, window, fmt, 0, NULL);
   XEvent event;
+  XWindowAttributes attr;
+  XGetWindowAttributes(display, window, &attr);
+  LinuxState.RenderBuffer.Viewport.Width = attr.width;
+  LinuxState.RenderBuffer.Viewport.Height = attr.height;
+  game_input CurrentInput = {0};
   while (!quited) {
-    XNextEvent(display, &event);
+    while (XPending(display)) {
+      XNextEvent(display, &event);
 
-    switch (event.type) {
-    case ClientMessage: {
-      if (event.xclient.data.l[0] == (long int)wm_delete_window) {
-        on_delete(event.xclient.display, event.xclient.window);
+      switch (event.type) {
+      case ConfigureNotify: {
+
+        LinuxState.RenderBuffer.Viewport.Width = event.xconfigure.width;
+        LinuxState.RenderBuffer.Viewport.Height = event.xconfigure.height;
+      } break;
+      case ClientMessage: {
+        if (event.xclient.data.l[0] == (long int)wm_delete_window) {
+          on_delete(event.xclient.display, event.xclient.window);
+        }
+      } break;
+      case KeyRelease: {
+        KeySym keysym = XLookupKeysym((XKeyEvent *)&event, 0);
+
+        switch (keysym) {
+
+        case XK_BackSpace: {
+          CurrentInput.Controllers[0].Back.EndedDown = false;
+          CurrentInput.Controllers[0].Back.HalfTransitionCount += 1;
+        } break;
+        case XK_Left: {
+          CurrentInput.Controllers[0].ActionLeft.EndedDown = false;
+          CurrentInput.Controllers[0].ActionLeft.HalfTransitionCount += 1;
+        } break;
+        case XK_Right: {
+          CurrentInput.Controllers[0].ActionRight.EndedDown = false;
+          CurrentInput.Controllers[0].ActionRight.HalfTransitionCount += 1;
+        } break;
+        case XK_Up: {
+          CurrentInput.Controllers[0].ActionUp.EndedDown = false;
+          CurrentInput.Controllers[0].ActionUp.HalfTransitionCount += 1;
+        } break;
+        case XK_Down: {
+          CurrentInput.Controllers[0].ActionDown.EndedDown = false;
+          CurrentInput.Controllers[0].ActionDown.HalfTransitionCount += 1;
+        } break;
+        case XK_a:
+        case XK_A: {
+          CurrentInput.Controllers[0].MoveLeft.EndedDown = false;
+          CurrentInput.Controllers[0].MoveLeft.HalfTransitionCount += 1;
+        } break;
+        case XK_d:
+        case XK_D: {
+          CurrentInput.Controllers[0].MoveRight.EndedDown = false;
+          CurrentInput.Controllers[0].MoveRight.HalfTransitionCount += 1;
+        } break;
+        case XK_w:
+        case XK_W: {
+          CurrentInput.Controllers[0].MoveUp.EndedDown = false;
+          CurrentInput.Controllers[0].MoveUp.HalfTransitionCount += 1;
+        } break;
+        case XK_s:
+        case XK_S: {
+          CurrentInput.Controllers[0].MoveDown.EndedDown = false;
+          CurrentInput.Controllers[0].MoveDown.HalfTransitionCount += 1;
+        } break;
+        }
+      } break;
+      case KeyPress: {
+        /* exit on ESC key press */
+        KeySym keysym = XLookupKeysym((XKeyEvent *)&event, 0);
+        switch (keysym) {
+        case XK_BackSpace: {
+          CurrentInput.Controllers[0].Back.EndedDown = true;
+          CurrentInput.Controllers[0].Back.HalfTransitionCount += 1;
+        } break;
+        case XK_Escape: {
+          on_delete(event.xclient.display, event.xclient.window);
+        } break;
+        case XK_Left: {
+          CurrentInput.Controllers[0].ActionLeft.EndedDown = true;
+          CurrentInput.Controllers[0].ActionLeft.HalfTransitionCount += 1;
+        } break;
+        case XK_Right: {
+          CurrentInput.Controllers[0].ActionRight.EndedDown = true;
+          CurrentInput.Controllers[0].ActionRight.HalfTransitionCount += 1;
+        } break;
+        case XK_Up: {
+          CurrentInput.Controllers[0].ActionUp.EndedDown = true;
+          CurrentInput.Controllers[0].ActionUp.HalfTransitionCount += 1;
+        } break;
+        case XK_Down: {
+          CurrentInput.Controllers[0].ActionDown.EndedDown = true;
+          CurrentInput.Controllers[0].ActionDown.HalfTransitionCount += 1;
+        } break;
+        case XK_a:
+        case XK_A: {
+          CurrentInput.Controllers[0].MoveLeft.EndedDown = true;
+          CurrentInput.Controllers[0].MoveLeft.HalfTransitionCount += 1;
+        } break;
+        case XK_d:
+        case XK_D: {
+          CurrentInput.Controllers[0].MoveRight.EndedDown = true;
+          CurrentInput.Controllers[0].MoveRight.HalfTransitionCount += 1;
+        } break;
+        case XK_w:
+        case XK_W: {
+          CurrentInput.Controllers[0].MoveUp.EndedDown = true;
+          CurrentInput.Controllers[0].MoveUp.HalfTransitionCount += 1;
+        } break;
+        case XK_s:
+        case XK_S: {
+          CurrentInput.Controllers[0].MoveDown.EndedDown = true;
+          CurrentInput.Controllers[0].MoveDown.HalfTransitionCount += 1;
+        } break;
+        }
       }
-    } break;
-    case KeyPress: {
-      /* exit on ESC key press */
-      KeySym keysym = XLookupKeysym((XKeyEvent *)&event, 0);
-      switch (keysym) {
-      case XK_Escape: {
-        on_delete(event.xclient.display, event.xclient.window);
-      } break;
-      case XK_Left: {
-      } break;
-      case XK_Right: {
-      } break;
-      case XK_Up: {
-      } break;
-      case XK_Down: {
+      case Expose: {
+        for (uint32 ri = 0; ri < LinuxState.RenderBuffer.Count; ri += 1) {
+
+          render_command *RCmd = &LinuxState.RenderBuffer.Base[ri];
+          switch (RCmd->Type) {
+          case RenderCommandRect: {
+            XRenderColor c = {0};
+
+            if (RCmd->Rect.Image) {
+              c.red = (unsigned short)(0);
+              c.green = (unsigned short)(0);
+              c.blue = (unsigned short)(0);
+              c.alpha = (unsigned short)(0.5 * 65535);
+            } else {
+              c.red = (unsigned short)(RCmd->Rect.Color.Red * 65535);
+              c.green = (unsigned short)(RCmd->Rect.Color.Green * 65535);
+              c.blue = (unsigned short)(RCmd->Rect.Color.Blue * 65535);
+              c.alpha = (unsigned short)(RCmd->Rect.Color.Alpha * 65535);
+            }
+
+            // glColor4f(0.0f,0.0f,0.0f,0.0f);
+            XRenderFillRectangle(
+                display, PictOpOver, pict, &c, (int)RCmd->Rect.MinX,
+                (int)RCmd->Rect.MinY,
+                (unsigned int)(RCmd->Rect.MaxX - RCmd->Rect.MinX),
+                (unsigned int)(RCmd->Rect.MaxY - RCmd->Rect.MinY));
+
+          } break;
+          case RenderCommandTriangle: {
+          } break;
+          default: {
+            break;
+          } break;
+          }
+        }
+        XFlush(display);
       } break;
       }
     }
-    case Expose: {
+    {
+      struct timespec ts;
+      ts.tv_sec = 0;
+      ts.tv_nsec = 16 * 1000 * 1000; // 16 ms in ns
+      nanosleep(&ts, NULL);
+      thread_context Context = {0};
+      LinuxState.RenderBuffer.Count = 0;
+      CurrentInput.DeltaTime = 0.016;
+      LinuxState.Game.GameUpdateAndRender(&Context, &LinuxState.GameMemory,
+                                          &CurrentInput,
+                                          &LinuxState.RenderBuffer);
+
+      for (memory_index c = 0; c < ArrayCount(CurrentInput.Controllers); c++) {
+        CurrentInput.Controllers[c].isAnalog = false;
+        for (memory_index b = 0;
+             b < ArrayCount(CurrentInput.Controllers[0].Buttons); b++) {
+          CurrentInput.Controllers[c].Buttons[b].HalfTransitionCount = 0;
+        }
+      }
+
       XClearWindow(display, window);
-      XSetForeground(display, gc, fgColor.pixel);
-      XFillRectangle(display, window, gc, 100, 100, 100, 100);
+      for (uint32 ri = 0; ri < LinuxState.RenderBuffer.Count; ri += 1) {
+
+        render_command *RCmd = &LinuxState.RenderBuffer.Base[ri];
+        switch (RCmd->Type) {
+        case RenderCommandRect: {
+          XRenderColor c = {0};
+
+          if (RCmd->Rect.Image) {
+            c.red = (unsigned short)(0);
+            c.green = (unsigned short)(0);
+            c.blue = (unsigned short)(0);
+            c.alpha = (unsigned short)(0.5 * 65535);
+          } else {
+            c.red = (unsigned short)(RCmd->Rect.Color.Red * 65535);
+            c.green = (unsigned short)(RCmd->Rect.Color.Green * 65535);
+            c.blue = (unsigned short)(RCmd->Rect.Color.Blue * 65535);
+            c.alpha = (unsigned short)(RCmd->Rect.Color.Alpha * 65535);
+          }
+
+          // glColor4f(0.0f,0.0f,0.0f,0.0f);
+          XRenderFillRectangle(
+              display, PictOpOver, pict, &c, (int)((RCmd->Rect.MinX)),
+              (int)((RCmd->Rect.MinY)),
+              (unsigned int)roundf((RCmd->Rect.MaxX) - (RCmd->Rect.MinX)),
+              (unsigned int)roundf((RCmd->Rect.MaxY) - (RCmd->Rect.MinY)));
+
+        } break;
+        case RenderCommandTriangle: {
+        } break;
+        default: {
+          break;
+        } break;
+        }
+      }
       XFlush(display);
-    } break;
     }
   }
 
-  XFreeGC(display, gc);
-  // XDestroyWindow(display, window);
-  XCloseDisplay(display);
+  // XFreeGC(display, gc);
+  //  XDestroyWindow(display, window);
+  // XCloseDisplay(display);
 
   return 0;
 }

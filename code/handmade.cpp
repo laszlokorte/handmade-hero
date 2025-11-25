@@ -5,6 +5,7 @@
 #include "renderer.h"
 #include "tilemap.h"
 #include "renderer.cpp"
+#include <cstdlib>
 
 int32 min(int32 a, int32 b) {
   if (a < b) {
@@ -487,9 +488,8 @@ void TestTask2(void *Data) {
 }
 
 extern "C" bool GameUpdateAndRender(thread_context *Context,
-                               game_memory *Memory,
-                               game_input *Input,
-                               render_buffer *RenderBuffer) {
+                                    game_memory *Memory, game_input *Input,
+                                    render_buffer *RenderBuffer) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
@@ -690,6 +690,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
         if (NewVelocity.x != 0 || NewVelocity.y != 0) {
           real32 Speed = sqrtf(NewVelocity.x * NewVelocity.x +
                                NewVelocity.y * NewVelocity.y);
+
           NewVelocity.x /= Speed;
           NewVelocity.y /= Speed;
         }
@@ -875,7 +876,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
               CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
               CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
               CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-              render_color_rgba{0.01f * x, y % 2 == 0 ? 0.5f : 0.7f,
+              render_color_rgba{0.01f * abs(x), abs(y) % 2 == 0 ? 0.5f : 0.7f,
                                 x % 2 == 0 ? 0.6f : 0.8f, 1.0f});
 
         } break;

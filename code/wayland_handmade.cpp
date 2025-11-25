@@ -592,21 +592,14 @@ static const struct wl_pointer_listener pointer_listener = {
 void kb_map(void *data, struct wl_keyboard *kb, uint32_t frmt, int32_t fd,
             uint32_t size) {
 
+  printf("%d\n", size);
   struct linux_state *app = (linux_state *)data;
-
-  // 1. Read the keymap string from fd
-  char *keymap_string = (char *)malloc(size + 1);
-  if (!keymap_string)
-    return;
-
-  ssize_t n = read(fd, keymap_string, size);
-  close(fd);
-  if (n != size) {
-    fprintf(stderr, "Failed to read keymap from fd\n");
-    free(keymap_string);
+  char *keymap_string = (char *)mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+  if (keymap_string == MAP_FAILED) {
+    perror("mmap");
+    close(fd);
     return;
   }
-  keymap_string[size] = '\0'; // null-terminate
 
   struct xkb_context *ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
 
@@ -620,11 +613,11 @@ void kb_map(void *data, struct wl_keyboard *kb, uint32_t frmt, int32_t fd,
   if (!keymap) {
     fprintf(stderr, "Failed to create XKB keymap\n");
     xkb_context_unref(ctx);
-    free(keymap_string);
+    munmap(keymap_string, size);
     return;
   }
   app->XKbdKeyMap = keymap;
-  free(keymap_string);
+  munmap(keymap_string, size);
 
   // 3. Create the state from the keymap
   app->XKbdState = xkb_state_new(keymap);
