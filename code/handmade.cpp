@@ -535,7 +535,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
 
     Memory->Initialized = true;
   }
-
+{
   real32 OldZoomFactor = powf(2.0f, GameState->Camera.ZoomLevel);
   tile_position MouseTilePos = {0};
   MouseTilePos.RelX =
@@ -594,7 +594,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
 
     TilePositionNormalize(&GameState->Camera.pos);
   }
-
+}
   float ZoomFactor = powf(2.0f, GameState->Camera.ZoomLevel);
   for (size_t c = 0; c < ArrayCount(Input->Controllers); c++) {
     game_controller_input *Controller = &Input->Controllers[c];

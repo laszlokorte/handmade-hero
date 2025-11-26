@@ -222,11 +222,11 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   } break;
 
   case WM_ACTIVATEAPP: {
-    // if(WParam != 0) {
-    //     SetCapture(Window);
-    // } else {
-    //     ReleaseCapture();
-    // }
+    //if(WParam != 0) {
+    //    SetCapture(Window);
+    //} else {
+    //    ReleaseCapture();
+    //}
 
     if (WParam != 0 || !GlobalTransparent) {
       SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 255, LWA_ALPHA);
@@ -465,6 +465,8 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
   game_controller_input reset_controller = {};
   game_mouse_input reset_mouse = {};
 
+  reset_mouse.DeltaX = OldMouse->MouseX - Mouse->MouseX;
+  reset_mouse.DeltaY = OldMouse->MouseY - Mouse->MouseY;
   reset_mouse.MouseX = OldMouse->MouseX;
   reset_mouse.MouseY = OldMouse->MouseY;
   reset_mouse.InRange = OldMouse->InRange;
@@ -494,6 +496,13 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
       Win32ProcessMouseButton(&Mouse->Right, message.wParam, MK_RBUTTON);
       Win32ProcessMouseButton(&Mouse->Extra1, message.wParam, MK_XBUTTON1);
       Win32ProcessMouseButton(&Mouse->Extra2, message.wParam, MK_XBUTTON2);
+      bool any_down = false;
+      for (int b = 0; b < ArrayCount(Mouse->Buttons); b++) {
+          any_down = any_down || Mouse->Buttons[b].EndedDown;
+      }
+      if(any_down) {
+          SetCapture(Window);
+      }
     } break;
     case WM_LBUTTONUP:
     case WM_RBUTTONUP:
@@ -504,6 +513,13 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
       Win32ProcessMouseButton(&Mouse->Right, message.wParam, MK_RBUTTON);
       Win32ProcessMouseButton(&Mouse->Extra1, message.wParam, MK_XBUTTON1);
       Win32ProcessMouseButton(&Mouse->Extra2, message.wParam, MK_XBUTTON2);
+      bool any_down = false;
+      for (int b = 0; b < ArrayCount(Mouse->Buttons); b++) {
+          any_down = any_down || Mouse->Buttons[b].EndedDown;
+      }
+      if(!any_down) {
+          ReleaseCapture();
+      }
     } break;
     case WM_MOUSEMOVE: {
       POINT Point;
@@ -588,7 +604,7 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
         KeyBoardController->ActionRight.HalfTransitionCount +=
             IsDown != WasDown ? 1 : 0;
       }
-      if (VKCode == VK_ESCAPE) {
+      if (VKCode == VK_SPACE) {
         KeyBoardController->Menu.EndedDown = IsDown;
         KeyBoardController->Menu.HalfTransitionCount +=
             IsDown != WasDown ? 1 : 0;

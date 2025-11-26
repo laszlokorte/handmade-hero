@@ -62,7 +62,8 @@ typedef struct render_buffer {
 internal inline void InitializeRenderBuffer(render_buffer *Buffer,
                                             memory_index Size,
                                             render_command *Base) {
-  Buffer->Viewport = (render_viewport){0};
+                                                render_viewport NewViewport = {0};
+                                                Buffer->Viewport = NewViewport;
   Buffer->Size = Size;
   Buffer->Count = 0;
   Buffer->Base = Base;
