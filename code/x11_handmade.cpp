@@ -398,8 +398,8 @@ int main() {
       case MotionNotify: {
         int x = event.xmotion.x;
         int y = event.xmotion.y;
-        CurrentInput.Mouse.DeltaX = x - CurrentInput.Mouse.MouseX;
-        CurrentInput.Mouse.DeltaY = y - CurrentInput.Mouse.MouseY;
+        CurrentInput.Mouse.DeltaX += x - CurrentInput.Mouse.MouseX;
+        CurrentInput.Mouse.DeltaY += y - CurrentInput.Mouse.MouseY;
         CurrentInput.Mouse.MouseX = x;
         CurrentInput.Mouse.MouseY = y;
       } break;

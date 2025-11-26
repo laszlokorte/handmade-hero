@@ -95,6 +95,27 @@ static void GlPushQuad(gl_vertices *Vertices, float x0, float y0, float x1,
       .color = {r, g, b, a},
       .texCoord = {0.0f, 0.0f, texture > -1 ? 1.0f : 0.0f}};
 }
+static void GlPushTri(gl_vertices *Vertices, float x0, float y0, float x1,
+                      float y1, float x2, float y2, float r, float g, float b,
+                      float a, GLint texture) {
+  if (Vertices->Capacity < Vertices->Count + 3) {
+    // printf("%lu\n", Vertices->Count);
+    // printf("%lu\n", Vertices->Capacity);
+    return;
+  }
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x0, y0},
+      .color = {r, g, b, a},
+      .texCoord = {0.0f, 1.0f, texture > -1 ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x1, y1},
+      .color = {r, g, b, a},
+      .texCoord = {1.0f, 1.0f, texture > -1 ? 1.0f : 0.0f}};
+  Vertices->Buffer[(Vertices->Count)++] = {
+      .pos = {x2, y2},
+      .color = {r, g, b, a},
+      .texCoord = {0.0f, 0.0f, texture > -1 ? 1.0f : 0.0f}};
+}
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(PlatformFreeFileNoop) {}
 DEBUG_PLATFORM_READ_ENTIRE_FILE(PlatformReadEntireFileNoop) {
@@ -362,17 +383,11 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
 
     } break;
     case RenderCommandTriangle: {
-      // glColor4f(RCmd->Triangle.Color.Red, RCmd->Triangle.Color.Green,
-      //           RCmd->Triangle.Color.Blue, RCmd->Triangle.Color.Alpha);
-
-      // glBegin(GL_TRIANGLES);
-      // glVertex2f(RCmd->Triangle.AX, RCmd->Triangle.AY);
-
-      // glVertex2f(RCmd->Triangle.BX, RCmd->Triangle.BY);
-
-      // glVertex2f(RCmd->Triangle.CX, RCmd->Triangle.CY);
-      // glEnd();
-      // glDisable(GL_TEXTURE_2D);
+      GlPushTri(&app->GLState.Vertices, RCmd->Triangle.AX, RCmd->Triangle.AY,
+                RCmd->Triangle.BX, RCmd->Triangle.BY, RCmd->Triangle.CX,
+                RCmd->Triangle.CY, RCmd->Triangle.Color.Red,
+                RCmd->Triangle.Color.Green, RCmd->Triangle.Color.Blue,
+                RCmd->Triangle.Color.Alpha, -1);
     } break;
     default: {
       break;
@@ -701,7 +716,7 @@ void kb_key(void *data, struct wl_keyboard *kb, uint32_t ser, uint32_t t,
     KeyBoardController->ActionRight.HalfTransitionCount +=
         IsDown != WasDown ? 1 : 0;
   }
-  if (sym == XKB_KEY_Escape) {
+  if (sym == XKB_KEY_space) {
     KeyBoardController->Menu.EndedDown = IsDown;
     KeyBoardController->Menu.HalfTransitionCount += IsDown != WasDown ? 1 : 0;
   }
