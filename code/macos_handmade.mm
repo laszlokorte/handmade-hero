@@ -9,9 +9,6 @@
 #include <sys/stat.h>
 #include "macos_work_queue.mm"
 
-
-
-
 #define USE_METAL
 #define USE_AUDIO
 
@@ -808,11 +805,17 @@ int main(void) {
 
         CurrentInput->Mouse.InRange = true;
         for (int m = 0; m < ArrayCount(CurrentInput->Mouse.Buttons); m++) {
+          memory_index b = m;
+          // swap Mouse button indices to make right mouse button index 2 and
+          // middle mouse index 1
+          if (m == 1 || m == 2) {
+            b = 3 - m;
+          }
           bool NewDown = NSEvent.pressedMouseButtons & (1 << m);
-          bool toggled = CurrentInput->Mouse.Buttons[m].EndedDown != NewDown;
-          CurrentInput->Mouse.Buttons[m].HalfTransitionCount +=
-              (NewDown != LastInput->Mouse.Buttons[m].EndedDown ? 1 : 0);
-          CurrentInput->Mouse.Buttons[m].EndedDown = NewDown;
+          bool toggled = CurrentInput->Mouse.Buttons[b].EndedDown != NewDown;
+          CurrentInput->Mouse.Buttons[b].HalfTransitionCount +=
+              (NewDown != LastInput->Mouse.Buttons[b].EndedDown ? 1 : 0);
+          CurrentInput->Mouse.Buttons[b].EndedDown = NewDown;
         }
       } else {
         CurrentInput->Mouse.InRange = false;
