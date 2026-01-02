@@ -2,7 +2,9 @@
 
 set -e
 
-mkdir -p build
+mkdir -p build/web
+
+cp -r resources/web/* build/web/
 
 clang \
   --target=wasm32 \
@@ -14,6 +16,6 @@ clang \
   -Wl,--import-memory \
   -Wl,--shared-memory \
   -Wl,--max-memory=131072\
-  -o build/handmade.wasm \
+  -o build/web/handmade.wasm \
   code/handmade.cpp \
   code/wasm_handmade.c

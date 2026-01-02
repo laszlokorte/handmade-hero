@@ -1,0 +1,255 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" href="favicon.svg" />
+        <title>Handmade Hero</title>
+    </head>
+    <body>
+        <div class="app">
+            <header>
+                <h1>Handmade Hero</h1>
+                <p>Web Version of an Handmade Hero Style Game</p>
+                <fieldset>
+                    <button id="handmadeStart">Unmute</button>
+                    <button id="handmadeStop">Mute</button>
+                    <div class="controls">
+                        <label>
+                            <input type="checkbox" id="handmadeBackground" />
+                            Background Sound
+                        </label>
+
+                        <label>
+                            Volume:
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                id="handmadeAmpl"
+                                value="0.1"
+                            />
+                        </label>
+                    </div>
+                </fieldset>
+            </header>
+            <div class="grid" id="handmadeGrid">
+                <section>
+                    <h2>Canvas</h2>
+                    <canvas
+                        id="handmadeCanvas"
+                        width="800"
+                        height="600"
+                    ></canvas>
+                </section>
+                <section>
+                    <h2>Log</h2>
+                    <pre id="handmadeLog"></pre>
+                </section>
+            </div>
+
+            <script type="module">
+                function log(msg) {
+                    if (handmadeLog.childNodes.length > 10) {
+                        handmadeLog.removeChild(handmadeLog.firstChild);
+                    }
+                    handmadeLog.appendChild(
+                        document.createTextNode(msg + "\n"),
+                    );
+                }
+                const memory = new WebAssembly.Memory({
+                    initial: 2,
+                    maximum: 2,
+                    shared: true,
+                });
+
+                const wasm = await WebAssembly.compileStreaming(
+                    fetch("handmade.wasm"),
+                );
+                const instance = await WebAssembly.instantiate(wasm, {
+                    env: {
+                        memory,
+                    },
+                });
+
+                const blockSize = 128;
+
+                const audioCtx = new AudioContext({ samplingRate: 44100 });
+                await audioCtx.audioWorklet.addModule("worklet.js");
+
+                const bufferNode = new AudioWorkletNode(
+                    audioCtx,
+                    "wasm-processor",
+                    {
+                        processorOptions: { memory, wasm },
+                    },
+                );
+                const volume = audioCtx.createGain();
+                const gain = audioCtx.createGain();
+                gain.gain.value = 0;
+                instance.exports.setup();
+
+                volume.gain.value = handmadeAmpl.valueAsNumber;
+                bufferNode.connect(volume);
+                volume.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                handmadeStart.addEventListener("click", async () => {
+                    const now = audioCtx.currentTime;
+                    const fadeTime = 0.1;
+                    handmadeGrid.classList.remove("loading");
+                    await audioCtx.resume();
+                    gain.gain.cancelScheduledValues(now);
+                    gain.gain.setValueAtTime(gain.gain.value, now);
+                    gain.gain.linearRampToValueAtTime(
+                        1,
+                        audioCtx.currentTime + fadeTime,
+                    );
+
+                    log("Enable Sound");
+                });
+
+                function resize() {
+                    handmadeCanvas.width =
+                        window.devicePixelRatio * handmadeCanvas.clientWidth;
+                    handmadeCanvas.height =
+                        window.devicePixelRatio * handmadeCanvas.clientHeight;
+                }
+                window.addEventListener("resize", resize);
+                resize();
+                const drawCtx = handmadeCanvas.getContext("2d");
+                drawCtx.fillStyle = "#fed";
+                drawCtx.fillRect(
+                    0,
+                    0,
+                    handmadeCanvas.width,
+                    handmadeCanvas.height,
+                );
+                function draw() {
+                    drawCtx.fillStyle = "#fed";
+                    const sample_base =
+                        instance.exports.get_sound_buffer_base();
+                    const sample_count =
+                        instance.exports.get_sound_buffer_size();
+                    const samples = new Float32Array(
+                        memory.buffer,
+                        sample_base,
+                        sample_count,
+                    );
+                    const s = samples;
+                    drawCtx.fillStyle = "#fed";
+                    drawCtx.fillRect(
+                        0,
+                        0,
+                        (blockSize * handmadeCanvas.width) / blockSize,
+                        handmadeCanvas.height,
+                    );
+
+                    requestAnimationFrame(draw);
+                }
+                requestAnimationFrame(draw);
+            </script>
+            <style>
+                body {
+                    font-family: monospace;
+                    margin: 0;
+                }
+                h1 {
+                    grid-column: 1 / -1;
+                    grid-row: 1 / span 1;
+                    margin: 0;
+                }
+                h2 {
+                    margin: 0;
+                }
+                .app {
+                    padding: 2em;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1em;
+                }
+                .grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(18em, 1fr));
+                    grid-template-rows: auto 1fr;
+                    gap: 1em;
+                    justify-content: stretch;
+                    align-items: stretch;
+                }
+                .loading {
+                    opacity: 0.1;
+                }
+                section {
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: stretch;
+                    flex-grow: 1;
+                }
+                pre {
+                    background-color: #111;
+                    color: #fff;
+                    padding: 1em;
+                    margin: 0;
+                    flex-grow: 1;
+                }
+                canvas {
+                    background-color: lemonchiffon;
+                }
+                summary {
+                    padding: 1em;
+                    cursor: pointer;
+                    background-color: #eee;
+                    user-select: none;
+                }
+                .scroller {
+                    max-height: 30vh;
+                    overflow: auto;
+                }
+                label {
+                    display: flex;
+                    align-items: center;
+                    gap: 1ex;
+                    justify-content: end;
+                    justify-self: end;
+                    background-color: #eee;
+                    padding: 0 1em 0 1ex;
+                    user-select: none;
+                }
+                button {
+                    background-color: #111;
+                    color: #fff;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 1ex;
+                    font: inherit;
+                    cursor: pointer;
+                }
+                button:hover {
+                    background-color: #333;
+                }
+
+                button:active {
+                    background-color: #000;
+                    color: #eee;
+                }
+                input[type="range"] {
+                    padding: 1ex 0;
+                    margin: 0;
+                }
+                fieldset {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 1ex;
+                    padding: 0;
+                    border: none;
+                }
+                .controls {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 1em;
+                    justify-content: end;
+                }
+            </style>
+        </div>
+    </body>
+</html>
