@@ -239,6 +239,7 @@ void LinuxSetupGameMemory(linux_state *LinuxState, game_memory *GameMemory) {
   GameMemory->DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
   GameMemory->DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
   GameMemory->DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
+  GameMemory->DebugPlatformLog = &printf;
 }
 
 static GLuint compile_shader(GLenum type, const char *src) {

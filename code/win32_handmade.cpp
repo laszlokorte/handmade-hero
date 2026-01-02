@@ -222,11 +222,11 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message,
   } break;
 
   case WM_ACTIVATEAPP: {
-    //if(WParam != 0) {
-    //    SetCapture(Window);
-    //} else {
-    //    ReleaseCapture();
-    //}
+    // if(WParam != 0) {
+    //     SetCapture(Window);
+    // } else {
+    //     ReleaseCapture();
+    // }
 
     if (WParam != 0 || !GlobalTransparent) {
       SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 255, LWA_ALPHA);
@@ -371,6 +371,7 @@ internal void Win32SetupGameMemory(win32_state *Win32State,
   GameMemory->DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
   GameMemory->DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
   GameMemory->DebugPlatformWriteEntireFile = &DEBUGPlatformWriteEntireFile;
+  GameMemory->DebugPlatformLog = &printf;
 }
 
 internal void Win32EndRecordingInput(win32_state *State) {
@@ -498,10 +499,10 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
       Win32ProcessMouseButton(&Mouse->Extra2, message.wParam, MK_XBUTTON2);
       bool any_down = false;
       for (int b = 0; b < ArrayCount(Mouse->Buttons); b++) {
-          any_down = any_down || Mouse->Buttons[b].EndedDown;
+        any_down = any_down || Mouse->Buttons[b].EndedDown;
       }
-      if(any_down) {
-          SetCapture(Window);
+      if (any_down) {
+        SetCapture(Window);
       }
     } break;
     case WM_LBUTTONUP:
@@ -515,10 +516,10 @@ internal void Win32ProcessPendingMessages(HWND Window, win32_state *Win32State,
       Win32ProcessMouseButton(&Mouse->Extra2, message.wParam, MK_XBUTTON2);
       bool any_down = false;
       for (int b = 0; b < ArrayCount(Mouse->Buttons); b++) {
-          any_down = any_down || Mouse->Buttons[b].EndedDown;
+        any_down = any_down || Mouse->Buttons[b].EndedDown;
       }
-      if(!any_down) {
-          ReleaseCapture();
+      if (!any_down) {
+        ReleaseCapture();
       }
     } break;
     case WM_MOUSEMOVE: {

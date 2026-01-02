@@ -33,6 +33,9 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
             void *Memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
+#define DEBUG_PLATFORM_LOG(name) int name(const char *__restrict __format, ...)
+typedef DEBUG_PLATFORM_LOG(debug_platform_log);
+
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
 typedef struct game_offscreen_buffer {
@@ -117,6 +120,7 @@ typedef struct game_memory {
   debug_platform_free_file_memory *DebugPlatformFreeFileMemory;
   debug_platform_read_entire_file *DebugPlatformReadEntireFile;
   debug_platform_write_entire_file *DebugPlatformWriteEntireFile;
+  debug_platform_log *DebugPlatformLog;
 
   work_queue *TaskQueue;
   platform_push_task_to_queue *PlatformPushTaskToQueue;
@@ -186,7 +190,7 @@ typedef struct game_sound_synth {
   int32 Duration;
   int32 Progress;
   real32 GeneratorTimeInRadians;
-  game_sound_synth *NextSound;
+  struct game_sound_synth *NextSound;
 } game_sound_synth;
 
 typedef struct game_sound_state {

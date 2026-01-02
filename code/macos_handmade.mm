@@ -331,6 +331,7 @@ void MacOsSetupGameMemory(macos_state *MacState, game_memory *GameMemory) {
   GameMemory->DebugPlatformReadEntireFile = &DEBUGPlatformReadEntireFile;
   GameMemory->DebugPlatformFreeFileMemory = &DEBUGPlatformFreeFileMemory;
   GameMemory->DebugPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+  GameMemory->DebugPlatformLog = &printf;
 }
 
 inline uint32 lerpColor(real32 t, uint32 c1, uint32 c2) {

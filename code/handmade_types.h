@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdbool.h>
 
 #ifndef GL_BGRA
@@ -64,7 +63,6 @@ internal void InitializeArena(memory_arena *Arena, memory_index Size,
 internal void *ArenaPushSize(memory_arena *Arena, memory_index Size,
                              const char *Label) {
   if (Arena->Used >= Arena->Size) {
-    printf("Arena full: %s\n", Label);
     return 0;
   }
   void *Result = Arena->Base + Arena->Used;
