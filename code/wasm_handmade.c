@@ -1,10 +1,12 @@
 #include "wasm_handmade.h"
 
+float audio_buffer[128 * 2];
+
 void setup() {}
 
 void update_and_render() {}
 
-void write_audio() {}
+float *output_audio(int sample_count) { return audio_buffer; }
 
 void mouse_move(int x, int y) {}
 void mouse_button_press(int button) {}

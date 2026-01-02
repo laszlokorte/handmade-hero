@@ -20,14 +20,14 @@ class WasmProcessor extends AudioWorkletProcessor {
   }
   process(inputs, outputs, parameters) {
     const blockSize = outputs[0][0].length;
-    const ptr = this.instance.exports.generate_block(blockSize);
+    const ptr = this.instance.exports.output_audio(blockSize);
 
     const samples = new Float32Array(this.memory.buffer, ptr, blockSize);
 
     const output = outputs[0];
     output.forEach((channel) => {
       for (let i = 0; i < blockSize; i++) {
-        channel[i] = samples[i];
+        channel[i] = samples[2 * i];
       }
     });
     return true;

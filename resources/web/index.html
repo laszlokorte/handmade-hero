@@ -8,17 +8,21 @@
     <body>
         <div class="app">
             <header>
-                <h1>Handmade Hero</h1>
+                <h1>
+                    <img src="favicon.svg" alt="Icon" />
+                    Handmade Hero
+                </h1>
                 <p>Web Version of an Handmade Hero Style Game</p>
                 <fieldset>
-                    <button id="handmadeStart">Unmute</button>
-                    <button id="handmadeStop">Mute</button>
                     <div class="controls">
                         <label>
-                            <input type="checkbox" id="handmadeBackground" />
-                            Background Sound
+                            <input
+                                type="checkbox"
+                                id="handmadeMute"
+                                checked="checked"
+                            />
+                            Muted
                         </label>
-
                         <label>
                             Volume:
                             <input
@@ -86,7 +90,7 @@
                 );
                 const volume = audioCtx.createGain();
                 const gain = audioCtx.createGain();
-                gain.gain.value = 0;
+                gain.gain.value = handmadeMute.checked ? 0 : 1;
                 instance.exports.setup();
 
                 volume.gain.value = handmadeAmpl.valueAsNumber;
@@ -94,15 +98,15 @@
                 volume.connect(gain);
                 gain.connect(audioCtx.destination);
 
-                handmadeStart.addEventListener("click", async () => {
+                handmadeMute.addEventListener("input", async (evt) => {
+                    await audioCtx.resume();
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
                     handmadeGrid.classList.remove("loading");
-                    await audioCtx.resume();
                     gain.gain.cancelScheduledValues(now);
                     gain.gain.setValueAtTime(gain.gain.value, now);
                     gain.gain.linearRampToValueAtTime(
-                        1,
+                        evt.currentTarget.checked ? 0 : 1,
                         audioCtx.currentTime + fadeTime,
                     );
 
@@ -127,16 +131,9 @@
                 );
                 function draw() {
                     drawCtx.fillStyle = "#fed";
-                    const sample_base =
-                        instance.exports.get_sound_buffer_base();
-                    const sample_count =
-                        instance.exports.get_sound_buffer_size();
-                    const samples = new Float32Array(
-                        memory.buffer,
-                        sample_base,
-                        sample_count,
-                    );
-                    const s = samples;
+                    const render_list_size =
+                        instance.exports.update_and_render();
+
                     drawCtx.fillStyle = "#fed";
                     drawCtx.fillRect(
                         0,
@@ -154,10 +151,19 @@
                     font-family: monospace;
                     margin: 0;
                 }
+                h1 > img {
+                    width: 1em;
+                    height: 1em;
+                    vertical-align: middle;
+                    margin: 0;
+                }
                 h1 {
                     grid-column: 1 / -1;
                     grid-row: 1 / span 1;
                     margin: 0;
+                    display: flex;
+                    gap: 0.75ex;
+                    align-items: center;
                 }
                 h2 {
                     margin: 0;
