@@ -3,19 +3,20 @@
 #include "renderer.h"
 #include "work_queue.h"
 
-float audio_buffer[128 * 2];
+float audio_output_buffer[128 * 2];
 
 unsigned char stable_memory[2000000];
 
 void mock() {}
-debug_read_file_result ReadEntireFile(thread_context *Context, char *Filename) {
+DEBUG_PLATFORM_READ_ENTIRE_FILE(ReadEntireFile) {
   debug_read_file_result r = {};
   r.ContentSize = 0;
 
   return r;
 }
-int DebugPlatformLog(const char *__restrict __format, ...) { return 0; }
-void WaitForQueueToFinish(struct work_queue *Queue) {}
+DEBUG_PLATFORM_LOG(DebugPlatformLog) { return 0; }
+WAIT_FOR_QUEUE_TO_FINISH(WaitForQueueToFinish) {}
+PUSH_TASK_TO_QUEUE(PushTaskToQueue) {}
 struct wasm_state state = {
     .Running = false,
     .Configured = false,
@@ -30,11 +31,11 @@ struct wasm_state state = {
     .GameMemory =
         {
             .Initialized = false,
-            .PermanentStorageSize = 10000,
+            .PermanentStorageSize = 80000,
             .PermanentStorage = &stable_memory[0],
 
-            .TransientStorageSize = 10000,
-            .TransientStorage = &stable_memory[10000],
+            .TransientStorageSize = 80000,
+            .TransientStorage = &stable_memory[80000],
 
             .DebugPlatformFreeFileMemory = &mock,
             .DebugPlatformReadEntireFile = &ReadEntireFile,
@@ -43,13 +44,13 @@ struct wasm_state state = {
             .DebugPlatformLog = &DebugPlatformLog,
 
             .TaskQueue = 0,
-            .PlatformPushTaskToQueue = &mock,
+            .PlatformPushTaskToQueue = &PushTaskToQueue,
             .PlatformWaitForQueueToFinish = &WaitForQueueToFinish,
         },
 
     .TotalMemorySize = sizeof(stable_memory),
     .GameMemoryBlock = &stable_memory,
-    .RenderBuffer = {.Base = (render_command *)&stable_memory[20000],
+    .RenderBuffer = {.Base = (render_command *)&stable_memory[2 * 80000],
                      .Count = 0,
                      .Size = 10000,
                      .Viewport =
@@ -67,25 +68,58 @@ int setup() {
   return sizeof(render_command) / sizeof(float);
 }
 
-int update_and_render() {
+int update_and_render(float DeltaTime) {
   thread_context ctx = {};
-  state.GameInputs[state.CurrentGameInputIndex].Mouse.InRange = true;
-  state.GameInputs[state.CurrentGameInputIndex].Mouse.MouseX = 100;
-  state.GameInputs[state.CurrentGameInputIndex].Mouse.MouseY = 50;
-  //  state.GameInputs[state.CurrentGameInputIndex].Mouse.Left.HalfTransitionCount
-  //  =
-  //   1;
-  //  state.GameInputs[state.CurrentGameInputIndex].Mouse.Left.EndedDown =
-  //     state.CurrentGameInputIndex;
-  state.GameInputs[state.CurrentGameInputIndex].Mouse.WheelX = 0.2;
-  state.GameInputs[state.CurrentGameInputIndex].Mouse.WheelY = 0.1;
+  state.CurrentGameInputIndex = 1 - state.CurrentGameInputIndex;
+  game_input *OldInput = &state.GameInputs[1 - state.CurrentGameInputIndex];
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  CurrentInput->Mouse.DeltaX =
+      OldInput->Mouse.MouseX - CurrentInput->Mouse.MouseX;
+  CurrentInput->Mouse.DeltaY =
+      OldInput->Mouse.MouseY - CurrentInput->Mouse.MouseY;
+  CurrentInput->Mouse.InRange = OldInput->Mouse.InRange;
+  CurrentInput->Mouse.MouseX = OldInput->Mouse.MouseX;
+  CurrentInput->Mouse.MouseY = OldInput->Mouse.MouseY;
+  for (size_t b = 0; b < ArrayCount(CurrentInput->Mouse.Buttons); b++) {
+    CurrentInput->Mouse.Buttons[b].EndedDown =
+        OldInput->Mouse.Buttons[b].EndedDown;
+    CurrentInput->Mouse.Buttons[b].HalfTransitionCount =
+        OldInput->Mouse.Buttons[b].HalfTransitionCount;
+  }
+  for (size_t c = 0; c < ArrayCount(CurrentInput->Controllers); c++) {
+    for (size_t b = 0; b < ArrayCount(CurrentInput->Controllers[c].Buttons);
+         b++) {
+      CurrentInput->Controllers[c].Buttons[b].HalfTransitionCount =
+          OldInput->Controllers[c].Buttons[b].HalfTransitionCount;
+      CurrentInput->Controllers[c].Buttons[b].EndedDown =
+          OldInput->Controllers[c].Buttons[b].EndedDown;
+    }
+    CurrentInput->Controllers[c].isAnalog = OldInput->Controllers[c].isAnalog;
+    CurrentInput->Controllers[c].AverageStickX =
+        OldInput->Controllers[c].AverageStickX;
+    CurrentInput->Controllers[c].AverageStickY =
+        OldInput->Controllers[c].AverageStickY;
+  }
   state.RenderBuffer.Count = 0;
-  state.Game.GameUpdateAndRender(&ctx, &state.GameMemory,
-                                 &state.GameInputs[state.CurrentGameInputIndex],
+  CurrentInput->DeltaTime = DeltaTime;
+  state.Game.GameUpdateAndRender(&ctx, &state.GameMemory, CurrentInput,
                                  &state.RenderBuffer
 
   );
-  state.CurrentGameInputIndex = 1 - state.CurrentGameInputIndex;
+  CurrentInput->Mouse.WheelX = 0;
+  CurrentInput->Mouse.WheelY = 0;
+  CurrentInput->Mouse.DeltaX = 0;
+  CurrentInput->Mouse.DeltaY = 0;
+  for (size_t b = 0; b < ArrayCount(CurrentInput->Mouse.Buttons); b++) {
+
+    CurrentInput->Mouse.Buttons[b].HalfTransitionCount = 0;
+  }
+  for (size_t c = 0; c < ArrayCount(CurrentInput->Controllers); c++) {
+    for (size_t b = 0; b < ArrayCount(CurrentInput->Controllers[c].Buttons);
+         b++) {
+      CurrentInput->Controllers[c].Buttons[b].HalfTransitionCount = 0;
+    }
+  }
   return state.RenderBuffer.Count;
 }
 
@@ -96,14 +130,79 @@ void resize_viewport(int width, int height) {
 
 render_command *get_render_list() { return state.RenderBuffer.Base; }
 
-float *output_audio(int sample_count) { return audio_buffer; }
+float *output_audio(int sample_count) {
 
-void mouse_move(int x, int y) {}
-void mouse_button_press(int button) {}
-void mouse_button_release(int button) {}
+  thread_context ctx = {};
+  int16 Memory[sample_count * 2];
+  game_sound_output_buffer Buffer = {};
+  Buffer.SampleCount = sample_count;
+  Buffer.SamplesPerSecond = 44100;
+  Buffer.Samples = Memory;
+  GameGetSoundSamples(&ctx, &state.GameMemory, &Buffer);
 
-void scroll_wheel(int x, int y) {}
+  for (size_t s = 0; s < sample_count * 2; s++) {
+    audio_output_buffer[s] = Memory[s] / (float)((1 << 15) - 1);
+  }
+  return audio_output_buffer;
+}
 
-void controller_stick(int controller, int x, int y) {}
-void controller_button_press(int controller, int button) {}
-void controller_button_release(int controller, int button) {}
+void mouse_move(int x, int y) {
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  CurrentInput->Mouse.MouseX = x;
+  CurrentInput->Mouse.MouseY = y;
+}
+void toggle_mouse(bool inRange) {
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  CurrentInput->Mouse.InRange = inRange;
+}
+void mouse_button_press(int button) {
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  CurrentInput->Mouse.Buttons[button].HalfTransitionCount += 1;
+  CurrentInput->Mouse.Buttons[button].EndedDown = true;
+}
+void mouse_button_release(int button) {
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  CurrentInput->Mouse.Buttons[button].HalfTransitionCount += 1;
+  CurrentInput->Mouse.Buttons[button].EndedDown = false;
+}
+
+void scroll_wheel(int x, int y) {
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  CurrentInput->Mouse.WheelX += x;
+  CurrentInput->Mouse.WheelY += y;
+}
+
+void controller_stick(int controller, int x, int y) {
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  CurrentInput->Controllers->isAnalog = true;
+}
+void controller_button_press(int controller, int button) {
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  CurrentInput->Controllers[controller].Buttons[button].HalfTransitionCount +=
+      !CurrentInput->Controllers[controller].Buttons[button].EndedDown;
+  CurrentInput->Controllers[controller].Buttons[button].EndedDown = true;
+  CurrentInput->Controllers->isAnalog = false;
+}
+void controller_button_release(int controller, int button) {
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  CurrentInput->Controllers[controller].Buttons[button].HalfTransitionCount +=
+      !!CurrentInput->Controllers[controller].Buttons[button].EndedDown;
+  CurrentInput->Controllers[controller].Buttons[button].EndedDown = false;
+}
+
+void blur() {
+
+  game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
+  for (size_t b = 0; b < ArrayCount(CurrentInput->Mouse.Buttons); b++) {
+
+    CurrentInput->Mouse.Buttons[b].HalfTransitionCount = 0;
+    CurrentInput->Mouse.Buttons[b].EndedDown = 0;
+  }
+  for (size_t c = 0; c < ArrayCount(CurrentInput->Controllers); c++) {
+    for (size_t b = 0; b < ArrayCount(CurrentInput->Controllers[c].Buttons);
+         b++) {
+      CurrentInput->Controllers[c].Buttons[b].HalfTransitionCount = 0;
+      CurrentInput->Controllers[c].Buttons[b].EndedDown = 0;
+    }
+  }
+}

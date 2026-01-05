@@ -858,7 +858,6 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
         tile_kind Kind = GetTileKind(&GameState->TileMap, x, y);
         switch (Kind) {
         case TILE_WALL: {
-
           PushRect(
               RenderBuffer,
               CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
