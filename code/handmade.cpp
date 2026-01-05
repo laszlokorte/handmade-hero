@@ -60,8 +60,9 @@ internal
     loaded_bitmap DEBUGLoadBMP(thread_context *Context,
                                debug_platform_read_entire_file *ReadEntireFile,
                                char *FileName) {
-  debug_read_file_result ReadResult = ReadEntireFile(Context, FileName);
+
   loaded_bitmap Result = {};
+  debug_read_file_result ReadResult = ReadEntireFile(Context, FileName);
 
   if (ReadResult.ContentSize != 0) {
     bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
@@ -512,11 +513,14 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
     GameState->TileMap.ChunkWidth = 64;
     GameState->TileMap.MaxChunks = 256;
     char FileName[] = "./data/logo.bmp";
+
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
+
     Memory->DebugPlatformLog("Logo: %p, Width: %zu, Height: %zu\n",
                              GameState->Logo.Memory, GameState->Logo.Width,
                              GameState->Logo.Height);
+
     InitializeArena(&GameState->WorldArena,
                     Memory->PermanentStorageSize - sizeof(*GameState) -
                         sizeof(game_sound_synth) * 100,
@@ -535,6 +539,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
 
     Memory->Initialized = true;
   }
+
   {
     real32 OldZoomFactor = powf(2.0f, GameState->Camera.ZoomLevel);
     tile_position MouseTilePos = {0};
@@ -671,6 +676,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
       }
       Memory->PlatformWaitForQueueToFinish(Memory->TaskQueue);
     }
+
     game_entity *Entity = GameState->ControllerMap.controllers[c];
     if (Entity) {
 
@@ -917,6 +923,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
   }
 
   for (int e = 0; e < GameState->EntityCount; e++) {
+
     game_entity *Entity = &GameState->Entities[e];
     if (!Entity->active) {
       continue;
@@ -1041,6 +1048,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
                render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
     }
   }
+
   real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
   real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height / 2);
 
@@ -1048,6 +1056,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
            (real32)RenderBuffer->Viewport.Width - PaddingV,
            (real32)min(100, (int32)RenderBuffer->Viewport.Height),
            render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
+
   if (Input->Mouse.InRange) {
     tile_position MouseTilePos = {0};
     MouseTilePos.RelX =

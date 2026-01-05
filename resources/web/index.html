@@ -62,8 +62,8 @@
                     );
                 }
                 const memory = new WebAssembly.Memory({
-                    initial: 2,
-                    maximum: 2,
+                    initial: 32,
+                    maximum: 32,
                     shared: true,
                 });
 
@@ -92,6 +92,8 @@
                 const gain = audioCtx.createGain();
                 gain.gain.value = handmadeMute.checked ? 0 : 1;
                 instance.exports.setup();
+                const renderBase = instance.exports.get_render_list();
+                console.log(renderBase);
 
                 volume.gain.value = handmadeAmpl.valueAsNumber;
                 bufferNode.connect(volume);
@@ -118,6 +120,11 @@
                         window.devicePixelRatio * handmadeCanvas.clientWidth;
                     handmadeCanvas.height =
                         window.devicePixelRatio * handmadeCanvas.clientHeight;
+                    instance.exports.resize_viewport(
+                        handmadeCanvas.width,
+                        handmadeCanvas.height,
+                    );
+                    log(handmadeCanvas.width, handmadeCanvas.height);
                 }
                 window.addEventListener("resize", resize);
                 resize();
@@ -134,14 +141,55 @@
                     const render_list_size =
                         instance.exports.update_and_render();
 
+                    log("render size: " + render_list_size);
+                    const render_commands = new Float32Array(
+                        memory.buffer,
+                        renderBase,
+                        render_list_size * 11,
+                    );
                     drawCtx.fillStyle = "#fed";
                     drawCtx.fillRect(
                         0,
                         0,
-                        (blockSize * handmadeCanvas.width) / blockSize,
+                        handmadeCanvas.width,
                         handmadeCanvas.height,
                     );
+                    log("render commands: " + render_commands.length);
+                    //  drawCtx.save();
+                    //  drawCtx.translate(
+                    //      +handmadeCanvas.width / 2,
+                    //      +handmadeCanvas.height / 2,
+                    //  );
+                    //  drawCtx.scale(0.4, 0.4);
+                    //  drawCtx.translate(
+                    //      -handmadeCanvas.width / 2,
+                    //      -handmadeCanvas.height / 2,
+                    //  );
 
+                    for (let r = 0; r < render_commands.length; r += 11) {
+                        const type = render_commands[r + 0];
+                        //console.log("type" + type);
+                        switch (type) {
+                            case 0:
+                                const minX = render_commands[r + 1];
+                                const minY = render_commands[r + 2];
+                                const maxX = render_commands[r + 3];
+                                const maxY = render_commands[r + 4];
+                                const colorR = render_commands[r + 5];
+                                const colorG = render_commands[r + 6];
+                                const colorB = render_commands[r + 7];
+                                const colorA = render_commands[r + 8];
+                                drawCtx.fillStyle = `rgba(${colorR * 255},${colorG * 255}, ${colorB * 255}, ${colorA})`;
+                                drawCtx.fillRect(
+                                    Math.min(maxX, minX),
+                                    Math.min(maxY, minY),
+                                    Math.abs(maxX - minX),
+                                    Math.abs(maxY - minY),
+                                );
+                            //console.log(minX, minY, maxX, maxY);
+                        }
+                    }
+                    drawCtx.restore();
                     requestAnimationFrame(draw);
                 }
                 requestAnimationFrame(draw);

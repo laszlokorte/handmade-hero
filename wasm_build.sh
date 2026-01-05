@@ -15,7 +15,7 @@ clang \
   -Wl,--export-all \
   -Wl,--import-memory \
   -Wl,--shared-memory \
-  -Wl,--max-memory=131072\
+  -Wl,--max-memory=2097152\
   -o build/web/handmade.wasm \
   code/handmade.cpp \
   code/wasm_handmade.c
