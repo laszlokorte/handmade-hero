@@ -4,3 +4,5 @@ msvc-env.txt
 *.sublime-workspace
 hotreload.lock
 .DS_Store
+
+wasm_publish.sh

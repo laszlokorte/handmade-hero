@@ -128,6 +128,7 @@
                 gain.connect(audioCtx.destination);
 
                 handmadeMute.addEventListener("input", async (evt) => {
+                    const target = evt.currentTarget;
                     await audioCtx.resume();
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
@@ -135,11 +136,12 @@
                     gain.gain.cancelScheduledValues(now);
                     gain.gain.setValueAtTime(gain.gain.value, now);
                     gain.gain.linearRampToValueAtTime(
-                        evt.currentTarget.checked ? 0 : 1,
+                        target.checked ? 0 : 1,
                         audioCtx.currentTime + fadeTime,
                     );
                 });
                 handmadeVolume.addEventListener("input", async (evt) => {
+                    const target = evt.currentTarget;
                     await audioCtx.resume();
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
@@ -147,7 +149,7 @@
                     volume.gain.cancelScheduledValues(now);
                     volume.gain.setValueAtTime(gain.gain.value, now);
                     volume.gain.linearRampToValueAtTime(
-                        evt.currentTarget.checked ? 0 : 1,
+                        target.valueAsNumber,
                         audioCtx.currentTime + fadeTime,
                     );
                 });
