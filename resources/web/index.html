@@ -7,6 +7,19 @@
     </head>
     <body>
         <canvas id="handmadeCanvas" width="800" height="600"></canvas>
+        <svg id="handmadeStick" viewBox="-150 -150 300 300" class="stick">
+            <circle cx="0" cy="0" r="100" fill="#1115"></circle>
+            <circle
+                id="handmadeStickNob"
+                cx="0"
+                cy="0"
+                r="50"
+                fill="#111a"
+            ></circle>
+        </svg>
+        <svg id="handmadeSvg" viewBox="-150 -150 300 300" class="svg-render">
+            <g id="handmadeSvgInner"></g>
+        </svg>
         <div class="app">
             <div class="grid" id="handmadeGrid">
                 <header>
@@ -50,9 +63,7 @@
                 <section class="log">
                     <h2>Log</h2>
                     <pre id="handmadeLog"></pre>
-                </section>
 
-                <section class="log">
                     <details>
                         <summary>About</summary>
                         <div>
@@ -105,30 +116,50 @@
                 });
 
                 const blockSize = 128;
+                handmadeMute.checked = true;
 
-                const audioCtx = new AudioContext({ samplingRate: 44100 });
-                await audioCtx.audioWorklet.addModule("worklet.js");
-
-                const bufferNode = new AudioWorkletNode(
-                    audioCtx,
-                    "wasm-processor",
-                    {
-                        processorOptions: { memory, wasm },
-                    },
-                );
-                const volume = audioCtx.createGain();
-                const gain = audioCtx.createGain();
-                gain.gain.value = handmadeMute.checked ? 0 : 1;
-                instance.exports.setup();
                 const renderBase = instance.exports.get_render_list();
+                const audioCtxLazy = (() => {
+                    let prom = null;
+                    return () => {
+                        if (!prom) {
+                            prom = new Promise(async (res) => {
+                                const ctx = new AudioContext({
+                                    samplingRate: 44100,
+                                });
+                                await ctx.audioWorklet.addModule("worklet.js");
 
-                volume.gain.value = handmadeVolume.valueAsNumber;
-                bufferNode.connect(volume);
-                volume.connect(gain);
-                gain.connect(audioCtx.destination);
+                                const bufferNode = new AudioWorkletNode(
+                                    ctx,
+                                    "wasm-processor",
+                                    {
+                                        processorOptions: { memory, wasm },
+                                    },
+                                );
+                                const volume = ctx.createGain();
+                                const gain = ctx.createGain();
+                                gain.gain.value = handmadeMute.checked ? 0 : 1;
+                                instance.exports.setup();
 
+                                volume.gain.value =
+                                    handmadeVolume.valueAsNumber;
+                                bufferNode.connect(volume);
+                                volume.connect(gain);
+                                gain.connect(ctx.destination);
+
+                                res({ audioCtx: ctx, gain, volume });
+                            });
+                        }
+
+                        return prom;
+                    };
+                })();
                 handmadeMute.addEventListener("input", async (evt) => {
                     const target = evt.currentTarget;
+                    const { audioCtx, gain, volume } = await audioCtxLazy();
+                    if (audioCtx.state !== "running") {
+                        gain.gain.value = 0;
+                    }
                     await audioCtx.resume();
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
@@ -141,6 +172,7 @@
                     );
                 });
                 handmadeVolume.addEventListener("input", async (evt) => {
+                    const { audioCtx, gain, volume } = await audioCtxLazy();
                     const target = evt.currentTarget;
                     await audioCtx.resume();
                     const now = audioCtx.currentTime;
@@ -185,8 +217,11 @@
                         evt.clientY - rect.top,
                     );
                 });
-                handmadeCanvas.addEventListener("pointerdown", (evt) => {
-                    evt.currentTarget.setPointerCapture(evt.pointerId);
+                handmadeCanvas.addEventListener("pointerdown", async (evt) => {
+                    const target = evt.currentTarget;
+                    const { audioCtx, gain, volume } = await audioCtxLazy();
+                    await audioCtx.resume();
+                    target.setPointerCapture(evt.pointerId);
                     instance.exports.mouse_button_press(evt.button);
                 });
                 handmadeCanvas.addEventListener("pointerup", (evt) => {
@@ -196,6 +231,60 @@
                     instance.exports.toggle_mouse(false);
 
                     log("leave");
+                });
+                handmadeStick.addEventListener("pointerdown", (evt) => {
+                    if (evt.isPrimary) {
+                        evt.currentTarget.setPointerCapture(evt.pointerId);
+                        moveStick(evt);
+                    }
+                });
+
+                const stickPoint = handmadeStick.createSVGPoint();
+                function moveStick(evt) {
+                    stickPoint.x = evt.clientX;
+                    stickPoint.y = evt.clientY;
+                    var svgGlobal = stickPoint.matrixTransform(
+                        handmadeStick.getScreenCTM().inverse(),
+                    );
+                    const angle = Math.atan2(svgGlobal.y, svgGlobal.x);
+                    const mag = Math.min(
+                        Math.hypot(svgGlobal.y, svgGlobal.x),
+                        100,
+                    );
+                    handmadeStickNob.setAttribute(
+                        "transform",
+                        `translate(${Math.cos(angle) * mag},${Math.sin(angle) * mag})`,
+                    );
+                    instance.exports.controller_stick(
+                        0,
+                        (Math.cos(angle) * mag) / 100,
+                        -(Math.sin(angle) * mag) / 100,
+                    );
+                }
+                handmadeStick.addEventListener("pointermove", (evt) => {
+                    if (evt.currentTarget.hasPointerCapture(evt.pointerId)) {
+                        moveStick(evt);
+                    }
+                });
+                handmadeStick.addEventListener("pointerup", (evt) => {
+                    if (evt.currentTarget.hasPointerCapture(evt.pointerId)) {
+                        handmadeStickNob.setAttribute(
+                            "transform",
+                            "translate(0,0)",
+                        );
+
+                        instance.exports.controller_stick(0, 0, 0);
+                    }
+                });
+                handmadeStick.addEventListener("lostpointercapture", (evt) => {
+                    if (evt.isPrimary) {
+                        handmadeStickNob.setAttribute(
+                            "transform",
+                            "translate(0,0)",
+                        );
+
+                        instance.exports.controller_stick(0, 0, 0);
+                    }
                 });
 
                 const buttons = {
@@ -224,9 +313,10 @@
                     ArrowRight: "ActionRight",
                     ArrowDown: "ActionDown",
                 };
-                window.addEventListener("keydown", (evt) => {
+                window.addEventListener("keydown", async (evt) => {
                     if (keymap[evt.key]) {
                         evt.preventDefault();
+
                         instance.exports.controller_button_press(
                             0,
                             buttons[keymap[evt.key]],
@@ -264,6 +354,35 @@
                     handmadeCanvas.height,
                 );
                 let lastDrawTime = 0;
+                const svgArena = (() => {
+                    let index = {
+                        rect: 0,
+                        polygon: 0,
+                    };
+                    let allocated = {
+                        rect: [],
+                        polygon: [],
+                    };
+                    return {
+                        reset: () => {
+                            log("svg arena" + allocated["rect"].length);
+                            index["rect"] = 0;
+                            index["polygon"] = 0;
+                        },
+                        alloc: (type) => {
+                            if (index[type] >= allocated[type].length) {
+                                allocated[type].push(
+                                    document.createElementNS(
+                                        "http://www.w3.org/2000/svg",
+                                        type,
+                                    ),
+                                );
+                            }
+                            return allocated[type][index[type]++];
+                        },
+                    };
+                })();
+                const svgFragment = document.createDocumentFragment();
                 function draw(now) {
                     drawCtx.fillStyle = "#fed";
                     const render_list_size = instance.exports.update_and_render(
@@ -348,6 +467,89 @@
                         }
                     }
                     drawCtx.restore();
+                    {
+                        handmadeSvg.setAttribute(
+                            "viewBox",
+                            `0 0 ${handmadeCanvas.width} ${handmadeCanvas.height}`,
+                        );
+                        svgArena.reset();
+                        handmadeSvg.replaceChild(
+                            handmadeSvgInner.cloneNode(false),
+                            handmadeSvgInner,
+                        );
+                        for (let r = 0; r < render_commands.length; r += 11) {
+                            const type = render_commands_int[r + 0];
+                            switch (type) {
+                                case 0:
+                                    {
+                                        const svgRect = svgArena.alloc("rect");
+                                        const minX = render_commands[r + 1];
+                                        const minY = render_commands[r + 2];
+                                        const maxX = render_commands[r + 3];
+                                        const maxY = render_commands[r + 4];
+                                        const colorR = render_commands[r + 5];
+                                        const colorG = render_commands[r + 6];
+                                        const colorB = render_commands[r + 7];
+                                        const colorA = render_commands[r + 8];
+
+                                        svgRect.setAttribute(
+                                            "x",
+                                            Math.min(maxX, minX),
+                                        );
+                                        svgRect.setAttribute(
+                                            "y",
+                                            Math.min(maxY, minY),
+                                        );
+                                        svgRect.setAttribute(
+                                            "width",
+                                            Math.abs(maxX - minX),
+                                        );
+                                        svgRect.setAttribute(
+                                            "height",
+                                            Math.abs(maxY - minY),
+                                        );
+                                        svgRect.setAttribute(
+                                            "fill",
+                                            `rgba(${colorR * 255},${colorG * 255}, ${colorB * 255}, ${colorA})`,
+                                        );
+                                        svgFragment.appendChild(svgRect);
+                                    }
+                                    break;
+
+                                case 1:
+                                    {
+                                        const ax = render_commands[r + 1];
+                                        const ay = render_commands[r + 2];
+                                        const bx = render_commands[r + 3];
+                                        const by = render_commands[r + 4];
+                                        const cx = render_commands[r + 5];
+                                        const cy = render_commands[r + 6];
+                                        const colorR = render_commands[r + 7];
+                                        const colorG = render_commands[r + 8];
+                                        const colorB = render_commands[r + 9];
+                                        const colorA = render_commands[r + 10];
+
+                                        const svgPoly =
+                                            svgArena.alloc("polygon");
+
+                                        svgPoly.setAttribute(
+                                            "points",
+                                            `${ax} ${ay} ${bx} ${by} ${cx} ${cy}`,
+                                        );
+                                        svgPoly.setAttribute(
+                                            "fill",
+                                            `rgba(${colorR * 255},${colorG * 255}, ${colorB * 255}, ${colorA})`,
+                                        );
+                                        svgFragment.appendChild(svgPoly);
+                                    }
+                                    break;
+                                default: {
+                                }
+                            }
+                        }
+
+                        handmadeSvgInner.appendChild(svgFragment);
+                    }
                     lastDrawTime = now;
                     requestAnimationFrame(draw);
                 }
@@ -494,7 +696,7 @@
                     bottom: 0;
                     width: 100%;
                     height: 100%;
-                    z-index: -1;
+                    z-index: -2;
                 }
                 .log {
                     align-self: end;
@@ -515,6 +717,31 @@
                 }
                 a {
                     color: inherit;
+                }
+                .stick {
+                    display: block;
+                    position: absolute;
+                    width: 300px;
+                    height: 300px;
+                    bottom: 0;
+                    right: 0;
+                    cursor: move;
+                    opacity: 0.5;
+                }
+                .stick:hover, .stick:active {
+                    opacity: 1;
+                }
+
+                .svg-render {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    width: 100%;
+                    height: 100%;
+                    z-index: -1;
+                    pointer-events: none;
                 }
             </style>
         </div>

@@ -172,16 +172,20 @@ void scroll_wheel(int x, int y) {
   CurrentInput->Mouse.WheelY += y;
 }
 
-void controller_stick(int controller, int x, int y) {
+void controller_stick(int controller, float x, float y) {
   game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
-  CurrentInput->Controllers->isAnalog = true;
+  CurrentInput->Controllers[controller].isAnalog = true;
+  CurrentInput->Controllers[controller].AverageStickX = x;
+  CurrentInput->Controllers[controller].AverageStickY = y;
 }
 void controller_button_press(int controller, int button) {
   game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
   CurrentInput->Controllers[controller].Buttons[button].HalfTransitionCount +=
       !CurrentInput->Controllers[controller].Buttons[button].EndedDown;
   CurrentInput->Controllers[controller].Buttons[button].EndedDown = true;
-  CurrentInput->Controllers->isAnalog = false;
+  if (button >= 0 && button < 4) {
+    CurrentInput->Controllers[controller].isAnalog = false;
+  }
 }
 void controller_button_release(int controller, int button) {
   game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
@@ -204,5 +208,7 @@ void blur() {
       CurrentInput->Controllers[c].Buttons[b].HalfTransitionCount = 0;
       CurrentInput->Controllers[c].Buttons[b].EndedDown = 0;
     }
+    CurrentInput->Controllers[c].AverageStickX = 0;
+    CurrentInput->Controllers[c].AverageStickY = 0;
   }
 }
