@@ -166,7 +166,7 @@ void mouse_button_release(int button) {
   CurrentInput->Mouse.Buttons[button].EndedDown = false;
 }
 
-void scroll_wheel(int x, int y) {
+void scroll_wheel(float x, float y) {
   game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
   CurrentInput->Mouse.WheelX += x;
   CurrentInput->Mouse.WheelY += y;
