@@ -10,6 +10,7 @@
         <canvas id="handmadeCanvas" width="800" height="600"></canvas>
         <svg id="handmadeStick" viewBox="-150 -150 300 300" class="stick">
             <circle cx="0" cy="0" r="100" fill="#1115"></circle>
+            <circle cx="0" cy="0" r="10" fill="#111a"></circle>
             <circle
                 id="handmadeStickNob"
                 cx="0"
@@ -106,7 +107,7 @@
                             <p>
                                 Press middle mouse button to pan the camera. Use
                                 the scrollwheel to pan the camera up and down or
-                                hold <kbd>spacebar </kbd> while scrolling to
+                                hold <kbd>Space bar</kbd> while scrolling to
                                 zoom in and out.
                             </p>
                         </div>
@@ -541,10 +542,14 @@
                     };
                 })();
                 const svgFragment = document.createDocumentFragment();
-                function draw(now) {
+                async function draw(now) {
                     const render_list_size = instance.exports.update_and_render(
                         (lastDrawTime ? now - lastDrawTime : 0) / 1000,
                     );
+                    const { audioCtx, gain, volume } = await audioCtxLazy();
+                    if (audioCtx.state !== "running") {
+                        instance.exports.output_audio(128);
+                    }
 
                     log("render size", render_list_size);
                     const render_commands = new Float32Array(
@@ -664,6 +669,10 @@
                                                 render_commands[r + 8];
 
                                             svgRect.setAttribute(
+                                                "shape-rendering",
+                                                "crispEdges",
+                                            );
+                                            svgRect.setAttribute(
                                                 "x",
                                                 Math.min(maxX, minX),
                                             );
@@ -706,7 +715,10 @@
 
                                             const svgPoly =
                                                 svgArena.alloc("polygon");
-
+                                            svgPoly.setAttribute(
+                                                "shape-rendering",
+                                                "crispEdges",
+                                            );
                                             svgPoly.setAttribute(
                                                 "points",
                                                 `${ax} ${ay} ${bx} ${by} ${cx} ${cy}`,
@@ -738,6 +750,7 @@
             </script>
             <style>
                 body {
+                    accent-color: deeppink;
                     font-family: monospace;
                     margin: 0;
                     user-select: none;
@@ -865,6 +878,10 @@
                     flex-grow: 1;
                     padding: 1.5ex 0;
                 }
+
+                input[type="checkbox"] {
+                    height: 2em;
+                }
                 fieldset {
                     display: flex;
                     flex-wrap: wrap;
@@ -932,7 +949,7 @@
                     opacity: 0.5;
                     touch-action: none;
                 }
-                .stick:hover, .stick:active {
+                .stick:hover {
                     opacity: 1;
                 }
 
