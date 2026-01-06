@@ -22,9 +22,11 @@ An basic X11 platform implementation is also available but it is the most barebo
 
 On iOS the rendering is working and simple touch controls for moving the camera are implemented. But audio is still missing and a virtual gamepad is not implemented yet but would be nice.
 
-Android is not yet implemeted yet.
+An Android platform layer is not yet implemeted yet.
 
-A WASM based web platform layer is not implemented yet.
+The WASM based platform layer allows to to run the project in a web browser. The rendering is done via either canvas 2D API or via SVG. A WebGL renderer is still to be implemented:
+
+[Live Demo](https://static.laszlokorte.de/handmade-hero/)
 
 ## TODO
 
