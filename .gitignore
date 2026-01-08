@@ -1,5 +1,6 @@
 build
 *.hmi
+*.hma
 msvc-env.txt
 *.sublime-workspace
 hotreload.lock
