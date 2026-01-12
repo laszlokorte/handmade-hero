@@ -25,8 +25,9 @@
 #include <sys/types.h>
 #include <dlfcn.h>
 
+extern "C" {
 #include "handmade.h"
-
+}
 #include "linux_work_queue.h"
 union v4 {
   struct {

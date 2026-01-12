@@ -6,6 +6,7 @@
 #include <GL/glext.h>
 #include <GLES2/gl2.h>
 #include <cstdint>
+#include <dlfcn.h>
 #include <wayland-client-protocol.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <linux/input-event-codes.h>
@@ -223,6 +224,9 @@ void LinuxLoadGame(linux_game *Game) {
       Game->IsValid = true;
       Game->FullDllPath = strdup(dllPath);
       Game->LatestWriteTime = LatestWriteTime;
+    } else {
+
+      printf("%s", dlerror());
     }
   } else {
     printf("%s\n", exePath);

@@ -11,7 +11,6 @@ typedef struct tile_hash_entry tile_hash_entry;
 typedef struct tile_distance tile_distance;
 typedef struct tile_map tile_map;
 
-
 struct tile_position {
   int X;
   int Y;
@@ -68,7 +67,7 @@ struct tile_map {
 internal tile_kind GetTile(tile_map *Map, int TileX, int TileY);
 
 internal void SetTileKind(memory_arena *Arena, tile_map *Map, int TileX,
-                          int TileY, uint16 Kind);
+                          int TileY, tile_kind Kind);
 
 internal void TilePositionNormalize(tile_position *Pos) {
   while (Pos->RelX < -0.5) {

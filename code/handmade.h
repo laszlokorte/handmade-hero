@@ -217,14 +217,6 @@ typedef struct game_state {
   game_sound_state SoundState;
 } game_state;
 
-typedef bool(game_update_and_render)(thread_context *Context,
-                                     game_memory *Memory, game_input *Input,
-                                     render_buffer *RenderBuffer);
-
-typedef void(game_get_sound_samples)(thread_context *Context,
-                                     game_memory *Memory,
-                                     game_sound_output_buffer *SoundBuffer);
-
 #define GAME_UPDATE_AND_RENDER(name)                                           \
   bool name(thread_context *Context, game_memory *Memory, game_input *Input,   \
             render_buffer *RenderBuffer)

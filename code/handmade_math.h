@@ -12,7 +12,7 @@ inline float fmodf(float x, float y) {
   int q = (int)(x / y); // trunc toward zero (C cast rule)
   return x - (float)q * y;
 }
-inline float handmade_sinf(float x) {
+static inline float handmade_sinf(float x) {
   double sign = 1;
   if (x < 0) {
     sign = -1.0;
@@ -34,7 +34,7 @@ inline float handmade_sinf(float x) {
 
   return sign * res;
 }
-inline float expf_approx(float x) {
+static inline float expf_approx(float x) {
   float r = 1.0f;
   float term = 1.0f;
   for (int i = 1; i < 20; i++) {
@@ -44,7 +44,7 @@ inline float expf_approx(float x) {
   return r;
 }
 
-inline float logf_approx(float x) {
+static inline float logf_approx(float x) {
   // only valid for x > 0, poor accuracy
   float y = (x - 1.0f) / (x + 1.0f);
   float y2 = y * y;
@@ -57,6 +57,6 @@ inline float logf_approx(float x) {
   return 2.0f * r;
 }
 
-inline float powf_approx(float x, float y) {
+static inline float powf_approx(float x, float y) {
   return expf_approx(y * logf_approx(x));
 }

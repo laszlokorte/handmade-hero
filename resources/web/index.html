@@ -215,7 +215,6 @@
                 const renderBase = instance.exports.get_render_list();
 
                 instance.exports.setup();
-
                 instance.exports.controller_button_press(0, 7);
                 const audioCtxLazy = (() => {
                     let prom = null;
@@ -225,7 +224,9 @@
                                 const ctx = new AudioContext({
                                     samplingRate: 44100,
                                 });
-                                await ctx.audioWorklet.addModule("worklet.js");
+                                await ctx.audioWorklet.addModule(
+                                    "audioworklet.js",
+                                );
 
                                 const bufferNode = new AudioWorkletNode(
                                     ctx,

@@ -2,10 +2,20 @@
 #include "handmade.h"
 #include "renderer.h"
 #include "work_queue.h"
+#include "wasm_work_queue.c"
 
 float audio_output_buffer[128 * 2];
 
 unsigned char stable_memory[2000000];
+work_queue global_work_queue = {
+    .Size = 100,
+    .Base = (wasm_work_queue_task *)&stable_memory[80000 + 80000],
+
+    .NextWrite = 0,
+    .NextRead = 0,
+    .CompletionGoal = 0,
+    .CompletionCount = 0,
+};
 
 void mock() {}
 DEBUG_PLATFORM_READ_ENTIRE_FILE(ReadEntireFile) {
@@ -15,8 +25,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(ReadEntireFile) {
   return r;
 }
 DEBUG_PLATFORM_LOG(DebugPlatformLog) { return 0; }
-WAIT_FOR_QUEUE_TO_FINISH(WaitForQueueToFinish) {}
-PUSH_TASK_TO_QUEUE(PushTaskToQueue) {}
+
 struct wasm_state state = {
     .Running = false,
     .Configured = false,
@@ -35,7 +44,7 @@ struct wasm_state state = {
             .PermanentStorage = &stable_memory[0],
 
             .TransientStorageSize = 80000,
-            .TransientStorage = &stable_memory[80000],
+            .TransientStorage = &stable_memory[0 + 80000],
 
             .DebugPlatformFreeFileMemory = &mock,
             .DebugPlatformReadEntireFile = &ReadEntireFile,
@@ -43,29 +52,38 @@ struct wasm_state state = {
                 (debug_platform_write_entire_file *)&mock,
             .DebugPlatformLog = &DebugPlatformLog,
 
-            .TaskQueue = 0,
+            .TaskQueue = &global_work_queue,
+
             .PlatformPushTaskToQueue = &PushTaskToQueue,
             .PlatformWaitForQueueToFinish = &WaitForQueueToFinish,
         },
 
     .TotalMemorySize = sizeof(stable_memory),
     .GameMemoryBlock = &stable_memory,
-    .RenderBuffer = {.Base = (render_command *)&stable_memory[2 * 80000],
-                     .Count = 0,
-                     .Size = 10000,
-                     .Viewport =
-                         {
-                             .Width = 800,
-                             .Height = 600,
-                         }
+    .RenderBuffer =
+        {.Base = (render_command *)&stable_memory[2 * 80000 +
+                                                  sizeof(wasm_work_queue_task)],
+         .Count = 0,
+         .Size = 10000,
+         .Viewport =
+             {
+                 .Width = 800,
+                 .Height = 600,
+             }
 
-    },
+        },
 };
 
 int setup() {
   state.Game.GameGetSoundSamples = &GameGetSoundSamples;
   state.Game.GameUpdateAndRender = &GameUpdateAndRender;
   return sizeof(render_command) / sizeof(float);
+}
+
+int doWork(int ThreadIndex) {
+  wasm_thread_info thread_info = {.LogicalThreadIndex = ThreadIndex,
+                                  .Queue = &global_work_queue};
+  return WorkQueueThreadProc(&thread_info);
 }
 
 int update_and_render(float DeltaTime) {

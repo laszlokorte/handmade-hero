@@ -14,13 +14,13 @@ int32 min(int32 a, int32 b) {
   }
 }
 
-global_variable game_state global_game_state = {};
-struct bit_scan_result {
+global_variable game_state global_game_state = {0};
+typedef struct bit_scan_result {
   bool Found;
   uint32 Index;
-};
+} bit_scan_result;
 internal bit_scan_result FindLowestBit(uint32 Value) {
-  bit_scan_result Result = {};
+  bit_scan_result Result = {0};
   for (uint32 Test = 0; Test < 32; ++Test) {
     if (Value & (1 << Test)) {
       Result.Index = Test;
@@ -33,7 +33,7 @@ internal bit_scan_result FindLowestBit(uint32 Value) {
 }
 
 #pragma pack(push, 1)
-struct bitmap_header {
+typedef struct bitmap_header {
   uint16 FileType;
   uint32 FileSize;
   uint16 Reserved1;
@@ -53,7 +53,7 @@ struct bitmap_header {
   uint32 RedMask;
   uint32 GreenMask;
   uint32 BlueMask;
-};
+} bitmap_header;
 #pragma pack(pop)
 
 internal
@@ -61,7 +61,7 @@ internal
                                debug_platform_read_entire_file *ReadEntireFile,
                                char *FileName) {
 
-  loaded_bitmap Result = {};
+  loaded_bitmap Result = {0};
   debug_read_file_result ReadResult = ReadEntireFile(Context, FileName);
 
   if (ReadResult.ContentSize != 0) {
@@ -343,9 +343,8 @@ internal void RenderGradient(game_offscreen_buffer *Buffer, int xoff, int yoff,
   }
 }
 
-extern "C" void GameGetSoundSamples(thread_context *Context,
-                                    game_memory *Memory,
-                                    game_sound_output_buffer *SoundBuffer) {
+void GameGetSoundSamples(thread_context *Context, game_memory *Memory,
+                         game_sound_output_buffer *SoundBuffer) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
@@ -413,7 +412,7 @@ internal tile_chunk *GetTileChunk(tile_map *Map, int ChunkX, int ChunkY) {
 
 internal chunk_tile_position GetChunkPosition(tile_map *Map, int TileX,
                                               int TileY) {
-  chunk_tile_position Result = {};
+  chunk_tile_position Result = {0};
   Result.ChunkX = TileX / Map->ChunkWidth;
   Result.ChunkY = TileY / Map->ChunkHeight;
   Result.TileX = TileX % Map->ChunkWidth;
@@ -487,17 +486,17 @@ void TestTask2(void *Data) {
   GamePlaySound(&GameState->SoundState, -1, 5000, 1.5, 3000);
 }
 
-extern "C" bool GameUpdateAndRender(thread_context *Context,
-                                    game_memory *Memory, game_input *Input,
-                                    render_buffer *RenderBuffer) {
+bool GameUpdateAndRender(thread_context *Context, game_memory *Memory,
+                         game_input *Input, render_buffer *RenderBuffer) {
   Assert(Memory->PermanentStorageSize > sizeof(game_state));
 
   game_state *GameState = (game_state *)Memory->PermanentStorage;
   if (!Memory->Initialized) {
-    game_state NewGameState = {};
+    game_state NewGameState = {0};
     *GameState = NewGameState;
     GameState->Time = 0;
-    GameState->SoundState = {};
+    game_sound_state SoundState = {};
+    GameState->SoundState = SoundState;
     GameState->VolumeRange = 5;
     GameState->Volume = 4;
     GameState->Muted = false;
@@ -645,18 +644,24 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
         Controller->ActionRight.EndedDown) {
       if (!GameState->ControllerMap.controllers[c]) {
         if (GameState->EntityCount < ENTITY_MAX) {
-          game_entity NewEntity{};
+          game_entity NewEntity = {0};
           NewEntity.active = true;
           int32 RandomX = GameState->EntityCount *
                           (RandomNumbers[GameState->EntityCount] % 3 - 1);
           int32 RandomY = GameState->EntityCount *
                           (RandomNumbers[GameState->EntityCount + 42] % 3 - 1);
-          NewEntity.p = tile_position{};
+          tile_position pos = {0};
           NewEntity.p.X = 0;
           NewEntity.p.Y = 0;
-          NewEntity.v = {0.0f, 0.0f};
-          NewEntity.s = {128.0f, 128.0f};
-          NewEntity.c = {0.2f, 0.1f * GameState->EntityCount, 0.3f};
+          NewEntity.p.RelX = 0;
+          NewEntity.p.RelY = 0;
+
+          game_velocity NewVelocity = {0};
+          game_color_rgb NewColor = {0.2f, 0.1f * GameState->EntityCount, 0.3f};
+          game_size NewSize = {128.0f, 128.0f};
+          NewEntity.v = NewVelocity;
+          NewEntity.s = NewSize;
+          NewEntity.c = NewColor;
           GameState->Entities[GameState->EntityCount] = NewEntity;
           GameState->ControllerMap.controllers[c] =
               &GameState->Entities[GameState->EntityCount];
@@ -667,7 +672,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
           GameState->Camera.pos = NewEntity.p;
         }
       } else {
-        game_velocity v0 = {};
+        game_velocity v0 = {0};
         GameState->ControllerMap.controllers[c]->v = v0;
         GameState->ControllerMap.controllers[c] = 0;
         GameState->CameraTrack = 0;
@@ -680,7 +685,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
     game_entity *Entity = GameState->ControllerMap.controllers[c];
     if (Entity) {
 
-      game_velocity NewVelocity = {};
+      game_velocity NewVelocity = {0};
       if (Controller->isAnalog) {
         NewVelocity.x = Controller->AverageStickX;
         NewVelocity.y = -Controller->AverageStickY;
@@ -858,35 +863,39 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
         tile_kind Kind = GetTileKind(&GameState->TileMap, x, y);
         switch (Kind) {
         case TILE_WALL: {
+          render_color_rgba RectColor = {1.0f, 1.0f, 1.0f, 1.0f};
           PushRect(
               RenderBuffer,
               CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
               CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
               CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
               CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-              render_color_rgba{1.0f, 1.0f, 1.0f, 1.0f});
+              RectColor);
 
         } break;
         case TILE_DOOR: {
+          render_color_rgba RectColor = {0.0f, 0.0f, 0.0f, 1.0f};
           PushRect(
               RenderBuffer,
               CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
               CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
               CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
               CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-              render_color_rgba{0.0f, 0.0f, 0.0f, 1.0f});
+              RectColor);
 
         } break;
         case TILE_EMPTY: {
 
+          render_color_rgba RectColor = {0.01f * abs(x),
+                                         abs(y) % 2 == 0 ? 0.5f : 0.7f,
+                                         x % 2 == 0 ? 0.6f : 0.8f, 1.0f};
           PushRect(
               RenderBuffer,
               CenterX + (x - 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
               CenterY + (y - 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
               CenterX + (x + 0.5f) * ZoomFactor * GameState->TileMap.TileWidth,
               CenterY + (y + 0.5f) * ZoomFactor * GameState->TileMap.TileHeight,
-              render_color_rgba{0.01f * abs(x), abs(y) % 2 == 0 ? 0.5f : 0.7f,
-                                x % 2 == 0 ? 0.6f : 0.8f, 1.0f});
+              RectColor);
 
         } break;
         }
@@ -909,6 +918,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
         CX * GameState->TileMap.TileWidth + CXR * GameState->TileMap.TileWidth;
     real32 Y = CY * GameState->TileMap.TileHeight +
                CYR * GameState->TileMap.TileHeight;
+    render_color_rgba RectColor = {0.5f, 0.1f, 0.5f, 1.0f};
     PushRect(RenderBuffer,
              (CX - 0.2f) * ZoomFactor * GameState->TileMap.TileWidth +
                  RenderBuffer->Viewport.Width / 2.0f,
@@ -918,7 +928,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
                  RenderBuffer->Viewport.Width / 2.0f,
              (CY + 0.2f) * ZoomFactor * GameState->TileMap.TileHeight +
                  RenderBuffer->Viewport.Height / 2.0f,
-             render_color_rgba{0.5f, 0.1f, 0.5f, 1.0f});
+             RectColor);
   }
 
   for (int e = 0; e < GameState->EntityCount; e++) {
@@ -941,7 +951,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
                 CYR * GameState->TileMap.TileHeight) *
                ZoomFactor;
 
-    float arrow[6] = {};
+    float arrow[6] = {0};
     switch (Entity->o) {
 
     case GameDirectionJustNorth: {
@@ -1009,6 +1019,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
       arrow[5] = 1.0f;
     } break;
     }
+    render_color_rgba RectColor = {0.6f, 0.0f, 0.8f, 1.0f};
     PushTriangle(RenderBuffer,
                  X + (arrow[0] * Entity->s.x / 2.0f) * ZoomFactor +
                      RenderBuffer->Viewport.Width / 2.0f,
@@ -1022,7 +1033,7 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
                      RenderBuffer->Viewport.Width / 2.0f,
                  Y + (arrow[5] * Entity->s.y / 2.0f) * ZoomFactor +
                      RenderBuffer->Viewport.Height / 2.0f,
-                 render_color_rgba{0.6f, 0.0f, 0.8f, 1.0f});
+                 RectColor);
     if (GameState->Logo.Width) {
       PushRectImage(RenderBuffer,
                     X - Entity->s.x / 2 * ZoomFactor +
@@ -1035,6 +1046,8 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
                         RenderBuffer->Viewport.Height / 2.0f,
                     &GameState->Logo);
     } else {
+
+      render_color_rgba RectColor = {0.0f, 0.0f, 0.0f, 0.5f};
       PushRect(RenderBuffer,
                X - Entity->s.x / 2 * ZoomFactor +
                    RenderBuffer->Viewport.Width / 2.0f,
@@ -1044,17 +1057,16 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
                    RenderBuffer->Viewport.Width / 2.0f,
                Y + Entity->s.x / 2 * ZoomFactor +
                    RenderBuffer->Viewport.Height / 2.0f,
-               render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
+               RectColor);
     }
   }
 
   real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
   real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height / 2);
-
+  render_color_rgba RectColor = {0.0f, 0.0f, 0.0f, 0.5f};
   PushRect(RenderBuffer, PaddingH, PaddingV,
            (real32)RenderBuffer->Viewport.Width - PaddingV,
-           (real32)min(100, (int32)RenderBuffer->Viewport.Height),
-           render_color_rgba{0.0f, 0.0f, 0.0f, 0.5f});
+           (real32)min(100, (int32)RenderBuffer->Viewport.Height), RectColor);
 
   if (Input->Mouse.InRange) {
     tile_position MouseTilePos = {0};
@@ -1073,16 +1085,16 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
     for (size_t m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
 
       game_button_state Button = Input->Mouse.Buttons[m];
+      render_color_rgba Col1 = {1.0f, 0.8f, 0.2f, 1.0f};
+      render_color_rgba Col2 = {1.0f, 0.0f, 0.9f, 1.0f};
+      render_color_rgba Col3 = {1.0f, 1.0f, 1.0f, 0.8f};
       PushRect(RenderBuffer, (real32)Input->Mouse.MouseX + 10.0f * m,
                (real32)Input->Mouse.MouseY,
                (real32)Input->Mouse.MouseX + 10.0f * m + 10.0f,
                (real32)Input->Mouse.MouseY + 10.0f +
                    10.0f * Button.HalfTransitionCount,
-               Button.EndedDown
-                   ? (Button.HalfTransitionCount > 0
-                          ? render_color_rgba{1.0f, 0.8f, 0.2f, 1.0f}
-                          : render_color_rgba{1.0f, 0.0f, 0.9f, 1.0f})
-                   : render_color_rgba{1.0f, 1.0f, 1.0f, 0.8f});
+               Button.EndedDown ? (Button.HalfTransitionCount > 0 ? Col1 : Col2)
+                                : Col3);
       if (m == 1) {
         continue;
       }
@@ -1113,17 +1125,20 @@ extern "C" bool GameUpdateAndRender(thread_context *Context,
         SetTileKind(&GameState->WorldArena, &GameState->TileMap, MouseTilePos.X,
                     MouseTilePos.Y, TILE_EMPTY);
       }
+      {
 
-      PushRect(RenderBuffer,
-               CenterX + (MouseTilePos.X - 0.5f) * ZoomFactor *
-                             GameState->TileMap.TileWidth,
-               CenterY + (MouseTilePos.Y - 0.5f) * ZoomFactor *
-                             GameState->TileMap.TileHeight,
-               CenterX + (MouseTilePos.X + 0.5f) * ZoomFactor *
-                             GameState->TileMap.TileWidth,
-               CenterY + (MouseTilePos.Y + 0.5f) * ZoomFactor *
-                             GameState->TileMap.TileHeight,
-               render_color_rgba{0.7f, 0.3f, 0.3f, 0.6f});
+        render_color_rgba RectColor = {0.7f, 0.3f, 0.3f, 0.6f};
+        PushRect(RenderBuffer,
+                 CenterX + (MouseTilePos.X - 0.5f) * ZoomFactor *
+                               GameState->TileMap.TileWidth,
+                 CenterY + (MouseTilePos.Y - 0.5f) * ZoomFactor *
+                               GameState->TileMap.TileHeight,
+                 CenterX + (MouseTilePos.X + 0.5f) * ZoomFactor *
+                               GameState->TileMap.TileWidth,
+                 CenterY + (MouseTilePos.Y + 0.5f) * ZoomFactor *
+                               GameState->TileMap.TileHeight,
+                 RectColor);
+      }
     }
   }
   Memory->PlatformWaitForQueueToFinish(Memory->TaskQueue);
