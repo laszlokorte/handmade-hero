@@ -7,12 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		F28999ED2ECDE860000CB90F /* handmade.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F28999EC2ECDE860000CB90F /* handmade.cpp */; };
+		F28999ED2ECDE860000CB90F /* handmade.c in Sources */ = {isa = PBXBuildFile; fileRef = F28999EC2ECDE860000CB90F /* handmade.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		F28999EB2ECDE860000CB90F /* handmade.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = handmade.h; path = ../handmade.h; sourceTree = SOURCE_ROOT; };
-		F28999EC2ECDE860000CB90F /* handmade.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = handmade.cpp; path = ../handmade.cpp; sourceTree = SOURCE_ROOT; };
+		F28999EC2ECDE860000CB90F /* handmade.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = handmade.c; path = ../handmade.c; sourceTree = SOURCE_ROOT; };
 		F28999EE2ECDE870000CB90F /* HandmadeHero-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "HandmadeHero-Bridging-Header.h"; sourceTree = "<group>"; };
 		F28999EF2ECDEACD000CB90F /* debug_font.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = debug_font.h; path = ../debug_font.h; sourceTree = SOURCE_ROOT; };
 		F28999F02ECDEACD000CB90F /* entropy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = entropy.h; path = ../entropy.h; sourceTree = SOURCE_ROOT; };
@@ -65,7 +65,7 @@
 				F28999F32ECDEACD000CB90F /* tilemap.h */,
 				F28999F42ECDEACD000CB90F /* work_queue.h */,
 				F28999EB2ECDE860000CB90F /* handmade.h */,
-				F28999EC2ECDE860000CB90F /* handmade.cpp */,
+				F28999EC2ECDE860000CB90F /* handmade.c */,
 				F2AF3A2C2ECCC18400624493 /* HandmadeHero */,
 				F2AF3A2B2ECCC18400624493 /* Products */,
 				F28999EE2ECDE870000CB90F /* HandmadeHero-Bridging-Header.h */,
@@ -155,7 +155,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F28999ED2ECDE860000CB90F /* handmade.cpp in Sources */,
+				F28999ED2ECDE860000CB90F /* handmade.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

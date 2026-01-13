@@ -516,9 +516,6 @@ bool GameUpdateAndRender(thread_context *Context, game_memory *Memory,
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
 
-    Memory->DebugPlatformLog("Logo: %p, Width: %zu, Height: %zu\n",
-                             GameState->Logo.Memory, GameState->Logo.Width,
-                             GameState->Logo.Height);
 
     InitializeArena(&GameState->WorldArena,
                     Memory->PermanentStorageSize - sizeof(*GameState) -

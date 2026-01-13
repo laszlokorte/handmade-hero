@@ -45,6 +45,11 @@ WAIT_FOR_QUEUE_TO_FINISH(iOSPlatformWaitForQueueToFinish){};
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(iOSDebugPlatformFreeFileMemory){};
 
+DEBUG_PLATFORM_LOG(iOSDebugPlatformLog){
+    return 0;
+};
+
+
 DEBUG_PLATFORM_READ_ENTIRE_FILE(iOSDebugPlatformReadEntireFile) {
   debug_read_file_result Result = {0};
 

@@ -250,9 +250,10 @@ func iOsSetupGameMemory(PlatformState: inout ios_state, GameMemory: inout game_m
     GameMemory.DebugPlatformFreeFileMemory = iOSDebugPlatformFreeFileMemory
     GameMemory.DebugPlatformReadEntireFile = iOSDebugPlatformReadEntireFile
     GameMemory.DebugPlatformWriteEntireFile = iOSDebugPlatformWriteEntireFile
-    GameMemory.DebugPlatformLog = &printf
+    
 
     GameMemory.PlatformPushTaskToQueue = iOSPlatformPushTaskToQueue
     GameMemory.PlatformWaitForQueueToFinish = iOSPlatformWaitForQueueToFinish
 
 }
+

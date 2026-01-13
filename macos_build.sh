@@ -11,7 +11,7 @@ FRAMEWORKS='
 WARNING_FLAGS='-Wno-unused-variable -Wno-unused-function'
 
 mkdir -p build
-clang code/handmade.cpp -g -shared -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/handmade_game
+clang code/handmade.c -g -shared -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/handmade_game
 if [ "$1" != gameonly ]; then
 clang ${FRAMEWORKS} code/macos_handmade.mm -g -Wall $WARNING_FLAGS -Werror -Wunused-label -o build/macos_handmade
 
