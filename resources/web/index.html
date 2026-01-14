@@ -298,12 +298,14 @@
                 resize();
 
                 handmadeCanvas.addEventListener("pointerenter", (evt) => {
-                    instance.exports.mouse_move(
-                        evt.clientX * window.devicePixelRatio,
-                        evt.clientY * window.devicePixelRatio,
-                    );
-                    instance.exports.toggle_mouse(true);
-                    log("enter");
+                    if (evt.isPrimary) {
+                        instance.exports.mouse_move(
+                            evt.clientX * window.devicePixelRatio,
+                            evt.clientY * window.devicePixelRatio,
+                        );
+                        instance.exports.toggle_mouse(true);
+                        log("enter");
+                    }
                 });
 
                 handmadeCanvas.addEventListener("contextmenu", (evt) => {
@@ -311,37 +313,47 @@
                 });
 
                 handmadeCanvas.addEventListener("pointermove", (evt) => {
-                    instance.exports.toggle_mouse(true);
-                    instance.exports.mouse_move(
-                        evt.clientX * window.devicePixelRatio,
-                        evt.clientY * window.devicePixelRatio,
-                    );
+                    if (evt.isPrimary) {
+                        instance.exports.toggle_mouse(true);
+                        instance.exports.mouse_move(
+                            evt.clientX * window.devicePixelRatio,
+                            evt.clientY * window.devicePixelRatio,
+                        );
+                    }
                 });
                 handmadeCanvas.addEventListener("pointerdown", async (evt) => {
-                    const target = evt.currentTarget;
+                    if (evt.isPrimary) {
+                        const target = evt.currentTarget;
+                        target.setPointerCapture(evt.pointerId);
+                        instance.exports.mouse_move(
+                            evt.clientX * window.devicePixelRatio,
+                            evt.clientY * window.devicePixelRatio,
+                        );
+                        instance.exports.mouse_button_press(evt.button);
+                    }
                     const { audioCtx, gain, volume } = await audioCtxLazy();
                     await audioCtx.resume();
-                    target.setPointerCapture(evt.pointerId);
-                    instance.exports.mouse_move(
-                        evt.clientX * window.devicePixelRatio,
-                        evt.clientY * window.devicePixelRatio,
-                    );
-                    instance.exports.mouse_button_press(evt.button);
                 });
                 handmadeCanvas.addEventListener("pointerup", (evt) => {
-                    instance.exports.mouse_button_release(evt.button);
+                    if (evt.isPrimary) {
+                        instance.exports.mouse_move(
+                            evt.clientX * window.devicePixelRatio,
+                            evt.clientY * window.devicePixelRatio,
+                        );
+                        instance.exports.mouse_button_release(evt.button);
+                    }
                 });
                 handmadeCanvas.addEventListener("pointerleave", () => {
-                    instance.exports.toggle_mouse(false);
+                    if (evt.isPrimary) {
+                        instance.exports.toggle_mouse(false);
 
-                    log("leave");
+                        log("leave");
+                    }
                 });
                 handmadeStick.addEventListener("pointerdown", (evt) => {
-                    if (evt.isPrimary) {
-                        evt.preventDefault();
-                        evt.currentTarget.setPointerCapture(evt.pointerId);
-                        moveStick(evt);
-                    }
+                    evt.preventDefault();
+                    evt.currentTarget.setPointerCapture(evt.pointerId);
+                    moveStick(evt);
                 });
 
                 const stickPoint = handmadeStick.createSVGPoint();
@@ -495,7 +507,9 @@
                 });
 
                 window.addEventListener("blur", (evt) => {
-                    instance.exports.blur();
+                    if (evt.currentTarget == evt.target) {
+                        instance.exports.blur();
+                    }
                 });
 
                 handmadeCanvas.addEventListener("wheel", (evt) => {
