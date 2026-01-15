@@ -516,7 +516,6 @@ bool GameUpdateAndRender(thread_context *Context, game_memory *Memory,
     GameState->Logo =
         DEBUGLoadBMP(Context, Memory->DebugPlatformReadEntireFile, FileName);
 
-
     InitializeArena(&GameState->WorldArena,
                     Memory->PermanentStorageSize - sizeof(*GameState) -
                         sizeof(game_sound_synth) * 100,
@@ -1078,6 +1077,19 @@ bool GameUpdateAndRender(thread_context *Context, game_memory *Memory,
 
     TilePositionNormalize(&MouseTilePos);
     bool AnyMouseDown = false;
+    for (size_t h = 0; h < ArrayCount(Input->Hands); h++) {
+      for (size_t f = 0; f < ArrayCount(Input->Hands[h].Fingers); f++) {
+        game_finger_input Finger = Input->Hands[h].Fingers[f];
+        if (!Finger.Touches) {
+          continue;
+        }
+        render_color_rgba Col1 = {1.0f, 0.8f, 0.2f, 1.0f};
+        render_color_rgba Col2 = {1.0f, 0.0f, 0.9f, 1.0f};
+        PushRect(RenderBuffer, (real32)Finger.TipX - 20.0f,
+                 (real32)Finger.TipY - 20.0f, (real32)Finger.TipX + 20.0f,
+                 (real32)Finger.TipY + 20.0f, Col1);
+      }
+    }
 
     for (size_t m = 0; m < ArrayCount(Input->Mouse.Buttons); m++) {
 

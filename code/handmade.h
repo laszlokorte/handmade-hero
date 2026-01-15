@@ -81,6 +81,18 @@ typedef struct game_controller_input {
   };
 } game_controller_input;
 
+typedef struct game_finger_input {
+  bool Touches;
+  int TipX;
+  int TipY;
+  int Radius;
+  int Pressure;
+} game_finger_input;
+
+typedef struct game_hand_input {
+  game_finger_input Fingers[5];
+} game_hand_input;
+
 typedef struct game_mouse_input {
   int MouseX;
   int MouseY;
@@ -107,6 +119,7 @@ typedef struct game_input {
   real32 DeltaTime;
   game_mouse_input Mouse;
   game_controller_input Controllers[5];
+  game_hand_input Hands[2];
 } game_input;
 
 typedef struct game_memory {

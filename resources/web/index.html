@@ -270,15 +270,15 @@
                 });
                 handmadeVolume.addEventListener("input", async (evt) => {
                     const target = evt.currentTarget;
+                    const newVolume = target.valueAsNumber;
                     const { audioCtx, gain, volume } = await audioCtxLazy();
                     await audioCtx.resume();
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
                     handmadeGrid.classList.remove("loading");
                     volume.gain.cancelScheduledValues(now);
-                    volume.gain.setValueAtTime(gain.gain.value, now);
                     volume.gain.linearRampToValueAtTime(
-                        target.valueAsNumber,
+                        newVolume,
                         audioCtx.currentTime + fadeTime,
                     );
                 });
@@ -343,7 +343,7 @@
                         instance.exports.mouse_button_release(evt.button);
                     }
                 });
-                handmadeCanvas.addEventListener("pointerleave", () => {
+                handmadeCanvas.addEventListener("pointerleave", (evt) => {
                     if (evt.isPrimary) {
                         instance.exports.toggle_mouse(false);
 
@@ -377,6 +377,7 @@
                         (Math.cos(angle) * mag) / 100,
                         -(Math.sin(angle) * mag) / 100,
                     );
+                    handmadeStick.classList.add("active");
                 }
                 handmadeStick.addEventListener("pointermove", (evt) => {
                     if (evt.currentTarget.hasPointerCapture(evt.pointerId)) {
@@ -392,18 +393,18 @@
                             "translate(0,0)",
                         );
 
+                        handmadeStick.classList.remove("active");
                         instance.exports.controller_stick(0, 0, 0);
                     }
                 });
                 handmadeStick.addEventListener("lostpointercapture", (evt) => {
-                    if (evt.isPrimary) {
-                        handmadeStickNob.setAttribute(
-                            "transform",
-                            "translate(0,0)",
-                        );
+                    handmadeStickNob.setAttribute(
+                        "transform",
+                        "translate(0,0)",
+                    );
 
-                        instance.exports.controller_stick(0, 0, 0);
-                    }
+                    handmadeStick.classList.remove("active");
+                    instance.exports.controller_stick(0, 0, 0);
                 });
 
                 const buttons = {
@@ -966,6 +967,9 @@
                 }
                 .stick:hover {
                     opacity: 1;
+                }
+                .stick.active {
+                    pointer-events: none;
                 }
 
                 .svg-render {

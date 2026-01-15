@@ -429,29 +429,45 @@ void frame_new(void *data, struct wl_callback *cb, uint32_t a) {
   game_input *NewInput = &app->GameInputs[app->CurrentGameInputIndex];
   game_input *OldInput = &app->GameInputs[1 - app->CurrentGameInputIndex];
 
-  game_controller_input *KeyBoardController = &NewInput->Controllers[0];
-  game_controller_input *OldKeyBoardController = &OldInput->Controllers[0];
+  {
 
-  game_mouse_input *Mouse = &NewInput->Mouse;
-  game_mouse_input *OldMouse = &OldInput->Mouse;
+    game_mouse_input *Mouse = &NewInput->Mouse;
+    game_mouse_input *OldMouse = &OldInput->Mouse;
+    game_mouse_input reset_mouse = {0};
 
-  game_controller_input reset_controller = {0};
-  game_mouse_input reset_mouse = {0};
-
-  reset_mouse.MouseX = OldMouse->MouseX;
-  reset_mouse.MouseY = OldMouse->MouseY;
-  reset_mouse.InRange = OldMouse->InRange;
-  for (size_t b = 0; b < ArrayCount(reset_mouse.Buttons); b++) {
-    reset_mouse.Buttons[b].EndedDown = OldMouse->Buttons[b].EndedDown;
+    reset_mouse.MouseX = OldMouse->MouseX;
+    reset_mouse.MouseY = OldMouse->MouseY;
+    reset_mouse.InRange = OldMouse->InRange;
+    for (size_t b = 0; b < ArrayCount(reset_mouse.Buttons); b++) {
+      reset_mouse.Buttons[b].EndedDown = OldMouse->Buttons[b].EndedDown;
+    }
+    *Mouse = reset_mouse;
   }
 
-  for (size_t b = 0; b < ArrayCount(reset_controller.Buttons); b++) {
-    reset_controller.Buttons[b].EndedDown =
-        OldKeyBoardController->Buttons[b].EndedDown;
+  {
+    game_controller_input *KeyBoardController = &NewInput->Controllers[0];
+    game_controller_input *OldKeyBoardController = &OldInput->Controllers[0];
+
+    game_controller_input reset_controller = {0};
+    for (size_t b = 0; b < ArrayCount(reset_controller.Buttons); b++) {
+      reset_controller.Buttons[b].EndedDown =
+          OldKeyBoardController->Buttons[b].EndedDown;
+    }
+    *KeyBoardController = reset_controller;
   }
 
-  *KeyBoardController = reset_controller;
-  *Mouse = reset_mouse;
+  {
+    game_hand_input *HandController = &NewInput->Hands[0];
+    game_hand_input *OldHandController = &OldInput->Hands[0];
+    game_hand_input reset_hand = {0};
+    for (size_t f = 0; f < ArrayCount(reset_hand.Fingers); f++) {
+      reset_hand.Fingers[f].Touches = OldHandController->Fingers[f].Touches;
+      reset_hand.Fingers[f].TipX = OldHandController->Fingers[f].TipX;
+      reset_hand.Fingers[f].TipY = OldHandController->Fingers[f].TipY;
+    }
+
+    *HandController = reset_hand;
+  }
 }
 
 void xrfc_conf(void *data, struct xdg_surface *xrfc, uint32_t ser) {
@@ -553,6 +569,14 @@ static void pointer_handle_motion(void *data, struct wl_pointer *pointer,
   MouseController->MouseX = newX;
   MouseController->MouseY = newY;
   MouseController->InRange = true;
+
+  return;
+  game_hand_input *HandController = &NewInput->Hands[0];
+  HandController->Fingers[0].TipX = newX;
+  HandController->Fingers[0].TipY = newY;
+  HandController->Fingers[0].Touches = true;
+  HandController->Fingers[0].Radius = 10;
+  HandController->Fingers[0].Pressure = 1;
 }
 
 static void pointer_handle_button(void *data, struct wl_pointer *pointer,
