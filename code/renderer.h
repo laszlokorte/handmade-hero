@@ -8,9 +8,17 @@ typedef struct loaded_bitmap {
   uint32 *Memory;
 } loaded_bitmap;
 
+typedef struct render_viewport_inset {
+  uint32 Top;
+  uint32 Right;
+  uint32 Bottom;
+  uint32 Left;
+} render_viewport_inset;
+
 typedef struct render_viewport {
   uint32 Width;
   uint32 Height;
+  render_viewport_inset Inset;
 } render_viewport;
 
 typedef enum render_command_type {
@@ -62,8 +70,8 @@ typedef struct render_buffer {
 internal inline void InitializeRenderBuffer(render_buffer *Buffer,
                                             memory_index Size,
                                             render_command *Base) {
-                                                render_viewport NewViewport = {0};
-                                                Buffer->Viewport = NewViewport;
+  render_viewport NewViewport = {0};
+  Buffer->Viewport = NewViewport;
   Buffer->Size = Size;
   Buffer->Count = 0;
   Buffer->Base = Base;

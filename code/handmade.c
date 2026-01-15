@@ -872,9 +872,14 @@ bool GameUpdateAndRender(thread_context *Context, game_memory *Memory,
   real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
   real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height / 2);
   render_color_rgba RectColor = {0.0f, 0.0f, 0.0f, 0.5f};
-  PushRect(RenderBuffer, PaddingH, PaddingV,
-           (real32)RenderBuffer->Viewport.Width - PaddingV,
-           (real32)min(100, (int32)RenderBuffer->Viewport.Height), RectColor);
+  PushRect(RenderBuffer, RenderBuffer->Viewport.Inset.Left,
+           RenderBuffer->Viewport.Inset.Top,
+           (real32)RenderBuffer->Viewport.Width -
+               RenderBuffer->Viewport.Inset.Right,
+           (real32)min(RenderBuffer->Viewport.Inset.Top + 64,
+                       (int32)RenderBuffer->Viewport.Height -
+                           RenderBuffer->Viewport.Inset.Bottom),
+           RectColor);
 
   for (size_t h = 0; h < ArrayCount(Input->Hands); h++) {
     for (size_t f = 0; f < ArrayCount(Input->Hands[h].Fingers); f++) {

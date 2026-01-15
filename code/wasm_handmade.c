@@ -158,6 +158,12 @@ void resize_viewport(int width, int height) {
   state.RenderBuffer.Viewport.Width = width;
   state.RenderBuffer.Viewport.Height = height;
 }
+void resize_viewport_safe(int top, int right, int bottom, int left) {
+  state.RenderBuffer.Viewport.Inset.Top = top;
+  state.RenderBuffer.Viewport.Inset.Right = right;
+  state.RenderBuffer.Viewport.Inset.Bottom = bottom;
+  state.RenderBuffer.Viewport.Inset.Left = left;
+}
 
 render_command *get_render_list() { return state.RenderBuffer.Base; }
 

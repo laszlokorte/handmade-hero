@@ -2,12 +2,21 @@
 <html>
     <head>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0,viewport-fit=cover"
+        />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta
+            name="apple-mobile-web-app-status-bar-style"
+            content="black-translucent"
+        />
+        <meta name="apple-mobile-web-app-title" content="Handmade Hero" />
         <link rel="icon" href="favicon.svg" />
         <title>Handmade Hero</title>
     </head>
     <body>
-        <canvas id="handmadeCanvas" width="800" height="600"></canvas>
         <svg id="handmadeStick" viewBox="-150 -150 300 300" class="stick">
             <circle cx="0" cy="0" r="100" fill="#1115"></circle>
             <circle cx="0" cy="0" r="10" fill="#111a"></circle>
@@ -19,168 +28,184 @@
                 fill="#111a"
             ></circle>
         </svg>
-        <svg id="handmadeSvg" viewBox="-150 -150 300 300" class="svg-render">
-            <g id="handmadeSvgInner"></g>
-        </svg>
         <div class="app">
             <div class="grid" id="handmadeGrid">
-                <header>
-                    <h1>
-                        <img src="favicon.svg" alt="Icon" />
-                        Handmade Hero
-                    </h1>
-                    <p>
-                        Web Version of an
-                        <a
-                            href="https://guide.handmadehero.org/"
-                            target="_blank"
-                            >Handmade Hero Style Game</a
-                        >
-                    </p>
-                </header>
+                <canvas id="handmadeCanvas" width="800" height="600"></canvas>
+                <svg
+                    id="handmadeSvg"
+                    viewBox="-150 -150 300 300"
+                    class="svg-render"
+                >
+                    <g id="handmadeSvgInner"></g>
+                </svg>
+                <div class="grid-inner">
+                    <header id="handmadeHeader">
+                        <a href="" title="Reload">
+                            <h1>
+                                <img src="favicon.svg" alt="Icon" />
+                                Handmade Hero
+                            </h1>
+                        </a>
+                        <p>
+                            Web Version of an
+                            <a
+                                href="https://guide.handmadehero.org/"
+                                target="_blank"
+                                >Handmade Hero Style Game</a
+                            >
+                        </p>
+                    </header>
 
-                <section class="panel">
-                    <fieldset>
-                        <div class="controls">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    id="handmadeMute"
-                                    checked="checked"
-                                />
-                                Muted
-                            </label>
-                            <label>
-                                Volume:
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="1"
-                                    step="0.01"
-                                    id="handmadeVolume"
-                                    value="0.4"
-                                />
-                            </label>
-                        </div>
-                    </fieldset>
-                    <details>
-                        <summary>Settings</summary>
-                        <div class="controls">
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    id="handmadeOptionCanvas"
-                                    checked
-                                />
-                                Render Canvas
-                            </label>
-                            <label>
-                                <input type="checkbox" id="handmadeOptionSvg" />
-                                Render SVG
-                            </label>
+                    <section class="panel">
+                        <fieldset>
+                            <div class="controls">
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        id="handmadeMute"
+                                        checked="checked"
+                                    />
+                                    Muted
+                                </label>
+                                <label>
+                                    Volume:
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.01"
+                                        id="handmadeVolume"
+                                        value="0.4"
+                                    />
+                                </label>
+                            </div>
+                        </fieldset>
+                        <details>
+                            <summary>Settings</summary>
+                            <div class="controls">
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        id="handmadeOptionCanvas"
+                                        checked
+                                    />
+                                    Render Canvas
+                                </label>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        id="handmadeOptionSvg"
+                                    />
+                                    Render SVG
+                                </label>
 
-                            <label>
-                                <input
-                                    type="checkbox"
-                                    id="handmadeOptionWebGl"
-                                />
-                                Render WebGL
-                            </label>
-                        </div>
-                    </details>
-                    <details>
-                        <summary>About</summary>
-                        <div>
-                            <p>
-                                Press <kbd>Right Arrow</kbd> to spawn a new
-                                player.
-                            </p>
-                            <p>
-                                Press <kbd>W</kbd>, <kbd>A</kbd>, <kbd>S</kbd>,
-                                <kbd>D</kbd> to move around.
-                            </p>
-                            <p>
-                                Press <kbd>Backspace</kbd> to build a wall or
-                                use the left and right mouse buttons to
-                                draw/erase walls.
-                            </p>
-                            <p>
-                                Press middle mouse button to pan the camera. Use
-                                the scrollwheel to pan the camera up and down or
-                                hold <kbd>Space bar</kbd> while scrolling to
-                                zoom in and out.
-                            </p>
-                        </div>
-                    </details>
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        id="handmadeOptionWebGl"
+                                    />
+                                    Render WebGL
+                                </label>
+                            </div>
+                        </details>
+                        <details>
+                            <summary>About</summary>
+                            <div>
+                                <p>
+                                    Press <kbd>Right Arrow</kbd> to spawn a new
+                                    player.
+                                </p>
+                                <p>
+                                    Press <kbd>W</kbd>, <kbd>A</kbd>,
+                                    <kbd>S</kbd>, <kbd>D</kbd> to move around.
+                                </p>
+                                <p>
+                                    Press <kbd>Backspace</kbd> to build a wall
+                                    or use the left and right mouse buttons to
+                                    draw/erase walls.
+                                </p>
+                                <p>
+                                    Press middle mouse button to pan the camera.
+                                    Use the scrollwheel to pan the camera up and
+                                    down or hold <kbd>Space bar</kbd> while
+                                    scrolling to zoom in and out.
+                                </p>
+                            </div>
+                        </details>
 
-                    <details>
-                        <summary>Buttons</summary>
-                        <div id="handmadeVirtualButtons">
-                            <fieldset>
-                                <label>Mouse</label>
-                                <div class="controls">
-                                    <button data-mouse-button="0">Left</button>
-                                    <button data-mouse-button="1">
-                                        Middle
-                                    </button>
-                                    <button data-mouse-button="2">Right</button>
-                                    <button data-mouse-button="3">
-                                        Extra1
-                                    </button>
-                                    <button data-mouse-button="4">
-                                        Extra2
-                                    </button>
-                                </div>
-                            </fieldset>
-                            <fieldset>
-                                <label>Controller #0</label>
-                                <div class="controls">
-                                    <button data-controller-button="0">
-                                        MoveUp
-                                    </button>
-                                    <button data-controller-button="1">
-                                        MoveDown
-                                    </button>
-                                    <button data-controller-button="2">
-                                        MoveLeft
-                                    </button>
-                                    <button data-controller-button="3">
-                                        MoveRight
-                                    </button>
-                                    <button data-controller-button="4">
-                                        ActionUp
-                                    </button>
-                                    <button data-controller-button="5">
-                                        ActionDown
-                                    </button>
-                                    <button data-controller-button="6">
-                                        ActionLeft
-                                    </button>
-                                    <button data-controller-button="7">
-                                        ActionRight
-                                    </button>
-                                    <button data-controller-button="8">
-                                        LeftShoulder
-                                    </button>
-                                    <button data-controller-button="9">
-                                        RightShoulder
-                                    </button>
-                                    <button data-controller-button="10">
-                                        Menu
-                                    </button>
-                                    <button data-controller-button="11">
-                                        Back
-                                    </button>
-                                </div>
-                            </fieldset>
-                        </div>
-                    </details>
+                        <details>
+                            <summary>Buttons</summary>
+                            <div id="handmadeVirtualButtons">
+                                <fieldset>
+                                    <label>Mouse</label>
+                                    <div class="controls">
+                                        <button data-mouse-button="0">
+                                            Left
+                                        </button>
+                                        <button data-mouse-button="1">
+                                            Middle
+                                        </button>
+                                        <button data-mouse-button="2">
+                                            Right
+                                        </button>
+                                        <button data-mouse-button="3">
+                                            Extra1
+                                        </button>
+                                        <button data-mouse-button="4">
+                                            Extra2
+                                        </button>
+                                    </div>
+                                </fieldset>
+                                <fieldset>
+                                    <label>Controller #0</label>
+                                    <div class="controls">
+                                        <button data-controller-button="0">
+                                            MoveUp
+                                        </button>
+                                        <button data-controller-button="1">
+                                            MoveDown
+                                        </button>
+                                        <button data-controller-button="2">
+                                            MoveLeft
+                                        </button>
+                                        <button data-controller-button="3">
+                                            MoveRight
+                                        </button>
+                                        <button data-controller-button="4">
+                                            ActionUp
+                                        </button>
+                                        <button data-controller-button="5">
+                                            ActionDown
+                                        </button>
+                                        <button data-controller-button="6">
+                                            ActionLeft
+                                        </button>
+                                        <button data-controller-button="7">
+                                            ActionRight
+                                        </button>
+                                        <button data-controller-button="8">
+                                            LeftShoulder
+                                        </button>
+                                        <button data-controller-button="9">
+                                            RightShoulder
+                                        </button>
+                                        <button data-controller-button="10">
+                                            Menu
+                                        </button>
+                                        <button data-controller-button="11">
+                                            Back
+                                        </button>
+                                    </div>
+                                </fieldset>
+                            </div>
+                        </details>
 
-                    <details>
-                        <summary>Log</summary>
-                        <pre id="handmadeLog"></pre>
-                    </details>
-                </section>
+                        <details>
+                            <summary>Log</summary>
+                            <pre id="handmadeLog"></pre>
+                        </details>
+                    </section>
+                </div>
             </div>
 
             <script type="module">
@@ -291,6 +316,24 @@
                     instance.exports.resize_viewport(
                         handmadeCanvas.width,
                         handmadeCanvas.height,
+                    );
+                    const style = getComputedStyle(document.documentElement);
+                    const safeTop =
+                        parseInt(style.getPropertyValue("--safe-top")) || 0;
+                    const safeBottom =
+                        parseInt(style.getPropertyValue("--safe-bottom")) || 0;
+                    const safeLeft =
+                        parseInt(style.getPropertyValue("--safe-left")) || 0;
+                    const safeRight =
+                        parseInt(style.getPropertyValue("--safe-right")) || 0;
+                    const headerRect = handmadeHeader.getBoundingClientRect();
+                    instance.exports.resize_viewport_safe(
+                        headerRect.top * devicePixelRatio -
+                            safeTop * devicePixelRatio +
+                            headerRect.bottom * devicePixelRatio,
+                        headerRect.left * devicePixelRatio,
+                        safeBottom * devicePixelRatio,
+                        headerRect.left * devicePixelRatio,
                     );
                     log("resize", handmadeCanvas.width, handmadeCanvas.height);
                 }
@@ -453,7 +496,7 @@
                 function moveStick(evt) {
                     stickPoint.x = evt.clientX;
                     stickPoint.y = evt.clientY;
-                    var svgGlobal = stickPoint.matrixTransform(
+                    const svgGlobal = stickPoint.matrixTransform(
                         handmadeStick.getScreenCTM().inverse(),
                     );
                     const angle = Math.atan2(svgGlobal.y, svgGlobal.x);
@@ -489,6 +532,16 @@
                         handmadeStick.classList.remove("active");
                         instance.exports.controller_stick(0, 0, 0);
                     }
+                });
+                handmadeStick.addEventListener("pointercancel", (evt) => {
+                    evt.preventDefault();
+                    handmadeStickNob.setAttribute(
+                        "transform",
+                        "translate(0,0)",
+                    );
+
+                    handmadeStick.classList.remove("active");
+                    instance.exports.controller_stick(0, 0, 0);
                 });
                 handmadeStick.addEventListener("lostpointercapture", (evt) => {
                     handmadeStickNob.setAttribute(
@@ -857,6 +910,116 @@
                 }
                 requestAnimationFrame(draw);
             </script>
+            <script type="module">
+                (function () {
+                    const splashTemplate =
+                        document.head.querySelector('link[rel="icon"]');
+                    const iOSDevice =
+                        !!navigator.platform.match(/iPhone|iPod|iPad/);
+
+                    if (!splashTemplate) {
+                        return;
+                    }
+
+                    const splashHref = splashTemplate.getAttribute("href");
+                    const splashColor =
+                        splashTemplate.getAttribute("data-color") || "white";
+                    const size = splashTemplate.hasAttribute("data-size")
+                        ? splashTemplate.getAttribute("data-size")
+                        : 0.5;
+
+                    if (!splashHref) {
+                        return;
+                    }
+
+                    const deviceWidth = screen.width;
+                    const deviceHeight = screen.height;
+                    const pixelRatio = window.devicePixelRatio || 1;
+                    const canvas = document.createElement("canvas");
+                    const canvas2 = document.createElement("canvas");
+                    const ctx = canvas.getContext("2d");
+                    const ctx2 = canvas2.getContext("2d");
+
+                    const iconImage = new Image();
+
+                    iconImage.onerror = function () {
+                        //throw new Error("Failed to load icon image");
+                    };
+
+                    iconImage.onload = function () {
+                        // Calculate the icon size based on the device's pixel ratio
+                        const defaultSize =
+                            (deviceWidth * size || iconImage.width) *
+                            pixelRatio;
+                        const imageRatio = iconImage.width
+                            ? iconImage.height / iconImage.width
+                            : 1;
+
+                        const iconSizew = defaultSize;
+                        const iconSizeh = defaultSize * imageRatio;
+
+                        canvas.width = deviceWidth * pixelRatio;
+                        canvas2.height = canvas.width;
+                        canvas.height = deviceHeight * pixelRatio;
+                        canvas2.width = canvas.height;
+                        ctx.fillStyle = splashColor;
+                        ctx2.fillStyle = splashColor;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx2.fillRect(0, 0, canvas2.width, canvas2.height);
+
+                        // Calculate the position to center the icon
+                        const x = (canvas.width - iconSizew) / 2;
+                        const y = (canvas.height - iconSizeh) / 2;
+                        const x2 = (canvas2.width - iconSizew) / 2;
+                        const y2 = (canvas2.height - iconSizeh) / 2;
+                        // Draw the icon with the calculated size
+                        ctx.drawImage(iconImage, x, y, iconSizew, iconSizeh);
+                        ctx2.drawImage(iconImage, x2, y2, iconSizew, iconSizeh);
+                        const imageDataURLPortrait =
+                            canvas.toDataURL("image/png");
+                        const imageDataURLLandscape =
+                            canvas2.toDataURL("image/png");
+
+                        const appleTouchStartupImagePortrait =
+                            document.createElement("link");
+                        appleTouchStartupImagePortrait.setAttribute(
+                            "rel",
+                            "apple-touch-startup-image",
+                        );
+                        appleTouchStartupImagePortrait.setAttribute(
+                            "media",
+                            "screen and (orientation: portrait)",
+                        );
+                        appleTouchStartupImagePortrait.setAttribute(
+                            "href",
+                            imageDataURLPortrait,
+                        );
+                        document.head.appendChild(
+                            appleTouchStartupImagePortrait,
+                        );
+
+                        const appleTouchStartupImageLandscape =
+                            document.createElement("link");
+                        appleTouchStartupImageLandscape.setAttribute(
+                            "rel",
+                            "apple-touch-startup-image",
+                        );
+                        appleTouchStartupImageLandscape.setAttribute(
+                            "media",
+                            "screen and (orientation: landscape)",
+                        );
+                        appleTouchStartupImageLandscape.setAttribute(
+                            "href",
+                            imageDataURLLandscape,
+                        );
+                        document.head.appendChild(
+                            appleTouchStartupImageLandscape,
+                        );
+                    };
+
+                    iconImage.src = splashHref;
+                })();
+            </script>
             <style>
                 body {
                     accent-color: deeppink;
@@ -882,9 +1045,6 @@
                     vertical-align: middle;
                     margin: 0;
                 }
-                a {
-                    c
-                }
                 h1 {
                     grid-column: 1 / -1;
                     grid-row: 1 / span 1;
@@ -904,23 +1064,45 @@
                 }
                 .grid {
                     position: absolute;
+                    z-index: 0;
                     top: 0;
                     bottom: 0;
                     left: 0;
                     right: 0;
-                    gap: 1em;
                     display: grid;
-                    padding: 1em;
+                    grid-template-columns: auto;
+                    grid-template-rows: auto;
+                    gap: 1em;
+                    justify-content: stretch;
+                    align-items: stretch;
+                    height: 100%;
+                    width: 100%;
+                    height: 100vh;
+                    width: 100vw;
+                    box-sizing: border-box;
+                    overflow: auto;
+                    touch-action: manipulation;
+                    scroll-behavior: smooth;
+                    overscroll-behavior: contain;
+                    scrollbar-gutter: thin;
+                    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+                        env(safe-area-inset-bottom) env(safe-area-inset-left);
+                }
+                .grid-inner {
+                    display: grid;
                     grid-template-columns: 1fr 1fr;
                     grid-auto-flow: column;
                     grid-template-rows: auto 1fr;
-                    gap: 1em;
                     justify-content: space-between;
                     align-items: start;
                     pointer-events: none;
+                    box-sizing: border-box;
+                    padding: 1ex;
+                    z-index: 10;
                 }
-                .grid > * {
+                .grid-inner > * {
                     pointer-events: all;
+                    touch-action: manipulation;
                 }
                 .loading {
                     opacity: 0.1;
@@ -956,7 +1138,7 @@
                     align-items: center;
                     gap: 1ex;
                     justify-content: start;
-                    justify-self:start;
+                    justify-self: start;
                     background-color: #333a;
                     color: #fff;
                     padding: 0.5ex 1.5em 0.5ex 1.5ex;
@@ -1007,18 +1189,30 @@
                     justify-content: start;
                     flex-grow: 1;
                 }
+                html,
+                body {
+                    margin: 0;
+                    padding: 0;
+                    width: 100%;
+                    height: 100%;
+                    overflow: hidden;
+                    overscroll-behavior: none;
+                }
                 canvas {
-                    position: fixed;
+                    position: absolute;
+                    display: block;
+                    margin: 0;
                     top: 0;
                     left: 0;
                     right: 0;
                     bottom: 0;
                     width: 100%;
                     height: 100%;
-                    z-index: -2;
+                    width: 100vw;
+                    height: 100vh;
                     touch-action: none;
                 }
-                .panel{
+                .panel {
                     align-self: end;
                 }
                 .log h2 {
@@ -1033,8 +1227,8 @@
                 }
 
                 details > div {
-                   padding: 1em;
-                   background-color: #f0f0f0;
+                    padding: 1em;
+                    background-color: #f0f0f0;
                 }
                 kbd {
                     background-color: #ddd;
@@ -1057,6 +1251,9 @@
                     cursor: move;
                     opacity: 0.5;
                     touch-action: none;
+                    z-index: 10;
+                    margin-right: env(safe-area-inset-right);
+                    margin-bottom: env(safe-area-inset-bottom);
                 }
                 .stick:hover {
                     opacity: 1;
@@ -1066,15 +1263,23 @@
                 }
 
                 .svg-render {
-                    position: fixed;
+                    position: absolute;
+                    pointer-events: none;
                     top: 0;
                     left: 0;
                     right: 0;
                     bottom: 0;
                     width: 100%;
                     height: 100%;
-                    z-index: -1;
-                    pointer-events: none;
+                    width: 100vw;
+                    height: 100vh;
+                    touch-action: none;
+                }
+                :root {
+                    --safe-top: env(safe-area-inset-top);
+                    --safe-bottom: env(safe-area-inset-bottom);
+                    --safe-left: env(safe-area-inset-left);
+                    --safe-right: env(safe-area-inset-right);
                 }
             </style>
         </div>
