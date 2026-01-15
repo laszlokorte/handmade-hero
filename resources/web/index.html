@@ -298,6 +298,9 @@
                 resize();
 
                 handmadeCanvas.addEventListener("pointerenter", (evt) => {
+                    if (evt.pointerType === "touch") {
+                        return;
+                    }
                     if (evt.isPrimary) {
                         instance.exports.mouse_move(
                             evt.clientX * window.devicePixelRatio,
@@ -313,6 +316,9 @@
                 });
 
                 handmadeCanvas.addEventListener("pointermove", (evt) => {
+                    if (evt.pointerType === "touch") {
+                        return;
+                    }
                     if (evt.isPrimary) {
                         instance.exports.toggle_mouse(true);
                         instance.exports.mouse_move(
@@ -322,6 +328,9 @@
                     }
                 });
                 handmadeCanvas.addEventListener("pointerdown", async (evt) => {
+                    if (evt.pointerType === "touch") {
+                        return;
+                    }
                     if (evt.isPrimary) {
                         const target = evt.currentTarget;
                         target.setPointerCapture(evt.pointerId);
@@ -333,6 +342,90 @@
                     }
                     const { audioCtx, gain, volume } = await audioCtxLazy();
                     await audioCtx.resume();
+                });
+
+                const MAX_FINGERS = 10;
+                class FingerMap {
+                    #free; // Min-Heap wäre overkill, Array reicht
+                    #map; // touch.identifier -> index
+
+                    constructor() {
+                        this.#free = [];
+                        this.#map = new Map();
+                        for (let i = 0; i < MAX_FINGERS; i++)
+                            this.#free.push(i);
+                    }
+
+                    allocIndex(id) {
+                        if (this.#free.length === 0) return null;
+                        const idx = this.#free.shift(); // kleinster freier Index
+                        this.#map.set(id, idx);
+                        return idx;
+                    }
+
+                    getIndex(id) {
+                        return this.#map.get(id);
+                    }
+
+                    freeIndex(id) {
+                        const idx = this.#map.get(id);
+                        if (idx === undefined) return;
+                        this.#map.delete(id);
+                        this.#free.push(idx);
+                        this.#free.sort((a, b) => a - b); // bei MAX=10 egal
+                        return idx;
+                    }
+                }
+                const fingers = new FingerMap();
+
+                handmadeCanvas.addEventListener("touchstart", (evt) => {
+                    evt.preventDefault();
+                    for (let t of evt.changedTouches) {
+                        const finger = fingers.allocIndex(t.identifier);
+                        instance.exports.touch_finger_begin(
+                            finger,
+                            t.clientX * window.devicePixelRatio,
+                            t.clientY * window.devicePixelRatio,
+                        );
+                    }
+                });
+
+                handmadeCanvas.addEventListener("touchmove", (evt) => {
+                    evt.preventDefault();
+                    for (let t of evt.changedTouches) {
+                        const finger = fingers.getIndex(t.identifier);
+                        if (finger !== undefined) {
+                            instance.exports.touch_finger_move(
+                                finger,
+                                t.clientX * window.devicePixelRatio,
+                                t.clientY * window.devicePixelRatio,
+                            );
+                        }
+                    }
+                });
+                handmadeCanvas.addEventListener("touchend", (evt) => {
+                    for (let t of evt.changedTouches) {
+                        const finger = fingers.freeIndex(t.identifier);
+                        if (finger !== undefined) {
+                            instance.exports.touch_finger_end(
+                                finger,
+                                t.clientX * window.devicePixelRatio,
+                                t.clientY * window.devicePixelRatio,
+                            );
+                        }
+                    }
+                });
+                handmadeCanvas.addEventListener("touchcancel", (evt) => {
+                    for (let t of evt.changedTouches) {
+                        const finger = fingers.freeIndex(t.identifier);
+                        if (finger !== undefined) {
+                            instance.exports.touch_finger_end(
+                                finger,
+                                t.clientX * window.devicePixelRatio,
+                                t.clientY * window.devicePixelRatio,
+                            );
+                        }
+                    }
                 });
                 handmadeCanvas.addEventListener("pointerup", (evt) => {
                     if (evt.isPrimary) {

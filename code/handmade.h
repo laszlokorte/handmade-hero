@@ -38,13 +38,6 @@ typedef DEBUG_PLATFORM_LOG(debug_platform_log);
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
-typedef struct game_offscreen_buffer {
-  void *Memory;
-  int Width;
-  int Height;
-  int BytesPerPixel;
-} game_offscreen_buffer;
-
 typedef struct game_sound_output_buffer {
   int SamplesPerSecond;
   int SampleCount;

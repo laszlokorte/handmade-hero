@@ -118,6 +118,20 @@ int update_and_render(float DeltaTime) {
     CurrentInput->Controllers[c].AverageStickY =
         OldInput->Controllers[c].AverageStickY;
   }
+  for (size_t h = 0; h < ArrayCount(CurrentInput->Hands); h++) {
+    for (size_t f = 0; f < ArrayCount(CurrentInput->Hands[h].Fingers); f++) {
+      CurrentInput->Hands[h].Fingers[f].TipX =
+          OldInput->Hands[h].Fingers[f].TipX;
+      CurrentInput->Hands[h].Fingers[f].TipY =
+          OldInput->Hands[h].Fingers[f].TipY;
+      CurrentInput->Hands[h].Fingers[f].Touches =
+          OldInput->Hands[h].Fingers[f].Touches;
+      CurrentInput->Hands[h].Fingers[f].Radius =
+          OldInput->Hands[h].Fingers[f].Radius;
+      CurrentInput->Hands[h].Fingers[f].Pressure =
+          OldInput->Hands[h].Fingers[f].Pressure;
+    }
+  }
   state.RenderBuffer.Count = 0;
   CurrentInput->DeltaTime = DeltaTime;
   state.Game.GameUpdateAndRender(&ctx, &state.GameMemory, CurrentInput,
@@ -129,7 +143,6 @@ int update_and_render(float DeltaTime) {
   CurrentInput->Mouse.DeltaX = 0;
   CurrentInput->Mouse.DeltaY = 0;
   for (size_t b = 0; b < ArrayCount(CurrentInput->Mouse.Buttons); b++) {
-
     CurrentInput->Mouse.Buttons[b].HalfTransitionCount = 0;
   }
   for (size_t c = 0; c < ArrayCount(CurrentInput->Controllers); c++) {
@@ -188,6 +201,28 @@ void scroll_wheel(float x, float y) {
   game_input *CurrentInput = &state.GameInputs[state.CurrentGameInputIndex];
   CurrentInput->Mouse.WheelX += x;
   CurrentInput->Mouse.WheelY += y;
+}
+
+void touch_finger_begin(int finger, int x, int y) {
+  game_finger_input *Finger = &state.GameInputs[state.CurrentGameInputIndex]
+                                   .Hands[finger / 2]
+                                   .Fingers[finger % 5];
+  Finger->TipX = x;
+  Finger->TipY = y;
+  Finger->Touches = true;
+}
+void touch_finger_move(int finger, int x, int y) {
+  game_finger_input *Finger = &state.GameInputs[state.CurrentGameInputIndex]
+                                   .Hands[finger / 2]
+                                   .Fingers[finger % 5];
+  Finger->TipX = x;
+  Finger->TipY = y;
+}
+void touch_finger_end(int finger) {
+  game_finger_input *Finger = &state.GameInputs[state.CurrentGameInputIndex]
+                                   .Hands[finger / 2]
+                                   .Fingers[finger % 5];
+  Finger->Touches = false;
 }
 
 void controller_stick(int controller, float x, float y) {
