@@ -265,6 +265,7 @@
                                 await ctx.resume();
                             }
 
+                            const now = ctx.currentTime;
                             await ctx.audioWorklet.addModule("audioworklet.js");
 
                             const bufferNode = new AudioWorkletNode(
@@ -276,8 +277,17 @@
                             );
                             const volume = ctx.createGain();
                             const gain = ctx.createGain();
-                            gain.gain.value = handmadeMute.checked ? 0 : 1;
-                            volume.gain.value = handmadeVolume.valueAsNumber;
+                            const fadeTime = 0.1;
+                            gain.gain.setValueAtTime(0, now);
+                            gain.gain.linearRampToValueAtTime(
+                                handmadeMute.checked ? 0 : 1,
+                                now + fadeTime,
+                            );
+                            volume.gain.setValueAtTime(0, now);
+                            volume.gain.linearRampToValueAtTime(
+                                handmadeVolume.valueAsNumber,
+                                now + fadeTime,
+                            );
                             bufferNode.connect(volume);
                             volume.connect(gain);
                             gain.connect(ctx.destination);
@@ -323,6 +333,8 @@
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
                     handmadeGrid.classList.remove("loading");
+
+                    volume.gain.setValueAtTime(volume.gain.value, now);
                     volume.gain.linearRampToValueAtTime(
                         newVolume,
                         audioCtx.currentTime + fadeTime,
