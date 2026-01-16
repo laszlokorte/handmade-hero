@@ -13,7 +13,7 @@
             content="black-translucent"
         />
         <meta name="apple-mobile-web-app-title" content="Handmade Hero" />
-        <link rel="icon" href="favicon.svg" />
+        <link rel="icon" href="favicon.svg" data-padding="20" />
         <title>Handmade Hero</title>
     </head>
     <body>
@@ -234,7 +234,6 @@
                     },
                 });
 
-                const blockSize = 128;
                 handmadeMute.checked = true;
 
                 const renderBase = instance.exports.get_render_list();
@@ -242,47 +241,69 @@
                 instance.exports.setup();
                 instance.exports.controller_button_press(0, 7);
                 const audioCtxLazy = (() => {
-                    let prom = null;
-                    return () => {
-                        if (!prom) {
-                            prom = new Promise(async (res) => {
-                                const ctx = new AudioContext({
-                                    samplingRate: 44100,
-                                });
-                                await ctx.audioWorklet.addModule(
-                                    "audioworklet.js",
-                                );
-
-                                const bufferNode = new AudioWorkletNode(
-                                    ctx,
-                                    "wasm-processor",
-                                    {
-                                        processorOptions: { memory, wasm },
-                                    },
-                                );
-                                const volume = ctx.createGain();
-                                const gain = ctx.createGain();
-                                gain.gain.value = handmadeMute.checked ? 0 : 1;
-                                volume.gain.value =
-                                    handmadeVolume.valueAsNumber;
-                                bufferNode.connect(volume);
-                                volume.connect(gain);
-                                gain.connect(ctx.destination);
-
-                                res({ audioCtx: ctx, gain, volume });
+                    let mem = null;
+                    return async (reset) => {
+                        if (reset && mem) {
+                            const {
+                                audioCtx: oldCtx,
+                                gain: oldGain,
+                                buffer: oldBuffer,
+                                volume: oldValume,
+                            } = mem;
+                            oldGain.disconnect();
+                            oldValume.disconnect();
+                            oldBuffer.disconnect();
+                            await oldCtx.close();
+                        }
+                        if (!mem || reset) {
+                            const ctx = new (
+                                AudioContext || webkitAudioContext
+                            )({
+                                samplingRate: 44100,
                             });
+                            if (reset && ctx.state === "suspended") {
+                                await ctx.resume();
+                            }
+
+                            await ctx.audioWorklet.addModule("audioworklet.js");
+
+                            const bufferNode = new AudioWorkletNode(
+                                ctx,
+                                "wasm-processor",
+                                {
+                                    processorOptions: { memory, wasm },
+                                },
+                            );
+                            const volume = ctx.createGain();
+                            const gain = ctx.createGain();
+                            gain.gain.value = handmadeMute.checked ? 0 : 1;
+                            volume.gain.value = handmadeVolume.valueAsNumber;
+                            bufferNode.connect(volume);
+                            volume.connect(gain);
+                            gain.connect(ctx.destination);
+
+                            mem = {
+                                audioCtx: ctx,
+                                gain,
+                                volume,
+                                buffer: bufferNode,
+                            };
                         }
 
-                        return prom;
+                        return mem;
                     };
                 })();
+                handmadeMute.addEventListener("click", async (evt) => {
+                    const target = evt.currentTarget;
+                    const { audioCtx, gain, volume } = await audioCtxLazy(true);
+                });
                 handmadeMute.addEventListener("input", async (evt) => {
                     const target = evt.currentTarget;
                     const { audioCtx, gain, volume } = await audioCtxLazy();
                     if (audioCtx.state !== "running") {
                         gain.gain.value = 0;
                     }
-                    await audioCtx.resume();
+
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
                     handmadeGrid.classList.remove("loading");
@@ -297,7 +318,7 @@
                     const target = evt.currentTarget;
                     const newVolume = target.valueAsNumber;
                     const { audioCtx, gain, volume } = await audioCtxLazy();
-                    await audioCtx.resume();
+
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
                     handmadeGrid.classList.remove("loading");
@@ -384,7 +405,6 @@
                         instance.exports.mouse_button_press(evt.button);
                     }
                     const { audioCtx, gain, volume } = await audioCtxLazy();
-                    await audioCtx.resume();
                 });
 
                 const MAX_FINGERS = 10;
@@ -704,13 +724,14 @@
                     };
                 })();
                 const svgFragment = document.createDocumentFragment();
+                const blockSize = 128;
                 async function draw(now) {
                     const render_list_size = instance.exports.update_and_render(
                         (lastDrawTime ? now - lastDrawTime : 0) / 1000,
                     );
                     const { audioCtx, gain, volume } = await audioCtxLazy();
                     if (audioCtx.state !== "running") {
-                        instance.exports.output_audio(128);
+                        instance.exports.output_audio(blockSize);
                     }
 
                     log("render size", render_list_size);
@@ -759,22 +780,34 @@
                                         const colorA = render_commands[r + 8];
                                         drawCtx.fillStyle = `rgba(${colorR * 255},${colorG * 255}, ${colorB * 255}, ${colorA})`;
                                         drawCtx.fillRect(
-                                            Math.min(maxX, minX),
-                                            Math.min(maxY, minY),
-                                            Math.abs(maxX - minX),
-                                            Math.abs(maxY - minY),
+                                            Math.round(Math.min(maxX, minX)),
+                                            Math.round(Math.min(maxY, minY)),
+                                            Math.round(Math.abs(maxX - minX)),
+                                            Math.round(Math.abs(maxY - minY)),
                                         );
                                     }
                                     break;
 
                                 case 1:
                                     {
-                                        const ax = render_commands[r + 1];
-                                        const ay = render_commands[r + 2];
-                                        const bx = render_commands[r + 3];
-                                        const by = render_commands[r + 4];
-                                        const cx = render_commands[r + 5];
-                                        const cy = render_commands[r + 6];
+                                        const ax = Math.round(
+                                            render_commands[r + 1],
+                                        );
+                                        const ay = Math.round(
+                                            render_commands[r + 2],
+                                        );
+                                        const bx = Math.round(
+                                            render_commands[r + 3],
+                                        );
+                                        const by = Math.round(
+                                            render_commands[r + 4],
+                                        );
+                                        const cx = Math.round(
+                                            render_commands[r + 5],
+                                        );
+                                        const cy = Math.round(
+                                            render_commands[r + 6],
+                                        );
                                         const colorR = render_commands[r + 7];
                                         const colorG = render_commands[r + 8];
                                         const colorB = render_commands[r + 9];
@@ -927,6 +960,16 @@
                     const size = splashTemplate.hasAttribute("data-size")
                         ? splashTemplate.getAttribute("data-size")
                         : 0.5;
+                    const iconPadding = splashTemplate.hasAttribute(
+                        "data-padding",
+                    )
+                        ? splashTemplate.getAttribute("data-padding")
+                        : 10;
+                    const appIconSize = splashTemplate.hasAttribute(
+                        "data-icon-size",
+                    )
+                        ? splashTemplate.getAttribute("data-icon-size")
+                        : 180;
 
                     if (!splashHref) {
                         return;
@@ -937,8 +980,10 @@
                     const pixelRatio = window.devicePixelRatio || 1;
                     const canvas = document.createElement("canvas");
                     const canvas2 = document.createElement("canvas");
+                    const canvas3 = document.createElement("canvas");
                     const ctx = canvas.getContext("2d");
                     const ctx2 = canvas2.getContext("2d");
+                    const ctx3 = canvas3.getContext("2d");
 
                     const iconImage = new Image();
 
@@ -955,8 +1000,8 @@
                             ? iconImage.height / iconImage.width
                             : 1;
 
-                        const iconSizew = defaultSize;
-                        const iconSizeh = defaultSize * imageRatio;
+                        const iconSizeW = defaultSize;
+                        const iconSizeH = defaultSize * imageRatio;
 
                         canvas.width = deviceWidth * pixelRatio;
                         canvas2.height = canvas.width;
@@ -967,18 +1012,33 @@
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
                         ctx2.fillRect(0, 0, canvas2.width, canvas2.height);
 
+                        canvas3.width = appIconSize;
+                        canvas3.height = appIconSize;
+                        ctx3.fillStyle = splashColor;
+                        ctx3.fillRect(0, 0, canvas3.width, canvas3.height);
+
                         // Calculate the position to center the icon
-                        const x = (canvas.width - iconSizew) / 2;
-                        const y = (canvas.height - iconSizeh) / 2;
-                        const x2 = (canvas2.width - iconSizew) / 2;
-                        const y2 = (canvas2.height - iconSizeh) / 2;
+                        const x = (canvas.width - iconSizeW) / 2;
+                        const y = (canvas.height - iconSizeH) / 2;
+                        const x2 = (canvas2.width - iconSizeW) / 2;
+                        const y2 = (canvas2.height - iconSizeH) / 2;
+                        const x3 = (canvas3.width - iconSizeW) / 2;
+                        const y3 = (canvas3.height - iconSizeH) / 2;
                         // Draw the icon with the calculated size
-                        ctx.drawImage(iconImage, x, y, iconSizew, iconSizeh);
-                        ctx2.drawImage(iconImage, x2, y2, iconSizew, iconSizeh);
+                        ctx.drawImage(iconImage, x, y, iconSizeW, iconSizeH);
+                        ctx2.drawImage(iconImage, x2, y2, iconSizeW, iconSizeH);
+                        ctx3.drawImage(
+                            iconImage,
+                            iconPadding,
+                            iconPadding,
+                            appIconSize - 2 * iconPadding,
+                            appIconSize - 2 * iconPadding,
+                        );
                         const imageDataURLPortrait =
                             canvas.toDataURL("image/png");
                         const imageDataURLLandscape =
                             canvas2.toDataURL("image/png");
+                        const imageDataURLIcon = canvas3.toDataURL("image/png");
 
                         const appleTouchStartupImagePortrait =
                             document.createElement("link");
@@ -1015,6 +1075,22 @@
                         document.head.appendChild(
                             appleTouchStartupImageLandscape,
                         );
+
+                        const appleTouchAppIcon =
+                            document.createElement("link");
+                        appleTouchAppIcon.setAttribute(
+                            "rel",
+                            "apple-touch-icon",
+                        );
+                        appleTouchAppIcon.setAttribute(
+                            "sizes",
+                            [appIconSize, appIconSize].join("x"),
+                        );
+                        appleTouchAppIcon.setAttribute(
+                            "href",
+                            imageDataURLIcon,
+                        );
+                        document.head.appendChild(appleTouchAppIcon);
                     };
 
                     iconImage.src = splashHref;
@@ -1255,11 +1331,9 @@
                     margin-right: env(safe-area-inset-right);
                     margin-bottom: env(safe-area-inset-bottom);
                 }
-                .stick:hover {
-                    opacity: 1;
-                }
                 .stick.active {
                     pointer-events: none;
+                    opacity: 1;
                 }
 
                 .svg-render {
