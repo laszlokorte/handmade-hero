@@ -293,21 +293,22 @@
                         return mem;
                     };
                 })();
-                handmadeMute.addEventListener("click", async (evt) => {
-                    const target = evt.currentTarget;
-                    const { audioCtx, gain, volume } = await audioCtxLazy(true);
-                });
+                handmadeMute.addEventListener(
+                    "click",
+                    async (evt) => {
+                        const target = evt.currentTarget;
+                        const { audioCtx, gain, volume } =
+                            await audioCtxLazy(true);
+                    },
+                    { once: true },
+                );
                 handmadeMute.addEventListener("input", async (evt) => {
                     const target = evt.currentTarget;
                     const { audioCtx, gain, volume } = await audioCtxLazy();
-                    if (audioCtx.state !== "running") {
-                        gain.gain.value = 0;
-                    }
 
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
                     handmadeGrid.classList.remove("loading");
-                    gain.gain.cancelScheduledValues(now);
                     gain.gain.setValueAtTime(gain.gain.value, now);
                     gain.gain.linearRampToValueAtTime(
                         target.checked ? 0 : 1,
@@ -322,7 +323,6 @@
                     const now = audioCtx.currentTime;
                     const fadeTime = 0.1;
                     handmadeGrid.classList.remove("loading");
-                    volume.gain.cancelScheduledValues(now);
                     volume.gain.linearRampToValueAtTime(
                         newVolume,
                         audioCtx.currentTime + fadeTime,
@@ -770,20 +770,28 @@
                             switch (type) {
                                 case 0:
                                     {
-                                        const minX = render_commands[r + 1];
-                                        const minY = render_commands[r + 2];
-                                        const maxX = render_commands[r + 3];
-                                        const maxY = render_commands[r + 4];
+                                        const minX = Math.round(
+                                            render_commands[r + 1],
+                                        );
+                                        const minY = Math.round(
+                                            render_commands[r + 2],
+                                        );
+                                        const maxX = Math.round(
+                                            render_commands[r + 3],
+                                        );
+                                        const maxY = Math.round(
+                                            render_commands[r + 4],
+                                        );
                                         const colorR = render_commands[r + 5];
                                         const colorG = render_commands[r + 6];
                                         const colorB = render_commands[r + 7];
                                         const colorA = render_commands[r + 8];
                                         drawCtx.fillStyle = `rgba(${colorR * 255},${colorG * 255}, ${colorB * 255}, ${colorA})`;
                                         drawCtx.fillRect(
-                                            Math.round(Math.min(maxX, minX)),
-                                            Math.round(Math.min(maxY, minY)),
-                                            Math.round(Math.abs(maxX - minX)),
-                                            Math.round(Math.abs(maxY - minY)),
+                                            Math.min(maxX, minX),
+                                            Math.min(maxY, minY),
+                                            Math.abs(maxX - minX),
+                                            Math.abs(maxY - minY),
                                         );
                                     }
                                     break;
