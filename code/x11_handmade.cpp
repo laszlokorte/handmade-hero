@@ -372,6 +372,7 @@ int main() {
   XGetWindowAttributes(display, window, &attr);
   LinuxState.RenderBuffer.Viewport.Width = attr.width;
   LinuxState.RenderBuffer.Viewport.Height = attr.height;
+
   game_input CurrentInput = {0};
   while (!quited) {
     while (XPending(display)) {

@@ -72,6 +72,10 @@ internal inline void InitializeRenderBuffer(render_buffer *Buffer,
                                             render_command *Base) {
   render_viewport NewViewport = {0};
   Buffer->Viewport = NewViewport;
+  Buffer->Viewport.Inset.Top = 20;
+  Buffer->Viewport.Inset.Right = 20;
+  Buffer->Viewport.Inset.Bottom = 20;
+  Buffer->Viewport.Inset.Left = 20;
   Buffer->Size = Size;
   Buffer->Count = 0;
   Buffer->Base = Base;
