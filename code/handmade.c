@@ -345,6 +345,34 @@ bool GameUpdateAndRender(thread_context *Context, game_memory *Memory,
     SetTileKind(&GameState->WorldArena, &GameState->TileMap, 2, 3, TILE_WALL);
 
     Memory->Initialized = true;
+
+
+  {
+      game_entity NewEntity = {0};
+                NewEntity.active = true;
+                int32 RandomX = GameState->EntityCount *
+                                (RandomNumbers[GameState->EntityCount] % 3 - 1);
+                int32 RandomY = GameState->EntityCount *
+                                (RandomNumbers[GameState->EntityCount + 42] % 3 - 1);
+                tile_position pos = {0};
+                NewEntity.p.X = 0;
+                NewEntity.p.Y = 0;
+                NewEntity.p.RelX = 0;
+                NewEntity.p.RelY = 0;
+
+                game_velocity NewVelocity = {0};
+                game_color_rgb NewColor = {0.2f, 0.1f * GameState->EntityCount, 0.3f};
+                game_size NewSize = {128.0f, 128.0f};
+                NewEntity.v = NewVelocity;
+                NewEntity.s = NewSize;
+                NewEntity.c = NewColor;
+                GameState->Entities[GameState->EntityCount] = NewEntity;
+                GameState->ControllerMap.controllers[0] =
+                    &GameState->Entities[GameState->EntityCount];
+                GameState->CameraTrack = &GameState->Entities[GameState->EntityCount];
+                GameState->EntityCount++;
+                GameState->Camera.pos = NewEntity.p;
+  }
   }
 
   {
@@ -497,8 +525,17 @@ bool GameUpdateAndRender(thread_context *Context, game_memory *Memory,
       if (Controller->isAnalog) {
         NewVelocity.x = Controller->AverageStickX;
         NewVelocity.y = -Controller->AverageStickY;
+
+        if (NewVelocity.x != 0 || NewVelocity.y != 0) {
+          real32 Speed = sqrtf(NewVelocity.x * NewVelocity.x +
+                               NewVelocity.y * NewVelocity.y);
+
+          NewVelocity.x /= Speed;
+          NewVelocity.y /= Speed;
+        }
       } else {
         if (Controller->MoveLeft.EndedDown) {
+
           NewVelocity.x -= 1;
         }
         if (Controller->MoveRight.EndedDown) {
@@ -872,10 +909,15 @@ bool GameUpdateAndRender(thread_context *Context, game_memory *Memory,
   real32 PaddingH = (real32)min(10, RenderBuffer->Viewport.Width / 2);
   real32 PaddingV = (real32)min(10, RenderBuffer->Viewport.Height / 2);
   render_color_rgba RectColor = {0.0f, 0.0f, 0.0f, 0.5f};
-  PushRect(RenderBuffer, RenderBuffer->Viewport.Inset.Left,
+  PushRect(RenderBuffer,
+      RenderBuffer->Viewport.Inset.Style & RenderViewportInsetStyleVirtualLeft ? 0 :
+      RenderBuffer->Viewport.Inset.Left,
+      RenderBuffer->Viewport.Inset.Style & RenderViewportInsetStyleVirtualTop ? 0 :
            RenderBuffer->Viewport.Inset.Top,
            (real32)RenderBuffer->Viewport.Width -
-               RenderBuffer->Viewport.Inset.Right,
+           (
+               RenderBuffer->Viewport.Inset.Style & RenderViewportInsetStyleVirtualRight ? 0 :
+               RenderBuffer->Viewport.Inset.Right),
            (real32)min(RenderBuffer->Viewport.Inset.Top + 64,
                        (int32)RenderBuffer->Viewport.Height -
                            RenderBuffer->Viewport.Inset.Bottom),

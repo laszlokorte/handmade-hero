@@ -78,6 +78,37 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
         metalView.device = MTLCreateSystemDefaultDevice()
         metalView.enableSetNeedsDisplay = false
         metalView.isPaused = false
+        let circleSize: CGFloat = metalView.bounds.width * 0.3
+
+        let circleView = CircleOverlayView()
+
+        circleView.onStick = { p in
+            self.GameInput.Controllers.0.isAnalog = true
+            if let (x,y) = p {
+                self.GameInput.Controllers.0.AverageStickX = x
+                self.GameInput.Controllers.0.AverageStickY = -y
+            } else {
+                self.GameInput.Controllers.0.AverageStickX = 0
+                self.GameInput.Controllers.0.AverageStickY = 0
+            }
+        }
+        circleView.translatesAutoresizingMaskIntoConstraints = false
+
+        metalView.addSubview(circleView)
+
+        NSLayoutConstraint.activate([
+            circleView.widthAnchor.constraint(equalToConstant: circleSize),
+            circleView.heightAnchor.constraint(equalToConstant: circleSize),
+
+            circleView.trailingAnchor.constraint(
+                equalTo: metalView.safeAreaLayoutGuide.trailingAnchor,
+                constant: -16
+            ),
+            circleView.bottomAnchor.constraint(
+                equalTo: metalView.safeAreaLayoutGuide.bottomAnchor,
+                constant: -16
+            )
+        ])
 
         guard let device = metalView.device else { return false }
         let library = try! device.makeDefaultLibrary(bundle: Bundle.main)
@@ -117,6 +148,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MTKViewDelegate {
         var CurrentInput = GameInput
 
         PlatformState.RenderBuffer.Count = 0
+
+        PlatformState.RenderBuffer.Viewport.Inset.Style = RenderViewportInsetStyleVirtualTop;
+        PlatformState.RenderBuffer.Viewport.Inset.Left = UInt32(metalView.safeAreaInsets.left * metalView.contentScaleFactor);
+        PlatformState.RenderBuffer.Viewport.Inset.Right = UInt32(metalView.safeAreaInsets.right * metalView.contentScaleFactor);
+        PlatformState.RenderBuffer.Viewport.Inset.Top = UInt32(metalView.safeAreaInsets.top * metalView.contentScaleFactor);
+        PlatformState.RenderBuffer.Viewport.Inset.Bottom = UInt32(metalView.safeAreaInsets.bottom * metalView.contentScaleFactor);
+
+
+        CurrentInput.DeltaTime = 0.01;
         GameUpdateAndRender(&Context, &GameMemory, &CurrentInput, &PlatformState.RenderBuffer)
         withUnsafeTemporaryAllocation(of: Int16.self, capacity: 100) { buffer in
             if let b = buffer.baseAddress {
@@ -250,10 +290,9 @@ func iOsSetupGameMemory(PlatformState: inout ios_state, GameMemory: inout game_m
     GameMemory.DebugPlatformFreeFileMemory = iOSDebugPlatformFreeFileMemory
     GameMemory.DebugPlatformReadEntireFile = iOSDebugPlatformReadEntireFile
     GameMemory.DebugPlatformWriteEntireFile = iOSDebugPlatformWriteEntireFile
-    
+
 
     GameMemory.PlatformPushTaskToQueue = iOSPlatformPushTaskToQueue
     GameMemory.PlatformWaitForQueueToFinish = iOSPlatformWaitForQueueToFinish
 
 }
-

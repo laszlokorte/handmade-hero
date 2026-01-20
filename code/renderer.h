@@ -8,11 +8,20 @@ typedef struct loaded_bitmap {
   uint32 *Memory;
 } loaded_bitmap;
 
+typedef enum render_viewport_inset_style {
+    RenderViewportInsetStyleVirtualTop = 1,
+    RenderViewportInsetStyleVirtualRight = 2,
+    RenderViewportInsetStyleVirtualBottom = 4,
+    RenderViewportInsetStyleVirtualLeft = 8,
+} render_viewport_inset_style;
+
 typedef struct render_viewport_inset {
   uint32 Top;
   uint32 Right;
   uint32 Bottom;
   uint32 Left;
+
+  render_viewport_inset_style Style;
 } render_viewport_inset;
 
 typedef struct render_viewport {
