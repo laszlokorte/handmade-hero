@@ -210,24 +210,28 @@ void scroll_wheel(float x, float y) {
 }
 
 void touch_finger_begin(int finger, int x, int y) {
+  int FingerPerHand = ArrayCount(state.GameInputs[0].Hands[0].Fingers);
   game_finger_input *Finger = &state.GameInputs[state.CurrentGameInputIndex]
-                                   .Hands[finger / 2]
-                                   .Fingers[finger % 5];
+                                   .Hands[finger / FingerPerHand]
+                                   .Fingers[finger % FingerPerHand];
   Finger->TipX = x;
   Finger->TipY = y;
   Finger->Touches = true;
 }
 void touch_finger_move(int finger, int x, int y) {
+
+  int FingerPerHand = ArrayCount(state.GameInputs[0].Hands[0].Fingers);
   game_finger_input *Finger = &state.GameInputs[state.CurrentGameInputIndex]
-                                   .Hands[finger / 2]
-                                   .Fingers[finger % 5];
+                                   .Hands[finger / FingerPerHand]
+                                   .Fingers[finger % FingerPerHand];
   Finger->TipX = x;
   Finger->TipY = y;
 }
 void touch_finger_end(int finger) {
+  int FingerPerHand = ArrayCount(state.GameInputs[0].Hands[0].Fingers);
   game_finger_input *Finger = &state.GameInputs[state.CurrentGameInputIndex]
-                                   .Hands[finger / 2]
-                                   .Fingers[finger % 5];
+                                   .Hands[finger / FingerPerHand]
+                                   .Fingers[finger % FingerPerHand];
   Finger->Touches = false;
 }
 

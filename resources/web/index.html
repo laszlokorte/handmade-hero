@@ -495,6 +495,7 @@
                     evt.preventDefault();
                     for (let t of evt.changedTouches) {
                         const finger = fingers.allocIndex(t.identifier);
+
                         instance.exports.touch_finger_begin(
                             finger,
                             t.clientX * window.devicePixelRatio,
@@ -887,7 +888,7 @@
                         // layout: x, y, r, g, b
                         let v = 0;
                         for (let r = 0; r < render_commands.length; r += 11) {
-                            if (v > verts.length - 32) {
+                            if (v >= verts.length - 32) {
                                 gl.bufferSubData(gl.ARRAY_BUFFER, 0, verts);
                                 gl.drawArrays(
                                     gl.TRIANGLES,
