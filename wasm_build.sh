@@ -15,7 +15,7 @@ clang \
   -matomics \
   -pthread \
   -mthread-model posix \
-    -mbulk-memory \
+  -mbulk-memory \
   -Wl,--no-entry \
   -Wl,--export-all \
   -Wl,--import-memory \

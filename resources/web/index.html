@@ -31,6 +31,7 @@
         <div class="app">
             <div class="grid" id="handmadeGrid">
                 <canvas id="handmadeCanvas" width="800" height="600"></canvas>
+                <canvas id="handmadeCanvasGl" width="800" height="600"></canvas>
                 <svg
                     id="handmadeSvg"
                     viewBox="-150 -150 300 300"
@@ -87,7 +88,6 @@
                                     <input
                                         type="checkbox"
                                         id="handmadeOptionCanvas"
-                                        checked
                                     />
                                     Render Canvas
                                 </label>
@@ -102,6 +102,7 @@
                                 <label>
                                     <input
                                         type="checkbox"
+                                        checked
                                         id="handmadeOptionWebGl"
                                     />
                                     Render WebGL
@@ -345,6 +346,10 @@
                         window.devicePixelRatio * handmadeCanvas.clientWidth;
                     handmadeCanvas.height =
                         window.devicePixelRatio * handmadeCanvas.clientHeight;
+                    handmadeCanvasGl.width =
+                        window.devicePixelRatio * handmadeCanvasGl.clientWidth;
+                    handmadeCanvasGl.height =
+                        window.devicePixelRatio * handmadeCanvasGl.clientHeight;
                     instance.exports.resize_viewport(
                         handmadeCanvas.width,
                         handmadeCanvas.height,
@@ -413,9 +418,43 @@
                             evt.clientX * window.devicePixelRatio,
                             evt.clientY * window.devicePixelRatio,
                         );
-                        instance.exports.mouse_button_press(evt.button);
+                        //instance.exports.mouse_button_press(evt.button);
                     }
                     const { audioCtx, gain, volume } = await audioCtxLazy();
+                });
+                handmadeCanvas.addEventListener("pointerup", (evt) => {
+                    if (evt.isPrimary) {
+                        instance.exports.mouse_move(
+                            evt.clientX * window.devicePixelRatio,
+                            evt.clientY * window.devicePixelRatio,
+                        );
+                        //instance.exports.mouse_button_release(evt.button);
+                    }
+                });
+
+                handmadeCanvas.addEventListener("mousedown", async (evt) => {
+                    evt.preventDefault();
+                    instance.exports.mouse_button_press(evt.button);
+                });
+                handmadeCanvas.addEventListener("mouseup", async (evt) => {
+                    evt.preventDefault();
+                    instance.exports.mouse_button_release(evt.button);
+                });
+                handmadeCanvas.addEventListener("pointerup", (evt) => {
+                    if (evt.isPrimary) {
+                        instance.exports.mouse_move(
+                            evt.clientX * window.devicePixelRatio,
+                            evt.clientY * window.devicePixelRatio,
+                        );
+                        //instance.exports.mouse_button_release(evt.button);
+                    }
+                });
+                handmadeCanvas.addEventListener("pointerleave", (evt) => {
+                    if (evt.isPrimary) {
+                        instance.exports.toggle_mouse(false);
+
+                        log("leave");
+                    }
                 });
 
                 const MAX_FINGERS = 10;
@@ -499,22 +538,6 @@
                                 t.clientY * window.devicePixelRatio,
                             );
                         }
-                    }
-                });
-                handmadeCanvas.addEventListener("pointerup", (evt) => {
-                    if (evt.isPrimary) {
-                        instance.exports.mouse_move(
-                            evt.clientX * window.devicePixelRatio,
-                            evt.clientY * window.devicePixelRatio,
-                        );
-                        instance.exports.mouse_button_release(evt.button);
-                    }
-                });
-                handmadeCanvas.addEventListener("pointerleave", (evt) => {
-                    if (evt.isPrimary) {
-                        instance.exports.toggle_mouse(false);
-
-                        log("leave");
                     }
                 });
                 handmadeStick.addEventListener("pointerdown", (evt) => {
@@ -698,6 +721,84 @@
                     );
                 });
                 const drawCtx = handmadeCanvas.getContext("2d");
+                const gl = handmadeCanvasGl.getContext("webgl", {
+                    alpha: true,
+                    premultipliedAlpha: false,
+                });
+                if (!gl) {
+                    handmadeOptionWebGl.checked = false;
+                    handmadeOptionCanvas.checked = true;
+                    handmadeOptionWebGl.disabled = true;
+                }
+                gl.enable(gl.BLEND);
+                gl.blendFuncSeparate(
+                    gl.SRC_ALPHA,
+                    gl.ONE_MINUS_SRC_ALPHA,
+                    gl.ONE,
+                    gl.ONE_MINUS_SRC_ALPHA,
+                );
+                const vs = `
+                attribute vec2 a_pos;
+                attribute vec4 a_color;
+                uniform vec2 u_resolution;
+                varying vec4 v_color;
+
+                void main() {
+                  vec2 zeroToOne = a_pos / u_resolution;
+                  vec2 clip = zeroToOne * 2.0 - 1.0;
+                  gl_Position = vec4(clip * vec2(1, -1), 0, 1);
+                  v_color = a_color;
+                }
+                `;
+
+                const fs = `
+                precision mediump float;
+                varying vec4 v_color;
+                void main() {
+                  gl_FragColor = vec4(v_color);
+                }
+                `;
+
+                function shader(type, src) {
+                    const s = gl.createShader(type);
+                    gl.shaderSource(s, src);
+                    gl.compileShader(s);
+                    return s;
+                }
+
+                const prog = gl.createProgram();
+                gl.attachShader(prog, shader(gl.VERTEX_SHADER, vs));
+                gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, fs));
+                gl.linkProgram(prog);
+                gl.useProgram(prog);
+
+                const posLoc = gl.getAttribLocation(prog, "a_pos");
+                const colLoc = gl.getAttribLocation(prog, "a_color");
+                const resLoc = gl.getUniformLocation(prog, "u_resolution");
+
+                const stride = 6 * 4;
+                const buf = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+                const MAX_BUFFER_LENGTH = 10000;
+                gl.bufferData(
+                    gl.ARRAY_BUFFER,
+                    MAX_BUFFER_LENGTH * 4,
+                    gl.DYNAMIC_DRAW,
+                );
+
+                gl.enableVertexAttribArray(posLoc);
+                gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, stride, 0);
+
+                gl.enableVertexAttribArray(colLoc);
+                gl.vertexAttribPointer(
+                    colLoc,
+                    4,
+                    gl.FLOAT,
+                    false,
+                    stride,
+                    2 * 4,
+                );
+
                 drawCtx.fillStyle = "#fed";
                 drawCtx.fillRect(
                     0,
@@ -763,6 +864,152 @@
                         handmadeCanvas.width,
                         handmadeCanvas.height,
                     );
+                    const dpr = window.devicePixelRatio || 1;
+                    const w = (handmadeCanvasGl.clientWidth * dpr) | 0;
+                    const h = (handmadeCanvasGl.clientHeight * dpr) | 0;
+
+                    gl.viewport(0, 0, w, h);
+                    gl.clearColor(0, 0, 0, 0);
+
+                    gl.uniform2f(resLoc, gl.canvas.width, gl.canvas.height);
+                    gl.clear(
+                        gl.COLOR_BUFFER_BIT |
+                            gl.DEPTH_BUFFER_BIT |
+                            gl.STENCIL_BUFFER_BIT,
+                    );
+                    if (handmadeOptionWebGl.checked) {
+                        const verts = new Float32Array(
+                            Math.min(
+                                render_commands.length * 36,
+                                MAX_BUFFER_LENGTH,
+                            ),
+                        );
+                        // layout: x, y, r, g, b
+                        let v = 0;
+                        for (let r = 0; r < render_commands.length; r += 11) {
+                            if (v > verts.length - 32) {
+                                gl.bufferSubData(gl.ARRAY_BUFFER, 0, verts);
+                                gl.drawArrays(
+                                    gl.TRIANGLES,
+                                    0,
+                                    (v / stride) * 4,
+                                );
+                                v = 0;
+                            }
+                            const type = render_commands_int[r + 0];
+                            switch (type) {
+                                case 0:
+                                    {
+                                        const minX = Math.round(
+                                            render_commands[r + 1],
+                                        );
+                                        const minY = Math.round(
+                                            render_commands[r + 2],
+                                        );
+                                        const maxX = Math.round(
+                                            render_commands[r + 3],
+                                        );
+                                        const maxY = Math.round(
+                                            render_commands[r + 4],
+                                        );
+                                        const colorR = render_commands[r + 5];
+                                        const colorG = render_commands[r + 6];
+                                        const colorB = render_commands[r + 7];
+                                        const colorA = render_commands[r + 8];
+
+                                        verts[v++] = minX;
+                                        verts[v++] = minY;
+                                        verts[v++] = colorR;
+                                        verts[v++] = colorG;
+                                        verts[v++] = colorB;
+                                        verts[v++] = colorA;
+                                        verts[v++] = minX;
+                                        verts[v++] = maxY;
+                                        verts[v++] = colorR;
+                                        verts[v++] = colorG;
+                                        verts[v++] = colorB;
+                                        verts[v++] = colorA;
+                                        verts[v++] = maxX;
+                                        verts[v++] = maxY;
+                                        verts[v++] = colorR;
+                                        verts[v++] = colorG;
+                                        verts[v++] = colorB;
+                                        verts[v++] = colorA;
+
+                                        verts[v++] = minX;
+                                        verts[v++] = minY;
+                                        verts[v++] = colorR;
+                                        verts[v++] = colorG;
+                                        verts[v++] = colorB;
+                                        verts[v++] = colorA;
+                                        verts[v++] = maxX;
+                                        verts[v++] = maxY;
+                                        verts[v++] = colorR;
+                                        verts[v++] = colorG;
+                                        verts[v++] = colorB;
+                                        verts[v++] = colorA;
+                                        verts[v++] = maxX;
+                                        verts[v++] = minY;
+                                        verts[v++] = colorR;
+                                        verts[v++] = colorG;
+                                        verts[v++] = colorB;
+                                        verts[v++] = colorA;
+                                    }
+                                    break;
+
+                                case 1:
+                                    {
+                                        const ax = Math.round(
+                                            render_commands[r + 1],
+                                        );
+                                        const ay = Math.round(
+                                            render_commands[r + 2],
+                                        );
+                                        const bx = Math.round(
+                                            render_commands[r + 3],
+                                        );
+                                        const by = Math.round(
+                                            render_commands[r + 4],
+                                        );
+                                        const cx = Math.round(
+                                            render_commands[r + 5],
+                                        );
+                                        const cy = Math.round(
+                                            render_commands[r + 6],
+                                        );
+                                        const colorR = render_commands[r + 7];
+                                        const colorG = render_commands[r + 8];
+                                        const colorB = render_commands[r + 9];
+                                        const colorA = render_commands[r + 10];
+
+                                        verts[v++] = ax;
+                                        verts[v++] = ay;
+                                        verts[v++] = colorR;
+                                        verts[v++] = colorG;
+                                        verts[v++] = colorB;
+                                        verts[v++] = colorA;
+                                        verts[v++] = bx;
+                                        verts[v++] = by;
+                                        verts[v++] = colorR;
+                                        verts[v++] = colorG;
+                                        verts[v++] = colorB;
+                                        verts[v++] = colorA;
+                                        verts[v++] = cx;
+                                        verts[v++] = cy;
+                                        verts[v++] = colorR;
+                                        verts[v++] = colorG;
+                                        verts[v++] = colorB;
+                                        verts[v++] = colorA;
+                                    }
+                                    break;
+                                default: {
+                                }
+                            }
+                        }
+
+                        gl.bufferSubData(gl.ARRAY_BUFFER, 0, verts);
+                        gl.drawArrays(gl.TRIANGLES, 0, (v / stride) * 4);
+                    }
 
                     if (handmadeOptionCanvas.checked) {
                         //  drawCtx.save();
@@ -1115,266 +1362,272 @@
                     iconImage.src = splashHref;
                 })();
             </script>
-            <style>
-                body {
-                    accent-color: deeppink;
-                    font-family: monospace;
-                    margin: 0;
-                    user-select: none;
-                }
-                header {
-                    display: flex;
-                    gap: 1ex;
-                    flex-direction: column;
-                    color: #fff;
-                    background-color: #333a;
-                    padding: 1em;
-                    grid-column: 1 / -1;
-                }
-                header > p {
-                    margin: 0;
-                }
-                h1 > img {
-                    width: 1em;
-                    height: 1em;
-                    vertical-align: middle;
-                    margin: 0;
-                }
-                h1 {
-                    grid-column: 1 / -1;
-                    grid-row: 1 / span 1;
-                    margin: 0;
-                    display: flex;
-                    gap: 0.75ex;
-                    align-items: center;
-                }
-                h2 {
-                    margin: 0;
-                }
-                .app {
-                    padding: 2em;
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1em;
-                }
-                .grid {
-                    position: absolute;
-                    z-index: 0;
-                    top: 0;
-                    bottom: 0;
-                    left: 0;
-                    right: 0;
-                    display: grid;
-                    grid-template-columns: auto;
-                    grid-template-rows: auto;
-                    gap: 1em;
-                    justify-content: stretch;
-                    align-items: stretch;
-                    height: 100%;
-                    width: 100%;
-                    height: 100vh;
-                    width: 100vw;
-                    box-sizing: border-box;
-                    overflow: auto;
-                    touch-action: manipulation;
-                    scroll-behavior: smooth;
-                    overscroll-behavior: contain;
-                    scrollbar-gutter: thin;
-                    padding: env(safe-area-inset-top) env(safe-area-inset-right)
-                        env(safe-area-inset-bottom) env(safe-area-inset-left);
-                }
-                .grid-inner {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    grid-auto-flow: column;
-                    grid-template-rows: auto 1fr;
-                    justify-content: space-between;
-                    align-items: start;
-                    pointer-events: none;
-                    box-sizing: border-box;
-                    padding: 1ex;
-                    z-index: 10;
-                }
-                .grid-inner > * {
-                    pointer-events: all;
-                    touch-action: manipulation;
-                }
-                .loading {
-                    opacity: 0.1;
-                }
-                section {
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: stretch;
-                    flex-grow: 1;
-                }
-                pre {
-                    background-color: #111a;
-                    color: #fff;
-                    padding: 1em;
-                    margin: 0;
-                    flex-grow: 1;
-                }
-                canvas {
-                    background-color: lemonchiffon;
-                }
-                summary {
-                    padding: 1em;
-                    cursor: pointer;
-                    background-color: #eee;
-                    user-select: none;
-                }
-                .scroller {
-                    max-height: 30vh;
-                    overflow: auto;
-                }
-                label {
-                    display: flex;
-                    align-items: center;
-                    gap: 1ex;
-                    justify-content: start;
-                    justify-self: start;
-                    background-color: #333a;
-                    color: #fff;
-                    padding: 0.5ex 1.5em 0.5ex 1.5ex;
-                    user-select: none;
-                }
-                label:has([type="range"]) {
-                    flex-grow: 1;
-                }
-                button {
-                    background-color: #111;
-                    color: #fff;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 1ex;
-                    font: inherit;
-                    cursor: pointer;
-                }
-                button:hover {
-                    background-color: #333;
-                }
-
-                button:active {
-                    background-color: #000;
-                    color: #eee;
-                }
-                input[type="range"] {
-                    margin: 0;
-                    flex-grow: 1;
-                    padding: 1.5ex 0;
-                }
-
-                input[type="checkbox"] {
-                    height: 2em;
-                }
-                fieldset {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 1ex;
-                    padding: 0;
-                    margin: 0 0 1ex;
-                    border: none;
-                    justify-self: end;
-                }
-                .controls {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 1em;
-                    justify-content: start;
-                    flex-grow: 1;
-                }
-                html,
-                body {
-                    margin: 0;
-                    padding: 0;
-                    width: 100%;
-                    height: 100%;
-                    overflow: hidden;
-                    overscroll-behavior: none;
-                }
-                canvas {
-                    position: absolute;
-                    display: block;
-                    margin: 0;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    width: 100%;
-                    height: 100%;
-                    width: 100vw;
-                    height: 100vh;
-                    touch-action: none;
-                }
-                .panel {
-                    align-self: end;
-                }
-                .log h2 {
-                    background-color: #111;
-                    color: #fff;
-                    font-size: 1em;
-                    padding: 1ex;
-                }
-                summary {
-                    background-color: #111;
-                    color: #fff;
-                }
-
-                details > div {
-                    padding: 1em;
-                    background-color: #f0f0f0;
-                }
-                kbd {
-                    background-color: #ddd;
-                    border: 1px solid #ccc;
-                    color: #000;
-                    border-radius: 3px;
-                    padding: 2px 4px;
-                    display: inline-block;
-                }
-                a {
-                    color: inherit;
-                }
-                .stick {
-                    display: block;
-                    position: fixed;
-                    width: 200px;
-                    height: 200px;
-                    bottom: 0;
-                    right: 0;
-                    cursor: move;
-                    opacity: 0.5;
-                    touch-action: none;
-                    z-index: 10;
-                    margin-right: env(safe-area-inset-right);
-                    margin-bottom: env(safe-area-inset-bottom);
-                }
-                .stick.active {
-                    pointer-events: none;
-                    opacity: 1;
-                }
-
-                .svg-render {
-                    position: absolute;
-                    pointer-events: none;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    width: 100%;
-                    height: 100%;
-                    width: 100vw;
-                    height: 100vh;
-                    touch-action: none;
-                }
-                :root {
-                    --safe-top: env(safe-area-inset-top);
-                    --safe-bottom: env(safe-area-inset-bottom);
-                    --safe-left: env(safe-area-inset-left);
-                    --safe-right: env(safe-area-inset-right);
-                }
-            </style>
         </div>
+        <style>
+            body {
+                accent-color: deeppink;
+                font-family: monospace;
+                margin: 0;
+                user-select: none;
+            }
+            header {
+                display: flex;
+                gap: 1ex;
+                flex-direction: column;
+                color: #fff;
+                background-color: #333a;
+                padding: 1em;
+                grid-column: 1 / -1;
+            }
+            header > p {
+                margin: 0;
+            }
+            h1 > img {
+                width: 1em;
+                height: 1em;
+                vertical-align: middle;
+                margin: 0;
+            }
+            h1 {
+                grid-column: 1 / -1;
+                grid-row: 1 / span 1;
+                margin: 0;
+                display: flex;
+                gap: 0.75ex;
+                align-items: center;
+            }
+            h2 {
+                margin: 0;
+            }
+            .app {
+                padding: 2em;
+                display: flex;
+                flex-direction: column;
+                gap: 1em;
+            }
+            canvas + canvas {
+                pointer-events: none;
+            }
+            .grid {
+                position: absolute;
+                background-color: lemonchiffon;
+                z-index: 0;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                display: grid;
+                grid-template-columns: auto;
+                grid-template-rows: auto;
+                gap: 1em;
+                justify-content: stretch;
+                align-items: stretch;
+                height: 100%;
+                width: 100%;
+                height: 100vh;
+                width: 100vw;
+                box-sizing: border-box;
+                overflow: auto;
+                touch-action: manipulation;
+                scroll-behavior: smooth;
+                overscroll-behavior: contain;
+                scrollbar-gutter: thin;
+                padding: env(safe-area-inset-top) env(safe-area-inset-right)
+                    env(safe-area-inset-bottom) env(safe-area-inset-left);
+            }
+            .grid-inner {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                grid-auto-flow: column;
+                grid-template-rows: auto 1fr;
+                justify-content: space-between;
+                align-items: start;
+                pointer-events: none;
+                box-sizing: border-box;
+                padding: 1ex;
+                z-index: 10;
+            }
+            .grid-inner > * {
+                pointer-events: all;
+                touch-action: manipulation;
+            }
+            .loading {
+                opacity: 0.1;
+            }
+            section {
+                display: flex;
+                flex-direction: column;
+                justify-content: stretch;
+                flex-grow: 1;
+            }
+            pre {
+                background-color: #111a;
+                color: #fff;
+                padding: 1em;
+                margin: 0;
+                flex-grow: 1;
+            }
+            summary {
+                padding: 1em;
+                cursor: pointer;
+                background-color: #eee;
+                user-select: none;
+            }
+            .scroller {
+                max-height: 30vh;
+                overflow: auto;
+            }
+            label {
+                display: flex;
+                align-items: center;
+                gap: 1ex;
+                justify-content: start;
+                justify-self: start;
+                background-color: #333a;
+                color: #fff;
+                padding: 0.5ex 1.5em 0.5ex 1.5ex;
+                user-select: none;
+            }
+            label:has([type="range"]) {
+                flex-grow: 1;
+            }
+            button {
+                background-color: #111;
+                color: #fff;
+                border: none;
+                border-radius: 4px;
+                padding: 1ex;
+                font: inherit;
+                cursor: pointer;
+            }
+            button:hover {
+                background-color: #333;
+            }
+
+            button:active {
+                background-color: #000;
+                color: #eee;
+            }
+            input[type="range"] {
+                margin: 0;
+                flex-grow: 1;
+                padding: 1.5ex 0;
+            }
+
+            input[type="checkbox"] {
+                height: 2em;
+            }
+            fieldset {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 1ex;
+                padding: 0;
+                margin: 0 0 1ex;
+                border: none;
+                justify-self: end;
+            }
+            .controls {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 1em;
+                justify-content: start;
+                flex-grow: 1;
+            }
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                overscroll-behavior: none;
+            }
+            canvas {
+                position: absolute;
+                display: block;
+                margin: 0;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                height: 100%;
+                width: 100vw;
+                height: 100vh;
+                touch-action: none;
+            }
+            .panel {
+                align-self: end;
+            }
+            .log h2 {
+                background-color: #111;
+                color: #fff;
+                font-size: 1em;
+                padding: 1ex;
+            }
+            summary {
+                background-color: #111;
+                color: #fff;
+            }
+            details {
+                margin-bottom: 1px;
+            }
+
+            details::details-content {
+                background-color: #f0f0f0;
+            }
+            details[open]::details-content {
+                padding: 1em;
+            }
+            kbd {
+                background-color: #ddd;
+                border: 1px solid #ccc;
+                color: #000;
+                border-radius: 3px;
+                padding: 2px 4px;
+                display: inline-block;
+            }
+            a {
+                color: inherit;
+            }
+            .stick {
+                display: block;
+                position: fixed;
+                width: 200px;
+                height: 200px;
+                bottom: 0;
+                right: 0;
+                cursor: move;
+                opacity: 0.5;
+                touch-action: none;
+                z-index: 10;
+                margin-right: env(safe-area-inset-right);
+                margin-bottom: env(safe-area-inset-bottom);
+            }
+            .stick.active {
+                pointer-events: none;
+                opacity: 1;
+            }
+
+            .svg-render {
+                position: absolute;
+                pointer-events: none;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                height: 100%;
+                width: 100vw;
+                height: 100vh;
+                touch-action: none;
+            }
+            :root {
+                --safe-top: env(safe-area-inset-top);
+                --safe-bottom: env(safe-area-inset-bottom);
+                --safe-left: env(safe-area-inset-left);
+                --safe-right: env(safe-area-inset-right);
+            }
+        </style>
     </body>
 </html>
