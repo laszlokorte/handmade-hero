@@ -15,6 +15,11 @@
         <meta name="apple-mobile-web-app-title" content="Handmade Hero" />
         <link rel="icon" href="favicon.svg" data-padding="20" />
         <title>Handmade Hero</title>
+        <style>
+            body {
+                opacity: 0;
+            }
+        </style>
     </head>
     <body>
         <svg id="handmadeStick" viewBox="-150 -150 300 300" class="stick">
@@ -138,7 +143,7 @@
                             <summary>Buttons</summary>
                             <div id="handmadeVirtualButtons">
                                 <fieldset>
-                                    <label>Mouse</label>
+                                    <legend>Mouse</legend>
                                     <div class="controls">
                                         <button data-mouse-button="0">
                                             Left
@@ -158,7 +163,7 @@
                                     </div>
                                 </fieldset>
                                 <fieldset>
-                                    <label>Controller #0</label>
+                                    <legend>Controller #0</legend>
                                     <div class="controls">
                                         <button data-controller-button="0">
                                             MoveUp
@@ -1366,6 +1371,7 @@
         </div>
         <style>
             body {
+                opacity: 1;
                 accent-color: deeppink;
                 font-family: monospace;
                 margin: 0;
@@ -1527,6 +1533,9 @@
                 border: none;
                 justify-self: end;
             }
+            legend {
+                padding: 1ex;
+            }
             .controls {
                 display: flex;
                 flex-wrap: wrap;
@@ -1572,14 +1581,25 @@
             }
             details {
                 margin-bottom: 1px;
-            }
-
-            details::details-content {
                 background-color: #f0f0f0;
             }
-            details[open]::details-content {
-                padding: 1em;
+
+            details > div {
+                margin: 1ex;
             }
+            @supports (: : details-content) {
+                details > div {
+                    margin: 0;
+                }
+
+                details::details-content {
+                    background-color: #f0f0f0;
+                }
+                details[open]::details-content {
+                    padding: 1em;
+                }
+            }
+
             kbd {
                 background-color: #ddd;
                 border: 1px solid #ccc;
