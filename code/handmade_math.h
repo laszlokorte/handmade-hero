@@ -6,7 +6,7 @@
 #define sinf(x) handmade_sinf(x)
 #define powf(x, y) powf_approx(x, y)
 #define sqrtf(x) powf_approx(x, 0.5)
-inline real32 fmodf(real32 x, real32 y) {
+internal inline real32 fmodf(real32 x, real32 y) {
   if (y == 0.0f)
     return 0.0f; // undefined in C, pick something
 
